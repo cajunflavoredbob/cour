@@ -34,13 +34,13 @@ describe('Tutorial', () => {
     render(<Tutorial />);
     fireEvent.click(screen.getByText('got it, deal me in'));
     expect(dispatch).toHaveBeenCalledWith({ type: 'tutorial', payload: { open: false } });
-    expect(localStorage.getItem('courTutorialSeen')).toBe('1');
+    expect(localStorage.getItem('courTutorialSeenV2')).toBe('1');
   });
 
   it('Escape counts as seen too -- it must not come back next login', () => {
     render(<Tutorial />);
     fireEvent.keyDown(window, { key: 'Escape' });
     expect(dispatch).toHaveBeenCalledWith({ type: 'tutorial', payload: { open: false } });
-    expect(localStorage.getItem('courTutorialSeen')).toBe('1');
+    expect(localStorage.getItem('courTutorialSeenV2')).toBe('1');
   });
 });

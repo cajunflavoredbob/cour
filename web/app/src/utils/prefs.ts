@@ -8,7 +8,12 @@
 const NAME_KEY = "courName";
 const ROOM_KEY = "courRoom";
 const SOUND_KEY = "courAutoplaySound";
-const TUTORIAL_KEY = "courTutorialSeen";
+// V2 (1.1.2): the 1.1.0 build mistimed the tutorial over the join form,
+// and dismissing THAT stored the old key -- so the properly-timed 1.1.1
+// version never showed on any browser that saw the broken one. The key
+// bump gives every such browser one correct showing. The old key is
+// left behind, harmless.
+const TUTORIAL_KEY = "courTutorialSeenV2";
 
 export const getStoredName = (): string | undefined =>
   localStorage.getItem(NAME_KEY) ?? undefined;

@@ -420,7 +420,7 @@ describe('first-run tutorial trigger', () => {
   });
 
   it('stays closed once the seen-flag exists', async () => {
-    localStore.set('courTutorialSeen', '1');
+    localStore.set('courTutorialSeenV2', '1');
     const mod = await loadCreateStore();
     mod.createStore();
     // biome-ignore lint/suspicious/noExplicitAny: test setup shortcut.

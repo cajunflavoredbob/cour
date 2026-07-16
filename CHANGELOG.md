@@ -13,6 +13,14 @@ repository; this changelog starts fresh at 0.1.0.
 
 ---
 
+## [1.1.2] - 2026-07-16
+
+### Fixed
+- Browsers that dismissed the mistimed 1.1.0 tutorial never got the
+  properly-timed one: the dismissal had already stored the seen-flag.
+  The flag key is bumped so every such browser gets one correct showing
+  on its next room join.
+
 ## [1.1.1] - 2026-07-16
 
 ### Fixed
