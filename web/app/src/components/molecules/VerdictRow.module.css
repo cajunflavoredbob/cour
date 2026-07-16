@@ -1,0 +1,160 @@
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding-top: 8px;
+}
+
+/* Press feedback: a slight compress under the finger. */
+.dislikeBtn:active,
+.skipBtn:active,
+.likeBtn:active {
+  transform: scale(0.95);
+}
+
+.dislikeBtn,
+.skipBtn,
+.likeBtn {
+  transition: transform 100ms ease;
+  flex: 1;
+  max-width: 116px;
+  height: 52px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border-radius: 999px;
+  font-family: var(--cour-font-ui);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.dislikeBtn {
+  background: var(--cour-bg-2);
+  border: 1px solid var(--cour-line-strong);
+  color: var(--cour-text-0);
+  font-weight: 600;
+}
+
+.dislikeBtn svg {
+  color: var(--cour-negative);
+}
+
+.skipBtn {
+  position: relative;
+  overflow: hidden;
+  background: transparent;
+  border: none;
+  color: var(--cour-text-2);
+  font-weight: 600;
+}
+
+/* Hold-to-skip-all: a ghost pill fades in under the finger, then the
+   accent-soft fill sweeps it for the 1.5s countdown (section 04). */
+.skipBtn[data-holding="true"] {
+  background: var(--cour-bg-2);
+  border: 1px solid var(--cour-line-strong);
+}
+
+.skipFill {
+  position: absolute;
+  inset: 0;
+  transform: scaleX(0);
+  transform-origin: left;
+  background: var(--cour-accent-soft);
+  pointer-events: none;
+}
+
+.skipBtn[data-holding="true"] .skipFill {
+  animation: cour-skip-sweep 1500ms linear forwards;
+}
+
+.skipLabel {
+  position: relative;
+}
+
+.likeBtn {
+  background: var(--cour-accent);
+  border: none;
+  color: white;
+  font-weight: 700;
+  box-shadow: 0 8px 24px -8px var(--cour-accent);
+}
+
+.likeBtn:hover,
+.dislikeBtn:hover {
+  filter: brightness(1.06);
+}
+
+@keyframes cour-skip-sweep {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+/* Re-review halo: marks the user's existing verdict while they
+   re-decide. Outline + breathing aura in each button's own color
+   family -- the about-to-go-super-saiyan treatment. */
+.likeBtn[data-current="true"] {
+  outline: 2px solid var(--cour-accent-bright);
+  outline-offset: 3px;
+  animation: cour-halo-accent 1600ms ease-in-out infinite;
+}
+
+.dislikeBtn[data-current="true"] {
+  outline: 2px solid var(--cour-negative);
+  outline-offset: 3px;
+  animation: cour-halo-clay 1600ms ease-in-out infinite;
+}
+
+.skipBtn[data-current="true"] {
+  outline: 2px solid var(--cour-text-2);
+  outline-offset: 3px;
+  border-radius: 999px;
+  animation: cour-halo-neutral 1600ms ease-in-out infinite;
+}
+
+@keyframes cour-halo-accent {
+  0%, 100% {
+    box-shadow:
+      0 0 14px 0 var(--cour-accent),
+      0 0 34px -4px var(--cour-accent);
+  }
+  50% {
+    box-shadow:
+      0 0 22px 2px var(--cour-accent-bright),
+      0 0 52px -2px var(--cour-accent);
+  }
+}
+
+@keyframes cour-halo-clay {
+  0%, 100% {
+    box-shadow:
+      0 0 14px 0 var(--cour-negative),
+      0 0 34px -6px var(--cour-negative);
+  }
+  50% {
+    box-shadow:
+      0 0 22px 2px var(--cour-negative),
+      0 0 48px -4px var(--cour-negative);
+  }
+}
+
+@keyframes cour-halo-neutral {
+  0%, 100% {
+    box-shadow: 0 0 12px -2px var(--cour-text-3);
+  }
+  50% {
+    box-shadow: 0 0 20px 0 var(--cour-text-3);
+  }
+}
+
+/* Powering up is a preference, not a requirement. */
+@media (prefers-reduced-motion: reduce) {
+  .likeBtn[data-current="true"],
+  .dislikeBtn[data-current="true"],
+  .skipBtn[data-current="true"] {
+    animation: none;
+    box-shadow: 0 0 20px 0 currentColor;
+  }
+}

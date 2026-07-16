@@ -1,0 +1,40 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>cour</Name>
+  <Repository>cajunflavoredbob/cour:latest</Repository>
+  <Registry>https://hub.docker.com/r/cajunflavoredbob/cour</Registry>
+  <Network>bridge</Network>
+  <MyIP/>
+  <Shell>sh</Shell>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/cajunflavoredbob/cour/issues</Support>
+  <Project>https://github.com/cajunflavoredbob/cour</Project>
+  <Overview>Pick a season of anime together. cour deals the current broadcast season as a deck -- everyone verdicts each title Keep, Pass, or Unsure at their own pace, locks in, then ranks their keeps; the room's combined standings decide what you watch. Seasonal data comes from AniList with no account or API key needed, rooms are simple shared names with no sign-up, and the deck rotates to the next season automatically one month before it airs. Optional: a TMDB API key adds screenshots to the details drawer, and HTTP Basic Auth gates the whole app if you expose it beyond your LAN.</Overview>
+  <Category>MediaApp:Video</Category>
+  <WebUI>http://[IP]:[PORT:8000]/</WebUI>
+  <TemplateURL>https://raw.githubusercontent.com/cajunflavoredbob/cour/main/deploy/unraid-template.xml</TemplateURL>
+  <Icon>https://raw.githubusercontent.com/cajunflavoredbob/cour/main/web/app/static/icons/icon-512.png</Icon>
+  <ExtraParams/>
+  <PostArgs/>
+  <CPUset/>
+  <DateInstalled/>
+  <DonateText/>
+  <DonateLink/>
+  <Requires/>
+
+  <!-- Required -->
+  <Config Name="Web UI Port" Target="8000" Default="8000" Mode="tcp" Description="Port to access the cour web interface." Type="Port" Display="always" Required="true" Mask="false">8000</Config>
+  <Config Name="Data" Target="/app/data" Default="/mnt/user/appdata/cour" Description="Where cour keeps the SQLite database (rooms, verdicts, rankings) and the cached season data. The container runs as uid 1000; if first boot fails with 'unable to open database file', chown this directory to 1000 on the host." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/cour</Config>
+
+  <!-- Optional -->
+  <Config Name="TMDB API Key" Target="TMDB_API_KEY" Default="" Description="Optional. Adds screenshots to each title's details drawer. A TMDB v3 API key or v4 read token both work; everything else runs without it." Type="Variable" Display="always" Required="false" Mask="true"></Config>
+
+  <!-- Advanced -->
+  <Config Name="Basic Auth Username" Target="AUTH_USER" Default="" Description="Enable HTTP Basic Auth by setting both a username and password. Strongly recommended if cour is reachable beyond your LAN -- rooms are gated only by knowledge of the room name. Leave blank to disable." Type="Variable" Display="advanced" Required="false" Mask="false"></Config>
+  <Config Name="Basic Auth Password" Target="AUTH_PASS" Default="" Description="HTTP Basic Auth password. Required if the username is set." Type="Variable" Display="advanced" Required="false" Mask="true"></Config>
+  <Config Name="Show Sequels" Target="ANIME_SHOW_SEQUELS" Default="false" Description="The deck hides sequels by default (the picker exists to find NEW shows). Set true to include them." Type="Variable" Display="advanced" Required="false" Mask="false">false</Config>
+  <Config Name="Pin Season" Target="ANIME_SEASON" Default="" Description="Pin the served season (WINTER, SPRING, SUMMER, or FALL) instead of following the broadcast calendar. Pinning disables the automatic season rotation -- leave blank for normal operation." Type="Variable" Display="advanced" Required="false" Mask="false"></Config>
+  <Config Name="Pin Year" Target="ANIME_YEAR" Default="" Description="Year for the pinned season, e.g. 2026. Like Pin Season, setting this disables automatic rotation." Type="Variable" Display="advanced" Required="false" Mask="false"></Config>
+  <Config Name="Log Level" Target="LOG_LEVEL" Default="INFO" Description="Logging verbosity: DEBUG, INFO, WARNING, ERROR, or CRITICAL." Type="Variable" Display="advanced" Required="false" Mask="false">INFO</Config>
+  <Config Name="Allowed Origins" Target="ALLOWED_ORIGINS" Default="" Description="Comma-separated extra WebSocket Origins to accept beyond same-origin. Only needed if a reverse proxy serves cour under an origin that differs from the container's Host header, e.g. https://cour.example.com." Type="Variable" Display="advanced" Required="false" Mask="false"></Config>
+</Container>

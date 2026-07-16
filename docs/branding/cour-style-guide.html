@@ -1,0 +1,457 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>cour · style guide</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&family=Shippori+Mincho:wght@500;600;700&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    /* ── surfaces ── */
+    --bg-0: oklch(0.15 0.01 85);
+    --bg-1: oklch(0.19 0.012 85);
+    --bg-2: oklch(0.24 0.014 85);
+    /* ── lines ── */
+    --line: oklch(1 0 0 / 0.08);
+    --line-strong: oklch(1 0 0 / 0.16);
+    /* ── text ── */
+    --text-0: oklch(0.97 0.008 85);
+    --text-1: oklch(0.77 0.012 85);
+    --text-2: oklch(0.6 0.012 85);
+    --text-3: oklch(0.48 0.012 85);
+    /* ── seasonal accents (fixed L/C, hue rotates per cour) ── */
+    --spring: oklch(0.75 0.12 350);
+    --summer: oklch(0.64 0.15 278);
+    --fall: oklch(0.68 0.15 55);
+    --winter: oklch(0.78 0.09 220);
+    /* current season */
+    --accent: var(--summer);
+    --accent-soft: oklch(0.64 0.15 278 / 0.16);
+    --accent-hi: oklch(0.75 0.13 278);
+    /* ── semantic ── */
+    --neg: oklch(0.62 0.13 35);
+    /* ── type ── */
+    --serif: "Shippori Mincho", serif;
+    --sans: "Geist", sans-serif;
+    --mono: "Geist Mono", monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg-0); color: var(--text-1);
+    font-family: var(--sans); font-size: 14px; line-height: 1.6;
+  }
+  a { color: var(--accent-hi); text-decoration: none; }
+  a:hover { color: var(--text-0); }
+
+  .page { max-width: 1080px; margin: 0 auto; padding: 72px 40px 120px; }
+
+  /* header */
+  .masthead { display: flex; align-items: center; justify-content: space-between; padding-bottom: 36px; border-bottom: 1px solid var(--line-strong); }
+  .masthead .lockup { display: flex; align-items: center; gap: 16px; }
+  .masthead .word { font-family: var(--serif); font-weight: 600; font-size: 40px; color: var(--text-0); }
+  .masthead .meta { font-family: var(--mono); font-size: 11px; letter-spacing: 0.14em; color: var(--text-3); text-transform: uppercase; text-align: right; line-height: 1.9; }
+
+  /* sections */
+  section { padding-top: 64px; }
+  h2 {
+    font-family: var(--serif); font-weight: 600; font-size: 30px; color: var(--text-0);
+    margin: 0 0 6px; letter-spacing: -0.01em;
+  }
+  .sec-no { font-family: var(--mono); font-size: 11px; letter-spacing: 0.16em; color: var(--accent-hi); text-transform: uppercase; display: block; margin-bottom: 10px; }
+  .lede { font-size: 14px; color: var(--text-2); max-width: 620px; margin: 0 0 28px; }
+  h3 { font-family: var(--mono); font-size: 11px; font-weight: 500; letter-spacing: 0.16em; text-transform: uppercase; color: var(--text-3); margin: 34px 0 14px; }
+
+  /* swatches */
+  .swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+  .swatch { border-radius: 14px; border: 1px solid var(--line); overflow: hidden; background: var(--bg-1); }
+  .swatch .chip { height: 64px; }
+  .swatch .info { padding: 10px 12px; }
+  .swatch .nm { font-family: var(--mono); font-size: 11px; color: var(--text-0); }
+  .swatch .val { font-family: var(--mono); font-size: 10px; color: var(--text-3); margin-top: 2px; word-break: break-all; }
+
+  /* type specimens */
+  .spec { border-top: 1px solid var(--line); padding: 18px 0; display: grid; grid-template-columns: 240px 1fr; gap: 24px; align-items: baseline; }
+  .spec .use { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.08em; color: var(--text-3); line-height: 1.7; }
+
+  /* tables */
+  .rules { border-top: 1px solid var(--line); }
+  .rule { display: grid; grid-template-columns: 220px 1fr; gap: 24px; padding: 13px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
+  .rule .k2 { font-family: var(--mono); font-size: 11px; letter-spacing: 0.06em; color: var(--text-0); }
+  .rule .v2 { color: var(--text-2); }
+
+  /* demo stage */
+  .demo {
+    background: var(--bg-1); border: 1px solid var(--line); border-radius: 18px;
+    padding: 28px; display: flex; flex-wrap: wrap; align-items: center; gap: 18px;
+  }
+  .demo.col { flex-direction: column; align-items: stretch; }
+
+  /* ── components ── */
+  .btn-like {
+    display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+    width: 116px; height: 52px; border-radius: 999px; border: none;
+    background: var(--accent); color: white;
+    font-family: var(--sans); font-size: 13px; font-weight: 700;
+    box-shadow: 0 8px 24px -8px oklch(0.64 0.15 278 / 0.45);
+  }
+  .btn-dis {
+    display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+    width: 116px; height: 52px; border-radius: 999px;
+    background: var(--bg-2); border: 1px solid var(--line-strong); color: var(--text-0);
+    font-family: var(--sans); font-size: 13px; font-weight: 600;
+  }
+  .btn-skip {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 116px; height: 52px; border: none; background: none;
+    color: var(--text-2); font-family: var(--sans); font-size: 13px; font-weight: 600;
+  }
+  .btn-primary {
+    display: inline-flex; align-items: center; justify-content: center; gap: 10px;
+    padding: 15px 28px; border-radius: 999px; border: none;
+    background: var(--accent); color: white;
+    font-family: var(--sans); font-size: 15px; font-weight: 600;
+    box-shadow: 0 8px 32px -10px oklch(0.64 0.15 278 / 0.55);
+  }
+  .btn-disabled {
+    display: inline-flex; align-items: center; justify-content: center;
+    padding: 15px 28px; border-radius: 999px; border: none;
+    background: var(--bg-2); color: var(--text-2);
+    font-family: var(--sans); font-size: 15px; font-weight: 600;
+  }
+  .chip-blur {
+    display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+    background: rgba(0,0,0,0.38); border: 1px solid rgba(255,255,255,0.18);
+    border-radius: 999px; padding: 7px 12px;
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.08em; color: white;
+  }
+  .gtag {
+    display: inline-flex; font-size: 10px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+    background: var(--bg-2); color: var(--text-1);
+    padding: 4px 10px; border-radius: 999px;
+  }
+  .pill-tab {
+    display: inline-flex; padding: 8px 14px; border-radius: 999px; white-space: nowrap;
+    background: var(--bg-1); border: 1px solid var(--line-strong);
+    font-size: 12px; font-weight: 600; color: var(--text-1);
+  }
+  .pill-tab.on { background: var(--accent-soft); border-color: oklch(0.64 0.15 278 / 0.45); color: var(--text-0); }
+  .verdict-pill {
+    display: inline-flex; white-space: nowrap; font-family: var(--mono); font-size: 10px; letter-spacing: 0.08em;
+    color: var(--accent-hi); border: 1px solid oklch(0.64 0.15 278 / 0.45);
+    border-radius: 999px; padding: 5px 10px;
+  }
+  .input {
+    background: var(--bg-1); border: 1px solid var(--line-strong); border-radius: 16px;
+    padding: 15px 18px; font-size: 16px; color: var(--text-0); width: 280px;
+  }
+  .input.focus { border-color: oklch(0.64 0.15 278 / 0.6); }
+  .lbl { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--text-3); margin-bottom: 9px; }
+  .toggle { width: 34px; height: 20px; border-radius: 999px; background: var(--accent); position: relative; flex: none; }
+  .toggle::after { content: ""; position: absolute; top: 2px; right: 2px; width: 16px; height: 16px; border-radius: 50%; background: white; }
+  .toggle.off { background: var(--bg-2); border: 1px solid var(--line-strong); }
+  .toggle.off::after { right: auto; left: 2px; background: var(--text-3); }
+
+  .listrow { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+  .thumb { width: 40px; height: 56px; border-radius: 8px; flex: none; }
+
+  .note { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.04em; color: var(--text-3); line-height: 1.7; }
+  code { font-family: var(--mono); font-size: 12px; color: var(--accent-hi); background: var(--bg-1); padding: 1px 6px; border-radius: 5px; }
+
+  .dont { color: var(--neg); }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  @media (max-width: 720px) { .grid-2, .spec, .rule { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- ═══════════ masthead ═══════════ -->
+  <div class="masthead">
+    <div class="lockup">
+      <svg width="56" height="56" viewBox="0 0 72 72" role="img" aria-label="cour mark">
+        <path d="M 52 14 A 27 27 0 1 0 52 58" fill="none" stroke="var(--text-0)" stroke-width="7" stroke-linecap="round"></path>
+        <circle cx="50" cy="25" r="4.5" fill="var(--spring)"></circle>
+        <circle cx="56.5" cy="31.5" r="4.5" fill="var(--summer)"></circle>
+        <circle cx="56.5" cy="40.5" r="4.5" fill="var(--fall)"></circle>
+        <circle cx="50" cy="47" r="4.5" fill="var(--winter)"></circle>
+      </svg>
+      <span class="word">cour</span>
+      <span style="font-family: var(--serif); font-size: 14px; color: var(--accent-hi); border: 1px solid var(--line-strong); border-radius: 6px; padding: 3px 8px;">夏</span>
+    </div>
+    <div class="meta">Style guide · v1<br />Summer 2026 · direction: seasonal print</div>
+  </div>
+
+  <!-- ═══════════ 01 principles ═══════════ -->
+  <section id="principles">
+    <span class="sec-no">01 · Principles</span>
+    <h2>the chrome is the gallery wall</h2>
+    <p class="lede">cour is a quarterly ritual: a small group works through the season's anime lineup and locks in verdicts. The UI's job is to hold extremely colorful third-party art without competing with it — quiet, paper-dark, typographic. The product's heartbeat is the turning of seasons, expressed through one rotating accent.</p>
+    <div class="rules">
+      <div class="rule"><span class="k2">art owns color</span><span class="v2">Backgrounds stay near-neutral. Saturated color appears only in the seasonal accent, the four-season mark, and the posters themselves.</span></div>
+      <div class="rule"><span class="k2">one accent at a time</span><span class="v2">A single seasonal hue is live per cour. It marks positive/brand moments: Like, focus, progress, links, the season chip.</span></div>
+      <div class="rule"><span class="k2">negative ≠ brand</span><span class="v2">Destructive/negative actions use clay — never the accent, never reely's retired pink.</span></div>
+      <div class="rule"><span class="k2">mono is the voice of data</span><span class="v2">Every meta line, label, count, and timestamp is Geist Mono, uppercase, letterspaced. Serif is for moments; mono is for facts.</span></div>
+      <div class="rule"><span class="k2">no ratings pre-air</span><span class="v2">The deck shows upcoming titles. Popularity/score numbers never appear in user-facing UI.</span></div>
+      <div class="rule"><span class="k2">buttons, not gestures, decide</span><span class="v2">Verdicts are explicit button presses. Gestures (drawer swipe) only reveal information, never commit it.</span></div>
+    </div>
+  </section>
+
+  <!-- ═══════════ 02 color ═══════════ -->
+  <section id="color">
+    <span class="sec-no">02 · Color</span>
+    <h2>paper darks, one turning accent</h2>
+    <p class="lede">All neutrals share hue 85 — a warm paper cast. The accent rotates each broadcast quarter at matched lightness/chroma; everything else is fixed.</p>
+
+    <h3>Surfaces & lines</h3>
+    <div class="swatches">
+      <div class="swatch"><div class="chip" style="background: var(--bg-0);"></div><div class="info"><div class="nm">--bg-0</div><div class="val">oklch(0.15 0.01 85)</div></div></div>
+      <div class="swatch"><div class="chip" style="background: var(--bg-1);"></div><div class="info"><div class="nm">--bg-1</div><div class="val">oklch(0.19 0.012 85)</div></div></div>
+      <div class="swatch"><div class="chip" style="background: var(--bg-2);"></div><div class="info"><div class="nm">--bg-2</div><div class="val">oklch(0.24 0.014 85)</div></div></div>
+      <div class="swatch"><div class="chip" style="background: var(--bg-1); position: relative;"><div style="position: absolute; inset: 24px 16px auto; border-top: 1px solid var(--line);"></div><div style="position: absolute; inset: 44px 16px auto; border-top: 1px solid var(--line-strong);"></div></div><div class="info"><div class="nm">--line / --line-strong</div><div class="val">white @ 8% / 16%</div></div></div>
+    </div>
+    <p class="note" style="margin-top: 10px;">bg·0 screens · bg·1 sheets, cards, inputs · bg·2 raised fills, chips, disabled</p>
+
+    <h3>Text</h3>
+    <div class="swatches">
+      <div class="swatch"><div class="chip" style="background: var(--bg-1); display: flex; align-items: center; justify-content: center; color: var(--text-0); font-size: 18px; font-weight: 600;">Aa</div><div class="info"><div class="nm">--text-0</div><div class="val">oklch(0.97 0.008 85)</div></div></div>
+      <div class="swatch"><div class="chip" style="background: var(--bg-1); display: flex; align-items: center; justify-content: center; color: var(--text-1); font-size: 18px;">Aa</div><div class="info"><div class="nm">--text-1</div><div class="val">oklch(0.77 0.012 85)</div></div></div>
+      <div class="swatch"><div class="chip" style="background: var(--bg-1); display: flex; align-items: center; justify-content: center; color: var(--text-2); font-size: 18px;">Aa</div><div class="info"><div class="nm">--text-2</div><div class="val">oklch(0.6 0.012 85)</div></div></div>
+      <div class="swatch"><div class="chip" style="background: var(--bg-1); display: flex; align-items: center; justify-content: center; color: var(--text-3); font-size: 18px;">Aa</div><div class="info"><div class="nm">--text-3</div><div class="val">oklch(0.48 0.012 85)</div></div></div>
+    </div>
+    <p class="note" style="margin-top: 10px;">text·0 titles & primary · text·1 body · text·2 secondary, Skip · text·3 micro-labels, placeholders</p>
+
+    <h3>Seasonal accent — rotates per cour</h3>
+    <div class="swatches">
+      <div class="swatch"><div class="chip" style="background: var(--spring); display: flex; align-items: center; justify-content: center; font-family: var(--serif); font-size: 22px; color: white;">春</div><div class="info"><div class="nm">spring · sakura</div><div class="val">oklch(0.75 0.12 350)</div></div></div>
+      <div class="swatch" style="outline: 2px solid var(--accent); outline-offset: 2px;"><div class="chip" style="background: var(--summer); display: flex; align-items: center; justify-content: center; font-family: var(--serif); font-size: 22px; color: white;">夏</div><div class="info"><div class="nm">summer · indigo ← live</div><div class="val">oklch(0.64 0.15 278)</div></div></div>
+      <div class="swatch"><div class="chip" style="background: var(--fall); display: flex; align-items: center; justify-content: center; font-family: var(--serif); font-size: 22px; color: white;">秋</div><div class="info"><div class="nm">fall · persimmon</div><div class="val">oklch(0.68 0.15 55)</div></div></div>
+      <div class="swatch"><div class="chip" style="background: var(--winter); display: flex; align-items: center; justify-content: center; font-family: var(--serif); font-size: 22px; color: white;">冬</div><div class="info"><div class="nm">winter · ice</div><div class="val">oklch(0.78 0.09 220)</div></div></div>
+    </div>
+    <div class="rules" style="margin-top: 18px;">
+      <div class="rule"><span class="k2">--accent</span><span class="v2">The live season's color. Derived per season: <code>--accent-soft</code> = accent at 16% alpha (fills, active tabs) · <code>--accent-hi</code> = accent raised ~0.10 lightness (text/links on dark; summer: oklch(0.75 0.13 278)).</span></div>
+      <div class="rule"><span class="k2">links</span><span class="v2">Text links are <code>--accent-hi</code>, no underline; hover → text-0. Defined globally even where no links exist yet.</span></div>
+      <div class="rule"><span class="k2">--neg · clay</span><span class="v2"><span style="display: inline-block; width: 12px; height: 12px; border-radius: 4px; background: var(--neg); vertical-align: -1px; margin-right: 6px;"></span>oklch(0.62 0.13 35) — Dislike, log out, destructive confirms. Fixed year-round.</span></div>
+      <div class="rule"><span class="k2">rotation scope</span><span class="v2">Accent, season kanji chip, and auth watermark rotate together server-side. The app mark does NOT rotate (all four seasons are in it).</span></div>
+      <div class="rule"><span class="k2 dont">never</span><span class="v2">The reely pink→amber gradient is retired. No gradients as brand color anywhere; the only gradients are photographic scrims.</span></div>
+    </div>
+  </section>
+
+  <!-- ═══════════ 03 type ═══════════ -->
+  <section id="type">
+    <span class="sec-no">03 · Typography</span>
+    <h2>serif for moments, mono for facts</h2>
+    <p class="lede">Three families, strict roles. Shippori Mincho renders Japanese natively — titles can carry kanji without a fallback stack.</p>
+    <div class="spec">
+      <div class="use">SHIPPORI MINCHO 600<br />display · titles · headlines<br />30–44px · line 1.1</div>
+      <div style="font-family: var(--serif); font-weight: 600; font-size: 38px; line-height: 1.1; color: var(--text-0);">the season is waiting. 鉄の花</div>
+    </div>
+    <div class="spec">
+      <div class="use">GEIST 400–700<br />ui · body · buttons<br />13–16px · line 1.5</div>
+      <div style="font-size: 15px; color: var(--text-1); max-width: 480px;">A botanist conscripted into a war of living machines learns her grafting art can heal them — or end everything.</div>
+    </div>
+    <div class="spec">
+      <div class="use">GEIST MONO 400/500<br />meta · labels · counts<br />9.5–12px · tracking 0.06–0.16em · uppercase</div>
+      <div style="font-family: var(--mono); font-size: 12px; letter-spacing: 0.08em; color: var(--text-2);">TV · 24 EP · SUMMER 2026 · KOMOREBI WORKS</div>
+    </div>
+    <div class="rules" style="margin-top: 18px;">
+      <div class="rule"><span class="k2">romaji line</span><span class="v2">Mono, 12px minimum, 50% opacity of surrounding title color, uppercase.</span></div>
+      <div class="rule"><span class="k2">floors</span><span class="v2">12px mono meta on device · 13px sans body · never below 9.5px even for micro-labels.</span></div>
+      <div class="rule"><span class="k2 dont">never</span><span class="v2">Italic serif (reely's voice) · Inter/Roboto/Arial · more than these three families.</span></div>
+    </div>
+  </section>
+
+  <!-- ═══════════ 04 mark ═══════════ -->
+  <section id="mark">
+    <span class="sec-no">04 · Mark & lockup</span>
+    <h2>two arcs in conversation</h2>
+    <p class="lede">The large ivory arc is the c; the answer comes back as the four seasons. Static — it never updates. Full spec incl. canonical SVG lives in the handoff (<code>APP_MARK.md</code>).</p>
+    <div class="demo">
+      <div style="width: 120px; height: 120px; border-radius: 28px; background: var(--bg-2); border: 1px solid var(--line-strong); display: flex; align-items: center; justify-content: center;">
+        <svg width="72" height="72" viewBox="0 0 72 72"><path d="M 52 14 A 27 27 0 1 0 52 58" fill="none" stroke="var(--text-0)" stroke-width="7" stroke-linecap="round"></path><circle cx="50" cy="25" r="4.5" fill="var(--spring)"></circle><circle cx="56.5" cy="31.5" r="4.5" fill="var(--summer)"></circle><circle cx="56.5" cy="40.5" r="4.5" fill="var(--fall)"></circle><circle cx="50" cy="47" r="4.5" fill="var(--winter)"></circle></svg>
+      </div>
+      <div style="width: 64px; height: 64px; border-radius: 16px; background: var(--bg-2); border: 1px solid var(--line-strong); display: flex; align-items: center; justify-content: center;">
+        <svg width="48" height="48" viewBox="0 0 72 72"><path d="M 52 14 A 27 27 0 1 0 52 58" fill="none" stroke="var(--text-0)" stroke-width="8" stroke-linecap="round"></path><circle cx="50" cy="25" r="5" fill="var(--spring)"></circle><circle cx="56.5" cy="31.5" r="5" fill="var(--summer)"></circle><circle cx="56.5" cy="40.5" r="5" fill="var(--fall)"></circle><circle cx="50" cy="47" r="5" fill="var(--winter)"></circle></svg>
+      </div>
+      <div style="width: 40px; height: 40px; border-radius: 11px; background: var(--bg-2); border: 1px solid var(--line-strong); display: flex; align-items: center; justify-content: center;">
+        <svg width="26" height="26" viewBox="0 0 72 72"><path d="M 52 14 A 27 27 0 1 0 52 58" fill="none" stroke="var(--text-0)" stroke-width="10" stroke-linecap="round"></path><path d="M 50 26 A 13 13 0 1 1 50 46" fill="none" stroke="oklch(0.55 0.012 85)" stroke-width="10" stroke-linecap="round"></path></svg>
+      </div>
+      <div style="display: flex; align-items: center; gap: 14px; margin-left: 12px;">
+        <svg width="48" height="48" viewBox="0 0 72 72"><path d="M 52 14 A 27 27 0 1 0 52 58" fill="none" stroke="var(--text-0)" stroke-width="7" stroke-linecap="round"></path><circle cx="50" cy="25" r="4.5" fill="var(--spring)"></circle><circle cx="56.5" cy="31.5" r="4.5" fill="var(--summer)"></circle><circle cx="56.5" cy="40.5" r="4.5" fill="var(--fall)"></circle><circle cx="50" cy="47" r="4.5" fill="var(--winter)"></circle></svg>
+        <span style="font-family: var(--serif); font-weight: 600; font-size: 34px; color: var(--text-0);">cour</span>
+        <span style="font-family: var(--mono); font-size: 11px; letter-spacing: 0.12em; color: var(--text-3);">SUMMER 2026</span>
+      </div>
+    </div>
+    <h3>Stylized wordmark — the mark IS the c</h3>
+    <div class="demo">
+      <span style="display: inline-flex; align-items: baseline;">
+        <svg width="52" height="52" viewBox="0 0 72 72" style="align-self: center; margin-top: 6px;"><path d="M 52 14 A 27 27 0 1 0 52 58" fill="none" stroke="var(--text-0)" stroke-width="8" stroke-linecap="round"></path><circle cx="50" cy="25" r="5" fill="var(--spring)"></circle><circle cx="56.5" cy="31.5" r="5" fill="var(--summer)"></circle><circle cx="56.5" cy="40.5" r="5" fill="var(--fall)"></circle><circle cx="50" cy="47" r="5" fill="var(--winter)"></circle></svg>
+        <span style="font-family: var(--serif); font-weight: 600; font-size: 58px; color: var(--text-0); margin-left: 2px; line-height: 1;">our</span>
+      </span>
+      <span style="display: inline-flex; align-items: baseline; margin-left: 20px;">
+        <svg width="27" height="27" viewBox="0 0 72 72" style="align-self: center; margin-top: 3px;"><path d="M 52 14 A 27 27 0 1 0 52 58" fill="none" stroke="var(--text-0)" stroke-width="10" stroke-linecap="round"></path><path d="M 50 26 A 13 13 0 1 1 50 46" fill="none" stroke="oklch(0.55 0.012 85)" stroke-width="10" stroke-linecap="round"></path></svg>
+        <span style="font-family: var(--serif); font-weight: 600; font-size: 30px; color: var(--text-0); margin-left: 1px; line-height: 1;">our</span>
+      </span>
+    </div>
+    <div class="rules" style="margin-top: 14px;">
+      <div class="rule"><span class="k2">construction</span><span class="v2">The arc-c replaces the letter c: mark rendered at ~0.9× the cap height of “our” (Shippori Mincho 600), optically centered on the x-height, 2px gap before the o. The dots read as the c's counter.</span></div>
+      <div class="rule"><span class="k2">small sizes</span><span class="v2">Below ~34px word height, use the fused small-variant arc (gray answering arc, no dots) — same rule as the standalone mark.</span></div>
+      <div class="rule"><span class="k2">when to use</span><span class="v2">Splash, auth masthead, marketing. In dense chrome (topbars), prefer plain-type “cour” + season chip — the stylized c gets noisy beside other icons.</span></div>
+    </div>
+
+    <div class="rules" style="margin-top: 18px;">
+      <div class="rule"><span class="k2">&lt; 48px rendered</span><span class="v2">Swap to the small variant: dots fuse into a single gray answering arc. Never just scale the dots.</span></div>
+      <div class="rule"><span class="k2">dot colors</span><span class="v2">Fixed — never re-tinted to the current season.</span></div>
+      <div class="rule"><span class="k2">season chip</span><span class="v2">The 夏/秋/冬/春 chip is a separate element (serif, accent-hi text, 1px line-strong border, 5–6px radius). It rotates; the mark doesn't.</span></div>
+    </div>
+  </section>
+
+  <!-- ═══════════ 05 components ═══════════ -->
+  <section id="components">
+    <span class="sec-no">05 · Components</span>
+    <h2>the working set</h2>
+
+    <h3>Verdict row — Dislike −1 · Skip 0 · Like +1</h3>
+    <div class="demo">
+      <button class="btn-dis"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="var(--neg)" stroke-width="2.5" stroke-linecap="round"></path></svg>Dislike</button>
+      <button class="btn-skip">Skip</button>
+      <button class="btn-like"><svg width="15" height="15" viewBox="0 0 24 24" fill="white"><path d="M12 21s-7.5-4.7-10-9.3C.5 8 2.4 4.5 6 4.5c2.2 0 3.7 1.2 4.5 2.6.8-1.4 2.3-2.6 4.5-2.6 3.6 0 5.5 3.5 4 7.2C19.5 16.3 12 21 12 21z"></path></svg>Like</button>
+    </div>
+    <div class="rules" style="margin-top: 14px;">
+      <div class="rule"><span class="k2">order & size</span><span class="v2">Always Dislike → Skip → Like, 52px tall, max 116px wide each, 10px gap, centered. Never adjacent Like/Dislike.</span></div>
+      <div class="rule"><span class="k2">skip states</span><span class="v2">Rest: text only. Pressed: bg-2 ghost pill fades in, text brightens to text-0. Held 1.5s: accent-soft fill bar sweeps → skip all remaining; release cancels.</span></div>
+      <div class="rule"><span class="k2">icons</span><span class="v2">Dislike: X in clay, stroke 2.5, round caps. Like: solid heart, white. Skip: none. 14–15px inside 52px buttons.</span></div>
+      <div class="rule"><span class="k2">placement</span><span class="v2">Inside the drawer lip on the deck; pinned at drawer foot when expanded. Bottom padding 34px (home indicator).</span></div>
+    </div>
+
+    <h3>Buttons</h3>
+    <div class="demo">
+      <button class="btn-primary">sign in<svg width="16" height="13" viewBox="0 0 20 14" fill="none"><path d="M1 7h17m0 0l-6-6m6 6l-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg></button>
+      <button class="btn-disabled">Lock in · 58 to go</button>
+      <span class="note">primary = accent pill · disabled = bg-2 fill, text-2 — no opacity tricks</span>
+    </div>
+
+    <h3>Chips, tags & pills</h3>
+    <div class="demo">
+      <span style="display: inline-flex; align-items: center; justify-content: center; width: 120px; height: 56px; border-radius: 12px; background: linear-gradient(160deg, #14263a, #b0472e);"><span class="chip-blur" style="backdrop-filter: blur(8px);">6 <span style="color: rgba(255,255,255,0.5);">/ 90</span></span></span>
+      <span class="gtag">Slice of Life</span>
+      <span class="gtag">Mecha</span>
+      <span class="pill-tab on">Liked 12</span>
+      <span class="pill-tab">Skipped 6</span>
+      <span class="verdict-pill">LIKED</span>
+    </div>
+    <div class="rules" style="margin-top: 14px;">
+      <div class="rule"><span class="k2">blur chip</span><span class="v2">Only over poster art: rgba(0,0,0,.38) + blur(8px) + 1px rgba(255,255,255,.18) border. On flat surfaces use bg-1/bg-2 instead — never blur on blur.</span></div>
+      <div class="rule"><span class="k2">genre tags</span><span class="v2">Over art: white @10% bg. On surfaces: bg-2. 10px 600 uppercase.</span></div>
+      <div class="rule"><span class="k2">verdict pill</span><span class="v2">Mono uppercase, accent-hi + accent border for LIKED; text-2 + line-strong for SKIPPED; clay for DISLIKED. Tappable to change verdict on the review screen.</span></div>
+    </div>
+
+    <h3>Inputs & toggles</h3>
+    <div class="demo">
+      <div>
+        <div class="lbl">username</div>
+        <div class="input focus">jill<span style="display: inline-block; width: 2px; height: 18px; background: var(--accent); margin-left: 3px; vertical-align: -3px;"></span></div>
+      </div>
+      <div>
+        <div class="lbl">password</div>
+        <div class="input" style="color: var(--text-1); letter-spacing: 0.25em;">••••••••</div>
+      </div>
+      <div style="display: flex; align-items: center; gap: 9px; padding-top: 18px;">
+        <div class="toggle"></div><span style="font-size: 13px; white-space: nowrap;">stay signed in</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 9px; padding-top: 18px;">
+        <div class="toggle off"></div><span style="font-size: 13px; color: var(--text-2);">off</span>
+      </div>
+    </div>
+    <p class="note" style="margin-top: 10px;">inputs: bg-1 · 1px line-strong · radius 16 · padding 15–16px 18px · 16px text (prevents iOS zoom) · focus ring = accent @60% border, no glow</p>
+
+    <h3>List rows (review ledger)</h3>
+    <div class="demo col" style="gap: 0; padding: 10px 28px;">
+      <div class="listrow">
+        <div class="thumb" style="background: linear-gradient(160deg, #2a1a3e, #7a2e52);"></div>
+        <div style="flex: 1;">
+          <div style="font-size: 14px; font-weight: 600; color: var(--text-0);">Stargazer Café</div>
+          <div style="font-family: var(--mono); font-size: 10px; letter-spacing: 0.06em; color: var(--text-2); margin-top: 3px;">TV · 12 EP · STUDIO LANTERN</div>
+        </div>
+        <span class="verdict-pill">LIKED</span>
+      </div>
+      <div class="listrow" style="border-bottom: none;">
+        <div class="thumb" style="background: linear-gradient(160deg, #3e1a1a, #52422e);"></div>
+        <div style="flex: 1;">
+          <div style="font-size: 14px; font-weight: 600; color: var(--text-0);">Midnight Courier</div>
+          <div style="font-family: var(--mono); font-size: 10px; letter-spacing: 0.06em; color: var(--text-2); margin-top: 3px;">ONA · 11 EP · STUDIO HOTARU</div>
+        </div>
+        <span class="verdict-pill" style="color: var(--text-2); border-color: var(--line-strong);">SKIPPED</span>
+      </div>
+    </div>
+
+    <h3>Sheets & drawer</h3>
+    <div class="rules">
+      <div class="rule"><span class="k2">geometry</span><span class="v2">bg-1 · top border line-strong · top radius 22px (lip/account sheet) or 28px (details drawer) · 40×4px grabber bar in line-strong.</span></div>
+      <div class="rule"><span class="k2">deck lip</span><span class="v2">Always visible; tall grabber zone (padding 22/19px) labeled "Synopsis · PV · Links" above the verdict row. Opens on tap OR swipe.</span></div>
+      <div class="rule"><span class="k2">drawer content</span><span class="v2">Media box (16:9, radius 16, PV muted by default, hero still if no PV) → thumbnail strip (3s auto-advance, tap to pin, 2px accent ring on active) → title block → internally-scrolling synopsis (fade-out + thumb hint) → AniList/MAL links → pinned verdict row. The drawer itself never scrolls.</span></div>
+      <div class="rule"><span class="k2">scrims over art</span><span class="v2">Top: black 60%→0 over 24%. Bottom: 0→94% from 38%. Warm-tinted black rgba(12,10,7). Flag: needs dynamic weighting for light posters.</span></div>
+    </div>
+  </section>
+
+  <!-- ═══════════ 06 spacing ═══════════ -->
+  <section id="spacing">
+    <span class="sec-no">06 · Spacing & shape</span>
+    <h2>round pills, soft cards, safe bottoms</h2>
+    <div class="rules">
+      <div class="rule"><span class="k2">radii</span><span class="v2">999px buttons/pills/chips · 16px cards, inputs, media · 22–28px sheets · 8px small thumbs · icon tile ≈ 23% of size.</span></div>
+      <div class="rule"><span class="k2">gutters</span><span class="v2">20–24px screen edges · 28px auth screens.</span></div>
+      <div class="rule"><span class="k2">hit targets</span><span class="v2">44px minimum; verdict buttons 52px. Text-only Skip keeps the full 116×52 invisible target.</span></div>
+      <div class="rule"><span class="k2">safe area</span><span class="v2">34px bottom padding under the last interactive row (iOS home indicator). The lip's swipe zone must clear the OS gesture zone.</span></div>
+      <div class="rule"><span class="k2">elevation</span><span class="v2">Borders and fills, not shadows. The only shadows: poster cards and the accent glow under primary/Like buttons (accent @ 45–55%, y 8, blur 24–32, spread −8/−10).</span></div>
+    </div>
+  </section>
+
+  <!-- ═══════════ 07 motion & sound ═══════════ -->
+  <section id="motion">
+    <span class="sec-no">07 · Motion & sound</span>
+    <h2>small moves, honest defaults</h2>
+    <div class="rules">
+      <div class="rule"><span class="k2">card advance</span><span class="v2">Verdict press → current poster exits (fade + slight scale-down), next fades in. No directional fling — direction implied swiping, which is gone.</span></div>
+      <div class="rule"><span class="k2">drawer</span><span class="v2">Spring, ~320ms, from the lip's resting position. Poster behind dims to brightness 0.5 / saturate 0.8.</span></div>
+      <div class="rule"><span class="k2">skip hold</span><span class="v2">1.5s linear fill, label counts down, completion skips all remaining. Release = cancel + single skip.</span></div>
+      <div class="rule"><span class="k2">media rotation</span><span class="v2">3s per item, crossfade ~240ms, pauses while PV plays or an item is pinned.</span></div>
+      <div class="rule"><span class="k2">sound</span><span class="v2">PVs always start muted ("TAP FOR SOUND" chip). One global sound toggle (topbar + account sheet) owns theme music and PV default; persisted per user. Prefer one ambient seasonal loop over per-card themes.</span></div>
+      <div class="rule"><span class="k2">reduced motion</span><span class="v2">Respect prefers-reduced-motion: replace springs/fills with fades; keep the skip-hold countdown as a visible timer.</span></div>
+    </div>
+  </section>
+
+  <!-- ═══════════ 08 voice ═══════════ -->
+  <section id="voice">
+    <span class="sec-no">08 · Voice</span>
+    <h2>lowercase moments, uppercase facts</h2>
+    <div class="grid-2">
+      <div>
+        <h3>Do</h3>
+        <div class="rules">
+          <div class="rule" style="grid-template-columns: 1fr;"><span class="v2">Serif headlines in lowercase: <span style="font-family: var(--serif); color: var(--text-0);">"the season is waiting."</span></span></div>
+          <div class="rule" style="grid-template-columns: 1fr;"><span class="v2">Mono system messages in caps: <span style="font-family: var(--mono); font-size: 11px; letter-spacing: 0.08em;">SCORES ARE TALLIED ONCE EVERYONE LOCKS IN</span></span></div>
+          <div class="rule" style="grid-template-columns: 1fr;"><span class="v2">Verbs on buttons: sign in, lock in, keep picking.</span></div>
+        </div>
+      </div>
+      <div>
+        <h3 class="dont">Don't</h3>
+        <div class="rules">
+          <div class="rule" style="grid-template-columns: 1fr;"><span class="v2">No match/dating language: no "it's a match!", no flames, no swipe verbs.</span></div>
+          <div class="rule" style="grid-template-columns: 1fr;"><span class="v2">No exclamation-mark enthusiasm; the season chip does the celebrating.</span></div>
+          <div class="rule" style="grid-template-columns: 1fr;"><span class="v2">No numbers theater — verdict math (+1/0/−1) stays invisible in UI.</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════ footer ═══════════ -->
+  <div style="margin-top: 80px; padding-top: 24px; border-top: 1px solid var(--line-strong); display: flex; justify-content: space-between; align-items: center;">
+    <span class="note">cour · style guide v1 · summer 2026</span>
+    <span class="note">references: Anime Picker Explorations.html · Cour Mark.html · design_handoff_cour/</span>
+  </div>
+
+</div>
+</body>
+</html>

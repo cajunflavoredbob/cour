@@ -1,0 +1,41 @@
+# cour example config -- copy to config.yaml (gitignored) and adjust.
+# Env vars override YAML (see .env.example for the env equivalents).
+# Everything except `servers` is optional, shown with its default.
+
+servers:
+  - type: anilist
+    url: https://graphql.anilist.co
+
+# anime:
+#   # Pinning EITHER season or year disables the automatic season
+#   # rotation (the deck normally flips to the next season one month
+#   # before it airs). Pins are for testing, not normal operation.
+#   season: SUMMER        # WINTER | SPRING | SUMMER | FALL (default: auto)
+#   year: 2026            # default: auto
+#   showSequels: false    # default false -- sequels hidden from the deck
+#   cacheDir: data/anilist
+#   # TMDB screenshot enrichment for the details drawer (optional; a v3
+#   # key or v4 read token both work). Env: TMDB_API_KEY.
+#   tmdbApiKey: your-key-here
+
+# hostname: 0.0.0.0       # bind address (env: HOST)
+# port: 8000
+# logLevel: INFO          # DEBUG | INFO | WARNING | ERROR | CRITICAL
+# rootPath: /cour         # sub-path prefix behind a reverse proxy
+
+# HTTP Basic Auth: strongly recommended when cour is reachable beyond
+# your LAN (rooms are gated only by knowledge of the room name).
+# basicAuth:
+#   userName: admin
+#   password: changeme
+
+# Serve https directly (most deployments terminate TLS at a proxy
+# instead -- see docs/reverse-proxy.markdown).
+# tlsConfig:
+#   certFile: /path/to/cert.pem
+#   keyFile: /path/to/key.pem
+
+# Extra WebSocket Origins to accept beyond same-origin; needed when a
+# reverse proxy serves cour under an origin that differs from its Host.
+# allowedOrigins:
+#   - https://cour.example.com

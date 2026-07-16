@@ -1,0 +1,9 @@
+.env
+.DS_Store
+node_modules/
+dist/
+data/
+web/app/dist
+config.yaml
+secrets/
+data.snapshot-*/

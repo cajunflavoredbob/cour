@@ -1,0 +1,17 @@
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: none;
+  background: var(--cour-accent);
+  color: white;
+  font-family: var(--cour-font-ui);
+  font-weight: 600;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.btn:hover {
+  filter: brightness(1.08);
+}

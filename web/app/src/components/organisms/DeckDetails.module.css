@@ -1,0 +1,258 @@
+/* A title's full detail block: media box, thumb strip, title/meta,
+   synopsis, links. Lifted verbatim out of DeckSheet in the desktop
+   split (docs/DESKTOP.md) so mobile behavior is byte-identical -- the
+   sheet mounts this inside its scrolling panel, desktop mounts it in
+   the right pane. Gutters here are the mobile sheet's; the desktop
+   stage overrides them via a wrapping class. */
+
+.details {
+  display: block;
+}
+
+.mediaBox {
+  position: relative;
+  margin: 14px 20px 0;
+  border-radius: 16px;
+  overflow: hidden;
+  aspect-ratio: 16 / 9;
+  background: var(--cour-bg-0);
+  flex-shrink: 0;
+  /* Tile rotation crossfade (style guide 07: ~240ms). */
+  animation: cour-tile-fade 240ms ease-out;
+}
+
+@keyframes cour-tile-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.pvFrame {
+  width: 100%;
+  height: 100%;
+  border: none;
+}
+
+.heroImg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.soundChip {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  padding: 5px 9px;
+  border: none;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.6);
+  color: white;
+  font-family: var(--cour-font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+}
+
+.pvChip {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.6);
+  color: white;
+  font-family: var(--cour-font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+}
+
+.thumbStrip {
+  display: flex;
+  gap: 6px;
+  margin: 8px 20px 0;
+  flex-shrink: 0;
+  /* Unstacked strips scroll horizontally; thumbs keep their size. */
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.thumbStrip::-webkit-scrollbar {
+  display: none;
+}
+
+.thumb {
+  position: relative;
+  flex-shrink: 0;
+  width: 72px;
+  aspect-ratio: 16 / 9;
+  border-radius: 8px;
+  overflow: hidden;
+  border: none;
+  padding: 0;
+  background: var(--cour-bg-2);
+  cursor: pointer;
+  opacity: 0.65;
+}
+
+.thumb[data-active="true"] {
+  opacity: 1;
+}
+
+/* Selection ring drawn INSIDE the thumb (an outline draws outside the
+   box and the scrolling strip clipped it -- the owner's screenshots). */
+.thumb[data-active="true"]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border: 2px solid var(--cour-accent);
+  border-radius: 8px;
+  pointer-events: none;
+}
+
+.thumbImg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.thumbPlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.textBlock {
+  padding: 16px 20px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  min-height: 0;
+}
+
+.title {
+  font-family: var(--cour-font-display);
+  font-weight: 600;
+  font-size: 30px;
+  line-height: 1.1;
+  color: var(--cour-text-0);
+}
+
+.romaji {
+  font-family: var(--cour-font-mono);
+  font-size: 12px;
+  text-transform: uppercase;
+  color: var(--cour-text-3);
+}
+
+.metaLine {
+  font-family: var(--cour-font-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--cour-text-2);
+}
+
+.genreRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.genreTag {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--cour-bg-2);
+  color: var(--cour-text-1);
+  font-family: var(--cour-font-ui);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Fully expanded (the owner's call): the container scrolls, not the
+   synopsis -- one behavior for every screen size. */
+.synopsis {
+  font-family: var(--cour-font-ui);
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--cour-text-1);
+  /* AniList synopses carry newline paragraph breaks (the server strips
+     tags but keeps text layout); without this they collapsed into one
+     wall of prose (audit 17). */
+  white-space: pre-line;
+}
+
+/* The 7s image-hold countdown along the media box's bottom edge.
+   Duration must match IMAGE_HOLD_MS in the component. */
+.holdBar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.holdFill {
+  height: 100%;
+  background: var(--cour-accent);
+  transform-origin: left;
+  transform: scaleX(0);
+  animation: cour-hold 7000ms linear forwards;
+}
+
+@keyframes cour-hold {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+/* Watch-on-YouTube card for errored PVs (deleted / embed-disabled).
+   Rides the normal 7s rotation like an image tile. */
+.pvErrorCard {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 16px;
+  text-align: center;
+}
+
+.pvErrorBg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.2;
+  filter: saturate(0.6);
+}
+
+.pvErrorText {
+  position: relative;
+  font-family: var(--cour-font-ui);
+  font-size: 13px;
+  color: var(--cour-text-2);
+}
+
+.pvErrorLink {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  padding: 10px 16px;
+  border-radius: 999px;
+  background: var(--cour-accent);
+  color: white;
+  font-family: var(--cour-font-ui);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  box-shadow: 0 8px 24px -8px var(--cour-accent);
+}

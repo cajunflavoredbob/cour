@@ -1,0 +1,440 @@
+.screen {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  background: var(--cour-bg-0);
+}
+
+.poster {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  /* Card advance (style guide 07): the incoming poster is simply
+     present; the OUTGOING card dissolves on top to reveal it (see
+     .exitLayer). A dissolve over a static card avoids the mid-fade
+     dark dip a double crossfade produces. */
+}
+
+@keyframes cour-card-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* The outgoing card: a gentle fade + slight scale-down (ease-out, so it
+   settles away rather than rushing). A soft verdict-colored glow rises
+   from the button side and is carried out by the layer's own fade --
+   one coherent motion, not a flash laid over the top. */
+.exitLayer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  animation: cour-card-out 460ms cubic-bezier(0.32, 0, 0.1, 1) forwards;
+}
+
+.exitPoster {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.exitWash {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+}
+
+.exitLayer[data-verdict="like"] .exitWash {
+  background: radial-gradient(120% 75% at 50% 108%, var(--cour-accent) 0%, transparent 60%);
+  animation: cour-verdict-glow 460ms ease-out forwards;
+}
+
+.exitLayer[data-verdict="dislike"] .exitWash {
+  background: radial-gradient(120% 75% at 50% 108%, var(--cour-negative) 0%, transparent 60%);
+  animation: cour-verdict-glow 460ms ease-out forwards;
+}
+
+/* Skip gets no glow: a shrug, not an event. */
+
+@keyframes cour-card-out {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.985);
+  }
+}
+
+/* Rises and holds; the layer's fade takes it out, so it never pulses
+   back down on its own (that downstroke read as a flash). */
+@keyframes cour-verdict-glow {
+  0% { opacity: 0; }
+  50% { opacity: 0.38; }
+  100% { opacity: 0.38; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .exitLayer {
+    animation: cour-card-fade 200ms ease reverse forwards;
+  }
+  .exitLayer .exitWash {
+    animation: none;
+  }
+}
+
+/* Design scrim: readable chrome top + info block bottom. Will need the
+   flagged adaptive-brightness pass eventually. */
+.scrim {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(10, 7, 7, 0.6) 0%,
+    transparent 24%,
+    transparent 38%,
+    rgba(10, 7, 7, 0.94) 72%
+  );
+  pointer-events: none;
+}
+
+.topBar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 56px 20px 10px;
+}
+
+.progressChip {
+  padding: 7px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  font-family: var(--cour-font-mono);
+  font-size: 11px;
+  color: white;
+}
+
+.progressTotal {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.roomStack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.roomLabel {
+  font-family: var(--cour-font-mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: rgba(255, 255, 255, 0.55);
+  /* Room names run to 64 chars; keep the top bar to one tidy line. */
+  max-width: 40vw;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wordRow {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.word {
+  font-family: var(--cour-font-display);
+  font-weight: 600;
+  font-size: 19px;
+  color: white;
+}
+
+.kanjiChip {
+  font-family: var(--cour-font-display);
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--cour-accent-bright);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 5px;
+  padding: 1px 5px;
+}
+
+.topActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.soundBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: white;
+  cursor: pointer;
+}
+
+.infoBlock {
+  position: absolute;
+  left: 24px;
+  right: 24px;
+  bottom: 205px;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  animation: cour-card-fade 280ms ease-out;
+}
+
+.genreRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.genreTag {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.9);
+  font-family: var(--cour-font-ui);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.title {
+  font-family: var(--cour-font-display);
+  font-weight: 600;
+  font-size: 40px;
+  line-height: 1;
+  color: white;
+  /* Light-novel titles run 100+ characters every season; unclamped, the
+     bottom-anchored info block climbed 8+ lines over the progress chip
+     (audit 17 M9). Three lines is the ceiling the layout was drawn for;
+     overflow-wrap covers unbroken romaji runs. */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.romaji {
+  font-family: var(--cour-font-mono);
+  font-size: 12px;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.5);
+  /* Same overflow discipline as .title, one line only. */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+  line-clamp: 1;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.metaLine {
+  font-family: var(--cour-font-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: rgba(255, 255, 255, 0.65);
+}
+
+
+/* Deck-exhausted state */
+.emptyScreen {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 24px;
+  text-align: center;
+}
+
+.emptyKicker {
+  font-family: var(--cour-font-mono);
+  font-size: 12px;
+  color: var(--cour-text-3);
+}
+
+.emptyHeadline {
+  font-family: var(--cour-font-display);
+  font-weight: 600;
+  font-size: 34px;
+  color: var(--cour-text-0);
+}
+
+.emptyText {
+  font-family: var(--cour-font-ui);
+  font-size: 14px;
+  color: var(--cour-text-2);
+}
+
+.emptyAvatar {
+  margin-top: 16px;
+}
+
+.emptyCta {
+  margin-top: 8px;
+  padding: 14px 24px;
+  border: none;
+  border-radius: 999px;
+  background: var(--cour-accent);
+  color: white;
+  font-family: var(--cour-font-ui);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 8px 24px -8px var(--cour-accent);
+}
+
+/* Scoped re-review back control -- sits where the progress chip lives. */
+.backChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  font-family: var(--cour-font-mono);
+  font-size: 11px;
+  color: white;
+  cursor: pointer;
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   Desktop (docs/DESKTOP.md): a two-pane stage instead of the
+   full-bleed poster + bottom sheet. Only mounts at >= 900px, chosen
+   in the component via useMediaQuery, so mobile is untouched.
+   ══════════════════════════════════════════════════════════════════ */
+
+.deskScreen {
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  background: var(--cour-bg-0);
+  overflow: hidden;
+}
+
+/* Solid-on-dark chips: the mobile chips are translucent for legibility
+   over poster art, which nearly vanishes on the flat bg-0 desktop bar. */
+.deskProgressChip,
+.deskBackChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 13px;
+  border-radius: 999px;
+  border: 1px solid var(--cour-line-strong);
+  background: var(--cour-bg-1);
+  font-family: var(--cour-font-mono);
+  font-size: 11px;
+  color: var(--cour-text-1);
+}
+
+.deskBackChip {
+  cursor: pointer;
+}
+
+.deskBackChip:hover {
+  border-color: var(--cour-text-3);
+}
+
+.stage {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 8px 24px 28px;
+  display: grid;
+  grid-template-columns: minmax(0, 360px) minmax(0, 1fr);
+  gap: 44px;
+  align-items: center;
+}
+
+/* The poster as a contained 2:3 card (guide poster shadow), not
+   full-bleed. Position:relative so the live poster + exit layer stack
+   inside it. */
+.posterPane {
+  position: relative;
+  align-self: center;
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  max-height: 100%;
+  border-radius: 16px;
+  overflow: hidden;
+  background: var(--cour-bg-1);
+  box-shadow: 0 24px 64px -24px rgba(0, 0, 0, 0.7);
+}
+
+.detailPane {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  max-height: 100%;
+}
+
+.detailScroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.verdictDock {
+  flex-shrink: 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--cour-line);
+}
+
+/* Keyboard-shortcut hint under the verdict row. Quiet by design; the
+   scope flags it for removal if it reads as clutter. */
+.kbdHint {
+  display: flex;
+  justify-content: center;
+  gap: 18px;
+  margin: 10px 0 0;
+  font-family: var(--cour-font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--cour-text-3);
+}
+
+.kbdHint kbd {
+  display: inline-block;
+  min-width: 16px;
+  padding: 1px 5px;
+  margin-right: 5px;
+  border: 1px solid var(--cour-line-strong);
+  border-radius: 4px;
+  background: var(--cour-bg-1);
+  font-family: inherit;
+  color: var(--cour-text-1);
+  text-align: center;
+}

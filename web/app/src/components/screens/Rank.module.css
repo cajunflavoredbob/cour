@@ -1,0 +1,628 @@
+.screen {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  padding: 56px 20px 0;
+}
+
+.topBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 18px;
+}
+
+.wordRow {
+  display: inline-flex;
+  align-items: center;
+}
+
+.word {
+  font-family: var(--cour-font-display);
+  font-weight: 600;
+  font-size: 19px;
+  color: var(--cour-text-0);
+}
+
+.headline {
+  font-family: var(--cour-font-display);
+  font-weight: 600;
+  font-size: 34px;
+  line-height: 1.1;
+  color: var(--cour-text-0);
+  margin-bottom: 6px;
+}
+
+.contextLine {
+  font-family: var(--cour-font-mono);
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  color: var(--cour-text-2);
+  margin-bottom: 14px;
+}
+
+.rows {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 16px;
+  flex: 1;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--cour-line);
+}
+
+.rankSlot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  width: 44px;
+  flex-shrink: 0;
+}
+
+.rankNumber {
+  font-family: var(--cour-font-display);
+  font-weight: 600;
+  font-size: 20px;
+  color: var(--cour-text-0);
+}
+
+.rankPoints {
+  font-family: var(--cour-font-mono);
+  font-size: 9px;
+  letter-spacing: 0.05em;
+  color: var(--cour-accent-bright);
+}
+
+.standingRank {
+  width: 32px;
+  flex-shrink: 0;
+  font-family: var(--cour-font-display);
+  font-weight: 600;
+  font-size: 22px;
+  text-align: center;
+  color: var(--cour-text-2);
+}
+
+/* The top standing gets the accent number -- podium treatment proper
+   stays for a design pass. */
+.row[data-rank="1"] .standingRank {
+  color: var(--cour-accent-bright);
+}
+
+.rowThumb {
+  width: 40px;
+  height: 56px;
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--cour-bg-2);
+  flex-shrink: 0;
+}
+
+.rowThumbImg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.rowText {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  flex: 1;
+}
+
+.rowTitle {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--cour-font-ui);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--cour-text-0);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rowMeta {
+  font-family: var(--cour-font-mono);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: var(--cour-text-3);
+}
+
+.moveButtons {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.moveBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 30px;
+  border-radius: 8px;
+  border: 1px solid var(--cour-line-strong);
+  background: var(--cour-bg-1);
+  color: var(--cour-text-1);
+  cursor: pointer;
+}
+
+.moveBtn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.emptyNote {
+  padding: 24px 0;
+  font-family: var(--cour-font-ui);
+  font-size: 13px;
+  color: var(--cour-text-3);
+}
+
+.submitBar {
+  position: sticky;
+  bottom: 0;
+  margin: 0 -20px;
+  padding: 12px 20px 34px;
+  background: var(--cour-bg-1);
+  border-top: 1px solid var(--cour-line-strong);
+}
+
+.submitBtn {
+  width: 100%;
+  padding: 16px;
+  border: none;
+  border-radius: 999px;
+  background: var(--cour-accent);
+  color: white;
+  font-family: var(--cour-font-ui);
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 8px 24px -8px var(--cour-accent);
+}
+
+.submitCaption {
+  margin: 8px 0 0;
+  text-align: center;
+  font-family: var(--cour-font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.1em;
+  color: var(--cour-text-3);
+}
+
+/* Same dialog grammar as the lock-in confirm. */
+.confirmBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(10, 7, 7, 0.7);
+}
+
+.confirmDialog {
+  width: 100%;
+  max-width: 340px;
+  background: var(--cour-bg-1);
+  border: 1px solid var(--cour-line-strong);
+  border-radius: 20px;
+  padding: 22px 20px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.confirmTitle {
+  font-family: var(--cour-font-display);
+  font-weight: 600;
+  font-size: 26px;
+  color: var(--cour-text-0);
+}
+
+.confirmText {
+  font-family: var(--cour-font-ui);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--cour-text-1);
+}
+
+.confirmCheckRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--cour-line-strong);
+  border-radius: 12px;
+  font-family: var(--cour-font-ui);
+  font-size: 13px;
+  color: var(--cour-text-0);
+  cursor: pointer;
+}
+
+.confirmCheckbox {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--cour-accent);
+  flex-shrink: 0;
+}
+
+.confirmActions {
+  display: flex;
+  gap: 10px;
+  margin-top: 2px;
+}
+
+.confirmCancel {
+  flex: 1;
+  padding: 12px;
+  border: 1px solid var(--cour-line-strong);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--cour-text-1);
+  font-family: var(--cour-font-ui);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.confirmSubmit {
+  flex: 1;
+  padding: 12px;
+  border: none;
+  border-radius: 999px;
+  background: var(--cour-accent);
+  color: white;
+  font-family: var(--cour-font-ui);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 8px 24px -8px var(--cour-accent);
+}
+
+.confirmSubmit:disabled {
+  background: var(--cour-bg-2);
+  color: var(--cour-text-3);
+  cursor: default;
+  box-shadow: none;
+}
+
+
+
+/* ══ Desktop (docs/DESKTOP.md 0.15.0) ══ */
+
+/* A fixed-height shell: the header, rail, and submit stay put; only
+   the sortable list scrolls (the owner's call). */
+.deskScreen {
+  height: 100dvh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Editor: rail (headline + point legend + submit) beside the list. */
+.deskBody {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  width: 100%;
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 8px 24px 32px;
+  display: grid;
+  grid-template-columns: 300px minmax(0, 1fr);
+  gap: 48px;
+  align-items: stretch;
+}
+
+.rail {
+  align-self: stretch;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.rail .headline {
+  font-size: 30px;
+}
+
+.railSubmit {
+  padding-top: 16px;
+  border-top: 1px solid var(--cour-line);
+}
+
+.main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* Only the sortable list scrolls. */
+.deskBody .main .rows {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+/* The point legend in the editor rail. */
+.legend {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.legendRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 12px;
+  border-radius: 8px;
+  background: var(--cour-bg-1);
+}
+
+.legendRow[data-rest] {
+  background: transparent;
+}
+
+.legendRank {
+  font-family: var(--cour-font-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--cour-text-2);
+}
+
+.legendPts {
+  font-family: var(--cour-font-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--cour-accent-bright);
+}
+
+.legendRow[data-rest] .legendPts {
+  color: var(--cour-text-3);
+}
+
+/* Drag-to-reorder (desktop): the whole editor row is a grab surface;
+   the up/down buttons opt out via [data-move]. */
+.deskBody .main .row {
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.grip {
+  display: inline-flex;
+  align-items: center;
+  color: var(--cour-text-3);
+  flex-shrink: 0;
+}
+
+.row[data-dragging="true"] {
+  position: relative;
+  z-index: 2;
+  cursor: grabbing;
+  background: var(--cour-bg-2);
+  border-radius: 10px;
+  box-shadow: 0 10px 28px -10px rgba(0, 0, 0, 0.6);
+}
+
+/* Standings: centered column, #1 as a hero row, medal ranks. */
+.standingsBody {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  width: 100%;
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 8px 24px 24px;
+  display: flex;
+  flex-direction: column;
+}
+
+.standingsHead {
+  flex-shrink: 0;
+  margin-bottom: 18px;
+}
+
+/* Only the standings list scrolls; the headline stays put. */
+.standingsRows {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 8px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  animation: cour-standings-in 260ms ease-out;
+}
+
+@keyframes cour-standings-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .standingsRows {
+    animation: none;
+  }
+}
+
+.standingsRows .row[data-rank="2"] .standingRank {
+  color: var(--cour-text-0);
+}
+
+.standingsRows .row[data-rank="3"] .standingRank {
+  color: var(--cour-text-1);
+}
+
+.standingsRows .row[data-hero="true"] {
+  padding: 16px;
+  margin-bottom: 10px;
+  border: 1px solid var(--cour-accent);
+  border-radius: 16px;
+  background: var(--cour-accent-soft);
+}
+
+.standingsRows .row[data-hero="true"] .rowThumb {
+  width: 60px;
+  height: 84px;
+}
+
+.standingsRows .row[data-hero="true"] .standingRank {
+  font-size: 34px;
+  color: var(--cour-accent-bright);
+}
+
+.standingsRows .row[data-hero="true"] .rowTitle {
+  font-size: 20px;
+}
+
+.standingsRows .row[data-hero="true"] .rowMeta {
+  font-size: 12px;
+}
+
+/* The standings top-5 reveal (the owner: we mainly care about the top 5;
+   the rest hides by default). Static below the (scrolling) list. */
+.showAllBtn {
+  align-self: center;
+  flex-shrink: 0;
+  display: block;
+  margin: 12px auto 0;
+  padding: 10px 16px;
+  border: none;
+  background: transparent;
+  font-family: var(--cour-font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--cour-accent-bright);
+  cursor: pointer;
+}
+
+.showAllBtn:hover {
+  filter: brightness(1.15);
+}
+
+/* "Everyone's #1" -- each member's top pick (the owner's ask). Static
+   above the standings list. */
+.topPicks {
+  flex-shrink: 0;
+  margin-bottom: 20px;
+}
+
+.topPicksLabel {
+  margin: 0 0 10px;
+  font-family: var(--cour-font-mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  color: var(--cour-text-3);
+}
+
+.topPicksRow {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.pickCard {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 96px;
+}
+
+.pickPoster {
+  width: 96px;
+  aspect-ratio: 2 / 3;
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--cour-bg-2);
+  border: 1px solid var(--cour-line-strong);
+}
+
+.pickPosterImg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.pickName {
+  font-family: var(--cour-font-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--cour-accent-bright);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pickTitle {
+  font-family: var(--cour-font-ui);
+  font-size: 12px;
+  line-height: 1.3;
+  color: var(--cour-text-1);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Standings row as a details opener (audit 17 UX 4): unstyled button
+   preserving the row's flex layout. */
+.rowOpen {
+  all: unset;
+  display: flex;
+  align-items: center;
+  gap: 12px; /* matches .row */
+  width: 100%;
+  cursor: pointer;
+}
+.rowOpen:focus-visible {
+  outline: 2px solid var(--cour-accent);
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+
+/* Read-only details drawer over the standings (audit 17 UX 4). */
+.detailBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(10, 7, 7, 0.75);
+}
+.detailDialog {
+  width: 100%;
+  max-width: 520px;
+  max-height: 85dvh;
+  overflow-y: auto;
+  background: var(--cour-bg-1);
+  border: 1px solid var(--cour-line-strong);
+  border-radius: 20px;
+  padding: 18px;
+}

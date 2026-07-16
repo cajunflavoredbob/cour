@@ -1,0 +1,60 @@
+/* The shared desktop header (docs/DESKTOP.md 0.15.0). */
+.header {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  width: 100%;
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 20px 24px 12px;
+}
+
+.left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.brand {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.word {
+  font-family: var(--cour-font-display);
+  font-weight: 600;
+  font-size: 20px;
+  color: var(--cour-text-0);
+}
+
+.kanjiChip {
+  align-self: center;
+  font-family: var(--cour-font-display);
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--cour-accent-bright);
+  border: 1px solid var(--cour-line-strong);
+  border-radius: 5px;
+  padding: 1px 5px;
+}
+
+.roomLabel {
+  min-width: 0;
+  font-family: var(--cour-font-mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--cour-text-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.roomLabel::before {
+  content: "\00b7\00a0";
+}

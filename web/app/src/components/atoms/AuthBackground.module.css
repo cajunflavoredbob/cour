@@ -1,0 +1,27 @@
+.bg {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  /* Faint bloom behind the glyph. color-mix keeps both layers riding the
+     seasonal accent custom property, so the watermark rotates with the
+     cour automatically. */
+  background: radial-gradient(
+    70% 50% at 85% 0%,
+    color-mix(in oklch, var(--cour-accent) 8%, transparent) 0%,
+    transparent 60%
+  );
+}
+
+.kanji {
+  position: absolute;
+  top: -60px;
+  right: -85px;
+  font-family: var(--cour-font-display);
+  font-weight: 500;
+  /* Spec values tuned at 390px wide; scale gently on larger screens. */
+  font-size: clamp(400px, 118vw, 560px);
+  line-height: 1;
+  color: color-mix(in oklch, var(--cour-accent) 7%, transparent);
+  user-select: none;
+}

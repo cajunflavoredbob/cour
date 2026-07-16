@@ -1,0 +1,23 @@
+.wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.word {
+  font-family: var(--cour-font-display);
+  font-weight: 600;
+  line-height: 1;
+  color: var(--cour-text-0);
+}
+
+.kanji {
+  font-family: var(--cour-font-display);
+  font-weight: 600;
+  font-size: 12px;
+  line-height: 1;
+  color: var(--cour-accent-bright);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 5px;
+  padding: 1px 5px;
+}

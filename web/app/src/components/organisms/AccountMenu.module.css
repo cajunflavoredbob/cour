@@ -1,0 +1,292 @@
+.anchor {
+  position: relative;
+  display: inline-flex;
+}
+
+/* Transparent outside-tap catcher under the bubble. */
+.scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+  background: transparent;
+}
+
+/* The speech bubble, hanging below the avatar, caret pointing up at it. */
+.bubble {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  z-index: 501;
+  width: min(280px, calc(100vw - 40px));
+  background: var(--cour-bg-1);
+  border: 1px solid var(--cour-line-strong);
+  border-radius: 16px;
+  padding: 6px 14px 10px;
+  box-shadow: 0 18px 48px -12px rgba(0, 0, 0, 0.6);
+  animation: bubbleIn 140ms cubic-bezier(0.2, 0.9, 0.3, 1);
+  transform-origin: top right;
+}
+
+.caret {
+  position: absolute;
+  top: -6px;
+  /* Centered under the 36px avatar the anchor holds. */
+  right: 12px;
+  width: 11px;
+  height: 11px;
+  background: var(--cour-bg-1);
+  border-left: 1px solid var(--cour-line-strong);
+  border-top: 1px solid var(--cour-line-strong);
+  transform: rotate(45deg);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--cour-line);
+}
+
+.headerName {
+  font-family: var(--cour-font-ui);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--cour-text-0);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.adminTag {
+  padding: 2px 7px;
+  border-radius: 5px;
+  border: 1px solid var(--cour-accent);
+  color: var(--cour-accent-bright);
+  font-family: var(--cour-font-mono);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  flex-shrink: 0;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--cour-line);
+}
+
+.rowLabel {
+  font-family: var(--cour-font-ui);
+  font-size: 13px;
+  color: var(--cour-text-0);
+}
+
+.rowButton {
+  display: block;
+  width: 100%;
+  padding: 12px 0;
+  border: none;
+  border-bottom: 1px solid var(--cour-line);
+  background: transparent;
+  text-align: left;
+  font-family: var(--cour-font-ui);
+  font-size: 13px;
+  color: var(--cour-text-0);
+  cursor: pointer;
+}
+
+.logoutButton {
+  display: block;
+  width: 100%;
+  padding: 12px 0 6px;
+  border: none;
+  background: transparent;
+  text-align: left;
+  font-family: var(--cour-font-ui);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--cour-negative);
+  cursor: pointer;
+}
+
+.pwForm {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 4px 0 12px;
+  border-bottom: 1px solid var(--cour-line);
+}
+
+.input {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--cour-line-strong);
+  background: var(--cour-bg-0);
+  color: var(--cour-text-0);
+  font-family: var(--cour-font-ui);
+  font-size: 13px;
+}
+
+.input:focus {
+  outline: none;
+  border-color: var(--cour-accent);
+}
+
+.pwSubmit {
+  padding: 10px 14px;
+  border: none;
+  border-radius: 999px;
+  background: var(--cour-accent);
+  color: white;
+  font-family: var(--cour-font-ui);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.pwSubmit:disabled {
+  background: var(--cour-bg-2);
+  color: var(--cour-text-3);
+  cursor: default;
+}
+
+.togglePill {
+  position: relative;
+  width: 40px;
+  height: 24px;
+  border-radius: 999px;
+  border: 1px solid var(--cour-line-strong);
+  background: var(--cour-bg-2);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 160ms ease;
+}
+
+.togglePill[data-on="true"] {
+  background: var(--cour-accent);
+  border-color: var(--cour-accent);
+}
+
+.toggleKnob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: white;
+  transition: transform 160ms ease;
+}
+
+.togglePill[data-on="true"] .toggleKnob {
+  transform: translateX(16px);
+}
+
+@keyframes bubbleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.92) translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* The prominent "finish your deck" prompt, shown when the deck is
+   unfinished. Accent-filled so it reads as the primary next action. */
+.keepGoing {
+  display: block;
+  width: 100%;
+  margin: 12px 0 4px;
+  padding: 12px 14px;
+  border: none;
+  border-radius: 12px;
+  background: var(--cour-accent);
+  color: #fff;
+  font-family: var(--cour-font-ui);
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+  cursor: pointer;
+  transition: background 160ms ease;
+}
+
+.keepGoing:hover {
+  background: var(--cour-accent-bright);
+}
+
+.keepGoingCount {
+  font-weight: 400;
+  opacity: 0.85;
+}
+
+/* App version, quiet mono footer at the bottom of the popover. */
+.version {
+  margin: 12px 0 0;
+  font-family: var(--cour-font-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: var(--cour-text-3);
+  text-align: center;
+}
+
+/* Share-link dialog (audit 17 UX 5): the clipboard API doesn't exist on
+   plain-HTTP LAN, so the link needs a real selectable field. */
+.shareBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 650;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(10, 7, 7, 0.7);
+}
+.shareDialog {
+  width: 100%;
+  max-width: 360px;
+  background: var(--cour-bg-1);
+  border: 1px solid var(--cour-line-strong);
+  border-radius: 20px;
+  padding: 22px 20px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.shareTitle {
+  font-family: var(--cour-font-display);
+  font-weight: 600;
+  font-size: 24px;
+  color: var(--cour-text-0);
+}
+.shareText {
+  font-family: var(--cour-font-ui);
+  font-size: 13px;
+  color: var(--cour-text-1);
+}
+.shareInput {
+  font-family: var(--cour-font-mono);
+  font-size: 12px;
+  color: var(--cour-text-0);
+  background: var(--cour-bg-0);
+  border: 1px solid var(--cour-line-strong);
+  border-radius: 10px;
+  padding: 10px 12px;
+  width: 100%;
+}
+.shareClose {
+  font-family: var(--cour-font-ui);
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--cour-black, #0a0604);
+  background: var(--cour-accent);
+  border: none;
+  border-radius: 999px;
+  padding: 10px 16px;
+  cursor: pointer;
+  align-self: flex-end;
+}

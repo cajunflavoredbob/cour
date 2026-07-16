@@ -1,0 +1,56 @@
+services:
+  cour:
+    # Uses the published image so this file works copied on its own (the
+    # README quick-start). Building from source instead: replace with `build: .`
+    # (requires the full repo checked out).
+    #
+    # Tag pinned to the current release (audit 10 #164 / audit 11 #180).
+    # IMPORTANT (workflow rule, added 0.4.8): this pin tracks VERSION on
+    # every release bump alongside package.json + CHANGELOG. Operators
+    # following the README quick-start get whatever this file says, so
+    # leaving it stale ships a stale image. Latest tags:
+    #   https://hub.docker.com/r/cajunflavoredbob/cour/tags
+    image: cajunflavoredbob/cour:1.1.0
+    ports:
+      # Publishes on all interfaces for the LAN deployment this app is
+      # designed for. Behind a same-host reverse proxy, bind to loopback
+      # instead ("127.0.0.1:8000:8000") so the proxy is the only way in
+      # (see docs/reverse-proxy.markdown).
+      - "8000:8000"
+    environment:
+      # AniList is built in as the only provider -- no wiring needed.
+      LOG_LEVEL: INFO
+      # Screenshot enrichment for the details drawer (optional). A TMDB
+      # API key -- v3 key or v4 read token both work:
+      # TMDB_API_KEY: "your-key-here"
+      #
+      # Season/deck tuning (all optional):
+      # ANIME_SEASON: SUMMER
+      # ANIME_YEAR: "2026"
+      # ANIME_SHOW_SEQUELS: "false"
+      #
+      # Uncomment to gate the whole app behind basic auth when exposing
+      # it beyond your LAN (also uncomment the auth_pass secret below):
+      # AUTH_USER: admin
+    # secrets:
+    #   - auth_pass
+    volumes:
+      # The SQLite database, seasonal cache, and room state.
+      - cour_data:/app/data
+    restart: unless-stopped
+    # The image carries a HEALTHCHECK on /health (Dockerfile). `docker
+    # compose ps` surfaces it as `(healthy)` / `(unhealthy)` after the
+    # start-period elapses (~15s). If you add a dependent service that
+    # should wait until cour is actually serving requests, gate it with:
+    #
+    #   your_service:
+    #     depends_on:
+    #       cour:
+    #         condition: service_healthy
+
+volumes:
+  cour_data:
+
+# secrets:
+#   auth_pass:
+#     file: ./secrets/auth_pass.txt

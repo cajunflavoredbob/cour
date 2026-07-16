@@ -1,0 +1,127 @@
+/* The dim scrim over the poster while the sheet is up. Opacity is
+   driven inline (tracks the drag 1:1); the transition only applies to
+   the settled open/close animation. */
+.dim {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  background: rgba(10, 7, 7, 0.55);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 240ms ease;
+}
+
+.dim[data-open="true"] {
+  pointer-events: auto;
+}
+
+.dim[data-dragging="true"] {
+  transition: none;
+}
+
+/* Sheet container: from the design's 118px top gap to the bottom of
+   the screen. The chrome (grabber + label + verdict row) is static at
+   the bottom; the panel slides within the leftover space, clipped so a
+   closed panel is invisible behind the chrome. */
+.root {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 118px;
+  bottom: 0;
+  z-index: 310;
+  /* clip, NOT hidden: the panel's translateY pushes its box well below
+     the root, which under `overflow: hidden` becomes SCROLLABLE overflow.
+     A touch-drag then scrolls the root and carries the absolutely-pinned
+     verdict row up with it (the "floating button bar"). `overflow: clip`
+     clips identically but creates no scroll container, so nothing can
+     move the row. */
+  overflow: clip;
+  pointer-events: none;
+}
+
+/* The panel is NOT in flow with the chrome (a flex column let a
+   mid-animation reflow shove the "static" verdict row). Both are
+   absolutely positioned: the panel fills from the top down to the
+   pinned chrome's measured height, the chrome is nailed to the bottom.
+   Nothing the panel does can move the verdict row. */
+.panel {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: var(--chrome-h, 100px);
+  min-height: 0;
+  z-index: 1;
+  pointer-events: auto;
+  background: var(--cour-bg-1);
+  border-top: 1px solid var(--cour-line-strong);
+  border-radius: 22px 22px 0 0;
+  /* Closed resting spot: only the 62px handle strip shows above the
+     verdict row (must match HANDLE_H in the component). */
+  transform: translateY(calc(100% - 62px));
+  /* Ease-out settle, NOT a spring: an overshoot would lift the panel's
+     bottom edge off the verdict row and snap back. */
+  transition: transform 300ms cubic-bezier(0.25, 0.85, 0.3, 1);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.panel[data-dragging="true"] {
+  transition: none;
+}
+
+.panelInner {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-bottom: 8px;
+}
+
+/* The verdict row -- pinned to the bottom, absolutely, so it never
+   moves. The panel reserves this element's measured height (--chrome-h)
+   as its own bottom offset. */
+.chrome {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 2;
+  pointer-events: auto;
+  background: var(--cour-bg-1);
+  padding: 6px 20px 34px;
+}
+
+/* The panel's top edge and the drag surface. Fixed height: the closed
+   transform and the drag travel math both depend on it. */
+.handle {
+  height: 62px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  border: none;
+  background: transparent;
+  cursor: grab;
+  /* The drag owns vertical touches; without this Firefox/Android claims
+     them as scroll and never delivers pointermove. */
+  touch-action: none;
+}
+
+.grabber {
+  width: 40px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--cour-line-strong);
+}
+
+.handleLabel {
+  font-family: var(--cour-font-ui);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--cour-text-2);
+}

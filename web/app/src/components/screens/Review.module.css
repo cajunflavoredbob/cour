@@ -1,0 +1,523 @@
+.screen {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  padding: 56px 20px 0;
+}
+
+.topBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 18px;
+}
+
+.wordRow {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.word {
+  font-family: var(--cour-font-display);
+  font-weight: 600;
+  font-size: 19px;
+  color: var(--cour-text-0);
+}
+
+.kanjiChip {
+  font-family: var(--cour-font-display);
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--cour-accent-bright);
+  border: 1px solid var(--cour-line-strong);
+  border-radius: 5px;
+  padding: 1px 5px;
+}
+
+.headline {
+  font-family: var(--cour-font-display);
+  font-weight: 600;
+  font-size: 34px;
+  line-height: 1.1;
+  color: var(--cour-text-0);
+  margin-bottom: 6px;
+}
+
+.contextLine {
+  font-family: var(--cour-font-mono);
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  color: var(--cour-text-2);
+  margin-bottom: 10px;
+}
+
+.progressTrack {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--cour-bg-2);
+  overflow: hidden;
+  margin-bottom: 16px;
+}
+
+.progressFill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--cour-accent);
+  transition: width 240ms ease;
+}
+
+.resumeBanner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  background: var(--cour-bg-1);
+  border: 1px solid var(--cour-line-strong);
+  border-radius: 16px;
+  padding: 14px 16px;
+  cursor: pointer;
+  text-align: left;
+  margin-bottom: 16px;
+}
+
+.resumeBanner:hover {
+  border-color: var(--cour-text-3);
+}
+
+.resumeThumb {
+  width: 40px;
+  height: 56px;
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--cour-bg-2);
+  flex-shrink: 0;
+}
+
+.resumeThumbImg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.resumeText {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  flex: 1;
+}
+
+.resumeTitle {
+  font-family: var(--cour-font-ui);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--cour-text-0);
+}
+
+.resumeMeta {
+  font-family: var(--cour-font-mono);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: var(--cour-text-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.resumeArrow {
+  color: var(--cour-accent-bright);
+  flex-shrink: 0;
+}
+
+.pileTabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.pileTab {
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--cour-line);
+  background: var(--cour-bg-1);
+  color: var(--cour-text-2);
+  font-family: var(--cour-font-ui);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.pileTab[data-active="true"] {
+  background: var(--cour-accent-soft);
+  border-color: var(--cour-accent);
+  color: var(--cour-text-0);
+}
+
+.rows {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 16px;
+  flex: 1;
+}
+
+.emptyPile {
+  padding: 24px 0;
+  font-family: var(--cour-font-ui);
+  font-size: 13px;
+  color: var(--cour-text-3);
+  text-align: center;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--cour-line);
+}
+
+/* The tappable body of a row (thumb + text) -- opens the title's own
+   re-review pass. The pill stays a separate control. */
+.rowMain {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+}
+
+.rowMain:disabled {
+  cursor: default;
+}
+
+.pileReviewBtn {
+  align-self: flex-start;
+  margin: 6px 0 2px;
+  padding: 8px 0;
+  border: none;
+  background: transparent;
+  font-family: var(--cour-font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--cour-accent-bright);
+  cursor: pointer;
+}
+
+.pileReviewBtn:hover {
+  filter: brightness(1.15);
+}
+
+.rowThumb {
+  width: 40px;
+  height: 56px;
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--cour-bg-2);
+  flex-shrink: 0;
+}
+
+.rowThumbImg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.rowText {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  flex: 1;
+}
+
+.rowTitle {
+  font-family: var(--cour-font-ui);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--cour-text-0);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rowMeta {
+  font-family: var(--cour-font-mono);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: var(--cour-text-3);
+}
+
+/* Tap-to-change verdict pill: LIKED carries the accent border. */
+.verdictPill {
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--cour-line-strong);
+  background: transparent;
+  color: var(--cour-text-2);
+  font-family: var(--cour-font-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.verdictPill[data-verdict="like"] {
+  border-color: var(--cour-accent);
+  color: var(--cour-accent-bright);
+}
+
+.verdictPill[data-verdict="dislike"] {
+  border-color: var(--cour-negative);
+  color: var(--cour-negative);
+}
+
+.verdictPill:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.overflowBtn {
+  width: 100%;
+  padding: 12px 0;
+  border: none;
+  background: transparent;
+  font-family: var(--cour-font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--cour-text-2);
+  cursor: pointer;
+}
+
+.overflowBtn:hover {
+  color: var(--cour-text-0);
+}
+
+.lockBar {
+  position: sticky;
+  bottom: 0;
+  margin: 0 -20px;
+  padding: 12px 20px 34px;
+  background: var(--cour-bg-1);
+  border-top: 1px solid var(--cour-line-strong);
+}
+
+.lockBtn {
+  width: 100%;
+  padding: 16px;
+  border: none;
+  border-radius: 999px;
+  background: var(--cour-bg-2);
+  color: var(--cour-text-2);
+  font-family: var(--cour-font-ui);
+  font-size: 15px;
+  font-weight: 600;
+  cursor: default;
+}
+
+.lockBtn[data-complete="true"] {
+  background: var(--cour-accent);
+  color: white;
+  cursor: pointer;
+  box-shadow: 0 8px 24px -8px var(--cour-accent);
+}
+
+.lockCaption {
+  margin: 8px 0 0;
+  text-align: center;
+  font-family: var(--cour-font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.1em;
+  color: var(--cour-text-3);
+}
+
+/* The no-take-backsies dialog (0.12.0): lock-in is final, so it takes a
+   deliberate checkbox before the button arms. */
+.confirmBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(10, 7, 7, 0.7);
+  animation: confirmFade 140ms ease-out;
+}
+
+.confirmDialog {
+  width: 100%;
+  max-width: 340px;
+  background: var(--cour-bg-1);
+  border: 1px solid var(--cour-line-strong);
+  border-radius: 20px;
+  padding: 22px 20px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.confirmTitle {
+  font-family: var(--cour-font-display);
+  font-weight: 600;
+  font-size: 26px;
+  color: var(--cour-text-0);
+}
+
+.confirmText {
+  font-family: var(--cour-font-ui);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--cour-text-1);
+}
+
+.confirmCheckRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--cour-line-strong);
+  border-radius: 12px;
+  font-family: var(--cour-font-ui);
+  font-size: 13px;
+  color: var(--cour-text-0);
+  cursor: pointer;
+}
+
+.confirmCheckbox {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--cour-accent);
+  flex-shrink: 0;
+}
+
+.confirmActions {
+  display: flex;
+  gap: 10px;
+  margin-top: 2px;
+}
+
+.confirmCancel {
+  flex: 1;
+  padding: 12px;
+  border: 1px solid var(--cour-line-strong);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--cour-text-1);
+  font-family: var(--cour-font-ui);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.confirmLock {
+  flex: 1;
+  padding: 12px;
+  border: none;
+  border-radius: 999px;
+  background: var(--cour-accent);
+  color: white;
+  font-family: var(--cour-font-ui);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 8px 24px -8px var(--cour-accent);
+}
+
+.confirmLock:disabled {
+  background: var(--cour-bg-2);
+  color: var(--cour-text-3);
+  cursor: default;
+  box-shadow: none;
+}
+
+@keyframes confirmFade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+
+/* Row hover -- pointer devices only (no sticky hover on touch). */
+@media (hover: hover) {
+  .rowMain:not(:disabled):hover .rowTitle {
+    color: var(--cour-accent-bright);
+  }
+}
+
+/* ══ Desktop (docs/DESKTOP.md 0.15.0): rail + main ══ */
+
+/* Neutral wrapper on mobile (children keep their own margins); a rail
+   section on desktop. */
+.headlineBlock {
+  display: block;
+}
+
+/* A fixed-height shell: the header, rail, pile tabs, and review-all
+   stay put; only the ledger list scrolls (the owner's call). */
+.deskScreen {
+  height: 100dvh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.deskBody {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  width: 100%;
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 8px 24px 32px;
+  display: grid;
+  grid-template-columns: 320px minmax(0, 1fr);
+  gap: 48px;
+  align-items: stretch;
+}
+
+/* Status + the primary action -- static; scrolls only if its own
+   content overflows a short viewport. */
+.rail {
+  align-self: stretch;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.rail .headline {
+  font-size: 30px;
+  margin-bottom: 8px;
+}
+
+.railLock {
+  padding-top: 16px;
+  border-top: 1px solid var(--cour-line);
+}
+
+/* The pile tabs + review-all stay pinned; only the ledger scrolls. */
+.main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.main .pileTabs,
+.main .pileReviewBtn {
+  flex-shrink: 0;
+}
+
+.main .rows {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
