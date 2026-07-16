@@ -4,10 +4,11 @@ import { setStoredTutorialSeen } from "../../utils/prefs";
 import styles from "./Tutorial.module.css";
 
 /**
- * The first-login one-pager (audit 17, the owner's spec): a super brief
- * explainer shown once, right after the first successful login on this
- * browser. Any dismissal (CTA, Escape, backdrop) counts as seen -- a
- * tutorial that keeps coming back is worse than none.
+ * The first-run one-pager (audit 17, the owner's spec): a super brief
+ * explainer shown once, when the user first lands in a room on this
+ * browser (after login AND join -- popping it over the join form read
+ * as "before logging in"). Any dismissal (CTA, Escape, backdrop) counts
+ * as seen -- a tutorial that keeps coming back is worse than none.
  */
 export const Tutorial = () => {
   const dispatch = useDispatch();

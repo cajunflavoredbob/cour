@@ -254,12 +254,6 @@ export const createStore = () => {
 
     if (msg.type === "loginSuccess") {
       apply(msg as Actions);
-      // First-login tutorial (audit 17, the owner's pick over deck undo):
-      // one page, once, right after the first successful login on this
-      // browser. The overlay's CTA stores the seen-flag.
-      if (!getStoredTutorialSeen()) {
-        apply({ type: "tutorial", payload: { open: true } });
-      }
       // Rooms are permanent and membership durable (0.12.0), so every
       // login -- cold start or reconnect -- simply rejoins the ?roomName
       // deep link or the remembered room. No rejoin window: there is no
@@ -290,6 +284,14 @@ export const createStore = () => {
       // A reconnect rejoin (room already joined) keeps the current route;
       // only a fresh join routes, and only once the ledger arrives.
       routeOnNextReview = useZustandStore.getState().room?.joined !== true;
+      // First-run tutorial: one page, once per browser, shown when the
+      // user first lands IN a room. Not on loginSuccess -- that arrives
+      // while the join form is still on screen and read as popping up
+      // "before logging in" (the owner's 1.1.0 feedback). Fresh joins
+      // only, so a mid-session reconnect can't interrupt with it.
+      if (routeOnNextReview && !getStoredTutorialSeen()) {
+        apply({ type: "tutorial", payload: { open: true } });
+      }
       apply(msg as Actions);
       const roomName = useZustandStore.getState().room?.name;
       if (roomName) {

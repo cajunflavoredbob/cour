@@ -13,6 +13,15 @@ repository; this changelog starts fresh at 0.1.0.
 
 ---
 
+## [1.1.1] - 2026-07-16
+
+### Fixed
+- The first-run tutorial now appears when you first land in a room,
+  instead of popping up over the join form while the login/join round
+  trips were still in flight (it read as showing up "before logging
+  in"). Fresh joins only -- a mid-session reconnect can't interrupt
+  with it.
+
 ## [1.1.0] - 2026-07-16
 
 The audit-17 release: a full adversarial audit of 1.0.0 (26 findings

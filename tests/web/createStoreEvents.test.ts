@@ -399,12 +399,23 @@ describe('deck-swap and results handling', () => {
   });
 });
 
-// Audit 17: the first-login tutorial trigger.
-describe('first-login tutorial trigger', () => {
-  it('opens the tutorial on loginSuccess when never seen', async () => {
+// Audit 17: the first-run tutorial trigger. Fires on landing IN a room,
+// not on loginSuccess -- that arrived while the join form was still on
+// screen and read as a pre-login popup (the owner's 1.1.0 feedback).
+describe('first-run tutorial trigger', () => {
+  it('does NOT open on loginSuccess alone (the join form is still up)', async () => {
     const mod = await loadCreateStore();
     mod.createStore();
     emit({ type: 'loginSuccess', payload: { userName: 'user1' } });
+    expect(mod.useZustandStore.getState().tutorialOpen).toBeUndefined();
+  });
+
+  it('opens on the first room join when never seen', async () => {
+    const mod = await loadCreateStore();
+    mod.createStore();
+    // biome-ignore lint/suspicious/noExplicitAny: test setup shortcut.
+    mod.useZustandStore.getState().dispatch({ type: 'joinOrCreateRoom', payload: { roomName: 'movie-night' } } as any);
+    emit({ type: 'joinRoomSuccess', payload: { roomName: 'movie-night', media: [], users: [] } });
     expect(mod.useZustandStore.getState().tutorialOpen).toBe(true);
   });
 
@@ -412,7 +423,9 @@ describe('first-login tutorial trigger', () => {
     localStore.set('courTutorialSeen', '1');
     const mod = await loadCreateStore();
     mod.createStore();
-    emit({ type: 'loginSuccess', payload: { userName: 'user1' } });
+    // biome-ignore lint/suspicious/noExplicitAny: test setup shortcut.
+    mod.useZustandStore.getState().dispatch({ type: 'joinOrCreateRoom', payload: { roomName: 'movie-night' } } as any);
+    emit({ type: 'joinRoomSuccess', payload: { roomName: 'movie-night', media: [], users: [] } });
     expect(mod.useZustandStore.getState().tutorialOpen).toBeUndefined();
   });
 });
