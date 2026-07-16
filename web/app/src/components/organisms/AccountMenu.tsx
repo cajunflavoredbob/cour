@@ -160,6 +160,18 @@ export const AccountMenu = () => {
               </button>
             )}
 
+            <button
+              type="button"
+              className={styles.rowButton}
+              onClick={() => {
+                dispatch({ type: "tutorial", payload: { open: true } });
+                close();
+              }}
+              data-test-handle="menu-tutorial"
+            >
+              How cour works
+            </button>
+
             {inRoom && (
               <button
                 type="button"

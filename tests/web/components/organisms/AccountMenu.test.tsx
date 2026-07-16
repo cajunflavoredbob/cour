@@ -180,6 +180,14 @@ describe('AccountMenu audit-17 UX additions', () => {
     expect(document.querySelector('[data-test-handle="share-link-input"]')).toBeNull();
   });
 
+  it('reopens the tutorial on demand', () => {
+    withState({});
+    render(<AccountMenu />);
+    openMenu();
+    fireEvent.click(screen.getByText('How cour works'));
+    expect(dispatch).toHaveBeenCalledWith({ type: 'tutorial', payload: { open: true } });
+  });
+
   it('offers the read-only review peek after lock-in (UX 6)', () => {
     withState({
       review: { verdicts: [], counts: { like: 0, dislike: 0, skip: 0 }, members: [], lockedAt: 111, total: 3 },

@@ -13,6 +13,12 @@ repository; this changelog starts fresh at 0.1.0.
 
 ---
 
+## [1.2.0] - 2026-07-16
+
+### Added
+- "How cour works" in the account menu reopens the first-run tutorial
+  on demand.
+
 ## [1.1.2] - 2026-07-16
 
 ### Fixed
