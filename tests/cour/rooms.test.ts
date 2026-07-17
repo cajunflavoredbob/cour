@@ -28,12 +28,10 @@ beforeEach(() => {
 });
 
 describe('rooms', () => {
-  it('round-trips filters as JSON and reads back typed fields', () => {
-    store.rooms.updateFilters(roomId, [{ key: 'genre', operator: '=', value: ['Action'] }]);
+  it('reads back the typed row fields', () => {
     const room = store.rooms.byName('couch-club');
     expect(room?.season).toBe('SUMMER');
     expect(room?.year).toBe(2026);
-    expect(room?.filters).toEqual([{ key: 'genre', operator: '=', value: ['Action'] }]);
     expect(room?.showSequels).toBe(false);
   });
 
@@ -193,11 +191,11 @@ describe('rankings (the couple-profile scoring, 0.13.0)', () => {
 });
 
 
-// Audit v1.2.0 #2: a corrupt filters_json row crash-looped every boot --
-// rooms.list() maps all rows through toRoom, whose bare JSON.parse threw
-// inside the rotation reaper's sweep.
-describe('rooms: corrupt filters_json row', () => {
-  it('degrades to no-filters instead of throwing from list()/byId()', () => {
+// Audit v1.2.0 #2: a corrupt filters_json row crash-looped every boot.
+// The column is fully dead since the filter rip-out -- this pins that a
+// legacy row carrying garbage there can never throw again.
+describe('rooms: legacy corrupt filters_json row', () => {
+  it('never throws from list() regardless of the column contents', () => {
     const db = openDb(':memory:');
     const s = createCourStore(db);
     const good = s.rooms.create({
@@ -210,8 +208,6 @@ describe('rooms: corrupt filters_json row', () => {
 
     const rows = s.rooms.list();
     expect(rows).toHaveLength(2);
-    const bad = rows.find((r) => r.name === 'bad-room');
-    expect(bad?.filters).toBeUndefined();
     expect(rows.find((r) => r.id === good.id)?.name).toBe('fine-room');
   });
 });

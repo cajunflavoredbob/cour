@@ -13,6 +13,39 @@ repository; this changelog starts fresh at 0.1.0.
 
 ---
 
+## [1.2.2] - 2026-07-17
+
+The rest of the audit-v1.2.0 mediums.
+
+### Fixed
+- The review pills, Lock in, and Submit rankings now disable while
+  disconnected, like the deck already did -- a confirmed lock-in can no
+  longer silently not happen during an outage.
+- Both one-shot finalizers show a committed in-flight state ("Locking
+  in..." / "Submitting...") for a minimum of three seconds; the screen
+  never flips out from under the ceremony, and a failure re-arms the
+  button.
+- Holding Enter or Space on a focused verdict button fires one verdict,
+  not one per key-repeat tick; and after the deck advances, the buttons
+  briefly settle so a double-tap can't verdict a card you never saw.
+- Rank-editor dragging now rides an always-visible grip handle (the
+  three-line affordance); the rest of the row is inert for dragging, so
+  the list scrolls normally by touch on every platform.
+- The daily pre-freeze snapshot refresh now re-decks open rooms (they
+  could previously serve their creation-day deck until a restart), a
+  room that fails to re-deck is evicted instead of mixing seasons, and
+  a season rotation whose post-swap steps fail retries them on the next
+  tick instead of half-landing forever.
+- The post-lock "Back to standings" button styles as the live control it
+  is instead of inheriting the disabled lock button's muted look.
+
+### Removed
+- The last of the filter machinery, root and branch: room filter state,
+  persistence, the provider's filter application, and the wire fields
+  that carried it. The deck-swap push is now a plain `mediaChanged`
+  frame. Legacy `filters_json` values in old rows are inert and die with
+  the rotation reaper.
+
 ## [1.2.1] - 2026-07-17
 
 The audit-v1.2.0 fix release: both blockers, the top user-felt highs,

@@ -41,8 +41,6 @@ export interface CourRoom {
   displayName: string;
   season: 'WINTER' | 'SPRING' | 'SUMMER' | 'FALL';
   year: number;
-  // Room-creation-time filters, JSON-encoded on disk. Opaque to the store.
-  filters?: unknown;
   showSequels: boolean;
   createdAt: number;
 }
@@ -141,26 +139,16 @@ export const createCourStore = (db: DatabaseSync) => {
     created_at: number;
   }
 
-  // A corrupt filters_json row must degrade to "no filters", never throw:
-  // rooms.list() maps EVERY row through here (the rotation reaper runs it
-  // on every boot), so a bare JSON.parse turned one bad row into a boot
-  // crash-loop (audit v1.2.0 #2).
-  const parseFilters = (raw: string | null): unknown => {
-    if (!raw) return undefined;
-    try {
-      return JSON.parse(raw);
-    } catch {
-      return undefined;
-    }
-  };
-
+  // filters_json is a dead column since the audit-v1.2.0 filter rip-out:
+  // never read (legacy rows may hold anything, including garbage -- the
+  // bare parse here once crash-looped boot), never written; the rotation
+  // reaper deletes the rows that still carry values.
   const toRoom = (row: RoomRow): CourRoom => ({
     id: row.id,
     name: row.name,
     displayName: row.display_name,
     season: row.season,
     year: row.year,
-    filters: parseFilters(row.filters_json),
     showSequels: row.show_sequels === 1,
     createdAt: row.created_at,
   });
@@ -171,20 +159,18 @@ export const createCourStore = (db: DatabaseSync) => {
       displayName?: string;
       season: CourRoom['season'];
       year: number;
-      filters?: unknown;
       showSequels?: boolean;
     }): CourRoom => {
       const result = db
         .prepare(
-          `INSERT INTO rooms (name, display_name, season, year, filters_json, show_sequels, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO rooms (name, display_name, season, year, show_sequels, created_at)
+           VALUES (?, ?, ?, ?, ?, ?)`,
         )
         .run(
           room.name,
           room.displayName ?? room.name,
           room.season,
           room.year,
-          room.filters !== undefined ? JSON.stringify(room.filters) : null,
           room.showSequels ? 1 : 0,
           Date.now(),
         );
@@ -210,13 +196,6 @@ export const createCourStore = (db: DatabaseSync) => {
         .prepare('SELECT * FROM rooms ORDER BY created_at')
         .all() as unknown as RoomRow[];
       return rows.map(toRoom);
-    },
-
-    updateFilters: (roomId: number, filters: unknown): void => {
-      db.prepare('UPDATE rooms SET filters_json = ? WHERE id = ?').run(
-        filters !== undefined ? JSON.stringify(filters) : null,
-        roomId,
-      );
     },
 
     /** Cascades to members/verdicts/rankings. Rooms never expire on

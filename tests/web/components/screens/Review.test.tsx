@@ -49,6 +49,7 @@ const reviewState = (over: Partial<{
 const withState = (slice: any = {}) => {
   useStoreMock.mockReturnValue([
     {
+      connectionStatus: 'connected',
       room: { name: 'couch-club', displayName: 'Couch-Club', joined: true, media },
       review: reviewState(),
       auth,
@@ -159,6 +160,44 @@ describe('ReviewScreen (design section 07)', () => {
     });
     render(<ReviewScreen />);
     expect(screen.getByText(/1 OF 2 LOCKED/)).toBeDefined();
+  });
+
+  it('pills and lock-in disable while disconnected (audit v1.2.0 #8)', () => {
+    withState({ connectionStatus: 'disconnected', review: reviewState() });
+    render(<ReviewScreen />);
+    const pill = document.querySelector('[class*="verdictPill"]') as HTMLButtonElement;
+    expect(pill.disabled).toBe(true);
+    const lock = document.querySelector('[data-test-handle="lock-in"]') as HTMLButtonElement;
+    expect(lock.disabled).toBe(true);
+  });
+
+  it('confirming lock-in starts the min-3s ceremony (audit v1.2.0 #9)', () => {
+    withState({
+      review: reviewState({
+        verdicts: [
+          { titleId: 101, verdict: 'like', updatedAt: 1 },
+          { titleId: 102, verdict: 'skip', updatedAt: 2 },
+          { titleId: 103, verdict: 'dislike', updatedAt: 3 },
+        ],
+      }),
+    });
+    render(<ReviewScreen />);
+    fireEvent.click(document.querySelector('[data-test-handle="lock-in"]') as HTMLElement);
+    fireEvent.click(screen.getByText("I'm ready to lock in my season"));
+    fireEvent.click(document.querySelector('[data-test-handle="confirm-lock"]') as HTMLElement);
+    expect(dispatch).toHaveBeenCalledWith({ type: 'finalizing', payload: { kind: 'lock' } });
+    expect(dispatch).toHaveBeenCalledWith({ type: 'lockIn' });
+  });
+
+  it('shows "Locking in..." disabled while the ceremony runs', () => {
+    withState({
+      review: reviewState(),
+      finalizing: { kind: 'lock', startedAt: Date.now() },
+    });
+    render(<ReviewScreen />);
+    const lock = document.querySelector('[data-test-handle="lock-in"]') as HTMLButtonElement;
+    expect(lock.disabled).toBe(true);
+    expect(lock.textContent).toContain('Locking in');
   });
 
   it('the locked peek offers a way back to the standings (audit 17 UX 6)', () => {

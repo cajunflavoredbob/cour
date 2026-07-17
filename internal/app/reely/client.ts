@@ -271,7 +271,6 @@ export class Client {
       displayName: this.room.displayName,
       season: season.season,
       year: season.year,
-      filters: this.room.filters,
       showSequels: getConfig().anime?.showSequels ?? false,
     });
     cour.members.ensure(courRoom.id, user.id);
@@ -712,7 +711,6 @@ export class Client {
         displayName: room.displayName,
         media: await room.getMedia(),
         users: room.getUsers(),
-        filters: room.filters,
       },
     });
   }
@@ -790,7 +788,6 @@ export class Client {
         displayName: room.displayName,
         media: await room.getMedia(),
         users: room.getUsers(),
-        filters: room.filters,
       },
     });
 

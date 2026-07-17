@@ -96,7 +96,9 @@ export type ClientMessage =
   | { type: "config"; payload: AppConfig }
   | { type: "userJoinedRoom"; payload: User }
   | { type: "userLeftRoom"; payload: User }
-  | { type: "filterChangeApplied"; payload: { appliedBy: string; media: Media[]; filters: Filter[] } }
+  // PUSHED when the deck swaps under an open room (daily pre-freeze
+  // refresh, stills enrichment, season rotation re-deck).
+  | { type: "mediaChanged"; payload: { media: Media[] } }
   | { type: "loginSuccess"; payload: { userName: string } }
   | { type: "loginError"; payload: { message: string } }
   | { type: "verdictSuccess"; payload: { titleId: number; verdict: VerdictValue } }
@@ -199,19 +201,12 @@ export interface User {
 
 // Create Room
 
-export interface Filter {
-  key: string;
-  operator: string;
-  value: string[];
-}
-
 export interface CreateRoomRequest {
   // Canonical (lowercased, allowlist-stripped) room name. Used as Map key,
   // filename, and URL parameter value.
   roomName: string;
   // Display form -- preserves case for UI rendering.
   displayName?: string;
-  filters?: Filter[];
 }
 
 export interface CreateRoomError {
@@ -252,7 +247,6 @@ export interface JoinRoomSuccess {
   displayName?: string;
   media: Media[];
   users: User[];
-  filters?: Filter[];
 }
 
 // Leave
@@ -295,8 +289,7 @@ export interface Media {
   trailer?: { site: string; id: string };
 }
 
-// (The Filters/FilterValue/FilterValueRequest/Library vocabulary died
-// with the filter panel in audit 17's strip: cour deals the whole
-// season, simple. `Filter` below survives -- legacy room rows may carry
-// creation-time filters until the rotation reaper clears them, and the
-// filterChangeApplied push reuses its shape.)
+// (The entire filter vocabulary died across audit 17 and the
+// audit-v1.2.0 rip-out: cour deals the whole season, simple. Legacy
+// filters_json values in old room rows are ignored and die with the
+// rotation reaper.)

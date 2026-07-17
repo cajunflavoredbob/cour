@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { VerdictValue } from "../../../../../types/reely";
 import { useDispatch, useSelector } from "../../store";
 import styles from "./VerdictRow.module.css";
@@ -42,11 +42,31 @@ export const VerdictRow = ({ titleId, remaining, allowSkipAll = true, currentVer
   const holdTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const holdFired = useRef(false);
 
+  // Post-advance debounce (audit v1.2.0 #16): the next card's buttons
+  // occupy the same coordinates the instant the deck advances, so a
+  // double-tap could verdict a title the user never saw. Briefly disable
+  // after the row re-targets. Skipped on first mount.
+  const [settling, setSettling] = useState(false);
+  const prevTitleId = useRef<number | null>(null);
+  useEffect(() => {
+    if (prevTitleId.current !== null && prevTitleId.current !== titleId) {
+      setSettling(true);
+      const timer = setTimeout(() => setSettling(false), 300);
+      prevTitleId.current = titleId;
+      return () => clearTimeout(timer);
+    }
+    prevTitleId.current = titleId;
+  }, [titleId]);
+
+  // One disabled flag for all three buttons: offline (audit 17 M7) or
+  // the brief post-advance settle (audit v1.2.0 #16).
+  const inputsDisabled = offline || settling;
+
   const verdict = (v: "like" | "dislike" | "skip") =>
     dispatch({ type: "verdict", payload: { titleId, verdict: v } });
 
   const startHold = () => {
-    if (!allowSkipAll || offline) return;
+    if (!allowSkipAll || inputsDisabled) return;
     // Pointer events fire per pointerId against these shared refs: a
     // second finger down would overwrite holdTimer and ORPHAN the first
     // timer, so a quick two-finger tap fired a plain skip AND, 1.5s
@@ -83,8 +103,13 @@ export const VerdictRow = ({ titleId, remaining, allowSkipAll = true, currentVer
         className={styles.dislikeBtn}
         data-current={currentVerdict === "dislike"}
         aria-label={currentVerdict === "dislike" ? "Pass (your current pick)" : undefined}
+        onKeyDown={(e) => {
+          // Held Enter synthesizes a click per repeat tick (audit v1.2.0
+          // #10); swallow the repeats, keep the first press's click.
+          if (e.key === "Enter" && e.repeat) e.preventDefault();
+        }}
         onClick={() => verdict("dislike")}
-        disabled={offline}
+        disabled={inputsDisabled}
         data-test-handle="verdict-dislike"
       >
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
@@ -104,12 +129,16 @@ export const VerdictRow = ({ titleId, remaining, allowSkipAll = true, currentVer
         onPointerLeave={cancelHold}
         onKeyDown={(e) => {
           // Keyboard path: plain skip; hold-to-skip-all is pointer-only.
+          // e.repeat: a held key fires per OS repeat tick and would
+          // mass-verdict (audit v1.2.0 #10 -- the global K/P/U shortcuts
+          // were guarded in audit 17; the focused button wasn't).
           if (e.key === "Enter" || e.key === " ") {
             e.preventDefault();
+            if (e.repeat) return;
             verdict("skip");
           }
         }}
-        disabled={offline}
+        disabled={inputsDisabled}
         data-test-handle="verdict-skip"
       >
         <span className={styles.skipFill} aria-hidden="true" />
@@ -123,8 +152,11 @@ export const VerdictRow = ({ titleId, remaining, allowSkipAll = true, currentVer
         className={styles.likeBtn}
         data-current={currentVerdict === "like"}
         aria-label={currentVerdict === "like" ? "Keep (your current pick)" : undefined}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && e.repeat) e.preventDefault();
+        }}
         onClick={() => verdict("like")}
-        disabled={offline}
+        disabled={inputsDisabled}
         data-test-handle="verdict-like"
       >
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">

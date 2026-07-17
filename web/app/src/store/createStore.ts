@@ -61,6 +61,7 @@ const dispatchToClient = (
     case "viewLockedReview":
     case "tutorial":
     case "chooseRoom":
+    case "finalizing":
       return undefined;
     default: {
       const _exhaustive: never = msg;
@@ -125,6 +126,12 @@ export const createStore = () => {
           // then, and Home/Deck held the pulse forever (audit v1.2.0 #5).
           if (action.type === "review") {
             scheduleReviewRetry();
+          }
+          // A lock/submit that never got an answer must not stick on its
+          // in-flight ceremony forever -- the timeout toast plus a
+          // re-armed button is the honest state (audit v1.2.0 #9).
+          if (action.type === "lockIn" || action.type === "submitRankings") {
+            set((state) => reducer(state, { type: "finalizing", payload: null }));
           }
           // A login that never got an answer must not strand the wordmark
           // pulse: the 5s loading escape was already cleared on connect
@@ -378,13 +385,12 @@ export const createStore = () => {
       return;
     }
 
-    if (msg.type === "filterChangeApplied") {
+    if (msg.type === "mediaChanged") {
       apply(msg as Actions);
-      // The deck just swapped under us -- another member's filter apply,
-      // the stills-enrichment push, or a season rotation re-deck all
-      // arrive as this frame. Counts, totals, and the current card all
-      // derive from ledger x media, so re-pull the ledger or the two
-      // silently diverge (audit 17 H7).
+      // The deck just swapped under us -- the daily refresh, the stills
+      // push, or a season-rotation re-deck. Counts, totals, and the
+      // current card all derive from ledger x media, so re-pull the
+      // ledger or the two silently diverge (audit 17 H7).
       if (useZustandStore.getState().room?.joined) {
         dispatch({ type: "review" });
       }

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 
 let dispatch: ReturnType<typeof vi.fn>;
 vi.mock('../../../../web/app/src/store', () => ({
@@ -101,6 +101,29 @@ describe('VerdictRow', () => {
     }
     fireEvent.click(screen.getByText('Keep'));
     expect(dispatch).not.toHaveBeenCalled();
+  });
+
+  it('held Enter/Space on the Unsure button fires ONE skip (audit v1.2.0 #10)', () => {
+    render(<VerdictRow titleId={101} remaining={12} />);
+    const skip = document.querySelector('[data-test-handle="verdict-skip"]') as HTMLElement;
+    fireEvent.keyDown(skip, { key: 'Enter' });
+    fireEvent.keyDown(skip, { key: 'Enter', repeat: true });
+    fireEvent.keyDown(skip, { key: ' ', repeat: true });
+    const verdicts = dispatch.mock.calls.filter(([a]) => a.type === 'verdict');
+    expect(verdicts).toHaveLength(1);
+  });
+
+  it('briefly disables after the card advances (audit v1.2.0 #16)', () => {
+    vi.useFakeTimers();
+    const { rerender } = render(<VerdictRow titleId={101} remaining={12} />);
+    // The deck advanced: same coordinates, new title.
+    rerender(<VerdictRow titleId={102} remaining={11} />);
+    const like = document.querySelector('[data-test-handle="verdict-like"]') as HTMLButtonElement;
+    expect(like.disabled).toBe(true);
+    act(() => {
+      vi.advanceTimersByTime(350);
+    });
+    expect(like.disabled).toBe(false);
   });
 
   it('dragging the pointer away cancels the hold with no dispatch', () => {

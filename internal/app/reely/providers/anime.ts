@@ -1,8 +1,5 @@
 import { join } from 'node:path';
-import type {
-  Filter,
-  Media,
-} from '../../../../types/reely';
+import type { Media } from '../../../../types/reely';
 import { AniListApi } from '../../anilist/api';
 import { loadSeasonCache, saveSeasonCache, SEASON_CACHE_VERSION } from '../../anilist/cache';
 import {
@@ -30,6 +27,11 @@ export interface AnimeProviderConfig {
   // Fired after enrichment adds stills, so the app layer can push the
   // refreshed media to rooms that are already open (0.9.1).
   onStillsEnriched?: () => void;
+  // Fired after a same-season snapshot refresh lands (the startup
+  // self-refresh and the daily pre-freeze refresh). Without it, open
+  // rooms served their creation-day deck until a restart while the
+  // provider snapshot moved on (audit v1.2.0 #13).
+  onRefreshed?: () => void;
   // Fired after a season rotation LANDS (incoming-season fetch succeeded,
   // snapshot swapped). The app layer deletes last season's rooms and
   // pushes the new deck to open rooms. Never fires on a failed fetch --
@@ -125,11 +127,15 @@ export const createProvider = (
   // Keyed off the cache timestamp so restarts don't re-trigger; `busy`
   // serializes the jobs so a slow fetch can't stack.
   let lastFetchedAt = 0;
+  let rotationCallbackPending = false;
   const REFRESH_EVERY_MS = 24 * 60 * 60 * 1000;
   const SEASON_CHECK_MS = 60 * 60 * 1000;
   let busy = false;
   const scheduleCheck = setInterval(() => {
     if (busy) return;
+    // A rotation whose post-swap callback threw retries here until it
+    // lands (audit v1.2.0 #14).
+    if (rotationCallbackPending) fireSeasonRotated();
     const target = resolveTarget();
     if (target.season !== current.season || target.year !== current.year) {
       busy = true;
@@ -216,6 +222,8 @@ export const createProvider = (
     lastFetchedAt = Date.now();
     logger.info(`AniList ${label()}: loaded ${media.length} entries`);
     await persistSnapshot();
+    // Open rooms re-deck off the fresh snapshot (audit v1.2.0 #13).
+    options.onRefreshed?.();
     // Fill stills for anything new; fire-and-forget.
     void enrichFromTmdb().catch((err) => {
       logger.warn(`TMDB enrichment failed: ${String(err)}`);
@@ -227,6 +235,23 @@ export const createProvider = (
   // and onSeasonRotated fires strictly after the new snapshot is
   // servable, so the app layer never wipes room data it can't re-deck.
   // No enrichment carry-over: a new season shares no ids with the old.
+  const fireSeasonRotated = () => {
+    // The post-swap steps (reaper sweep, re-deck push, config broadcast)
+    // must not half-land forever: the snapshot swap already happened, so
+    // target === current and the rotation branch never re-fires. A throw
+    // here marks the callback pending and the hourly tick retries it
+    // (audit v1.2.0 #14).
+    try {
+      options.onSeasonRotated?.({ ...current });
+      rotationCallbackPending = false;
+    } catch (err) {
+      rotationCallbackPending = true;
+      logger.warn(
+        `AniList ${label()}: onSeasonRotated failed; retrying next tick: ${String(err)}`,
+      );
+    }
+  };
+
   const rotate = async (target: { season: AnimeSeason; year: number }): Promise<void> => {
     const media = await api.fetchSeason(target.season, target.year);
     current = target;
@@ -237,7 +262,7 @@ export const createProvider = (
     void enrichFromTmdb().catch((err) => {
       logger.warn(`TMDB enrichment failed: ${String(err)}`);
     });
-    options.onSeasonRotated?.({ ...current });
+    fireSeasonRotated();
   };
 
   // One-shot startup load (see the provider docstring for the flow). The
@@ -316,27 +341,6 @@ export const createProvider = (
     return showSequels ? all : all.filter((a) => !a.isSequel);
   };
 
-  // In-memory filter application. Only '=' / '!=' are advertised (the same
-  // equality-only vocabulary as the plex provider's reelyBucket filter);
-  // anything else a crafted client sends falls back to '='. An empty value
-  // array matches everything -- same no-op semantics as the plex path,
-  // where an empty selection contributes no query params.
-  const matchesFilter = (a: SeasonalAnime, f: Filter): boolean => {
-    if (f.value.length === 0) return true;
-    let has: boolean;
-    if (f.key === 'genre') {
-      has = a.genres.some((g) => f.value.includes(g));
-    } else if (f.key === 'format') {
-      has = f.value.includes(a.format ?? '');
-    } else {
-      // Unknown keys pass through rather than zeroing the deck -- a stale
-      // client filter (e.g. a plex-era key restored from a persisted room)
-      // shouldn't brick the room.
-      return true;
-    }
-    return f.operator === '!=' ? !has : has;
-  };
-
   const toMedia = (a: SeasonalAnime): Media => ({
     id: String(a.id),
     type: 'anime',
@@ -387,14 +391,12 @@ export const createProvider = (
     // must not hold a reference that mutates under them.
     getSeason: () => ({ ...current }),
 
-    getMedia: async ({ filters }): Promise<Media[]> => {
+    getMedia: async (): Promise<Media[]> => {
       await ensureLoaded();
-      let media = visibleList();
-      if (filters?.length) {
-        media = media.filter((a) => filters.every((f) => matchesFilter(a, f)));
-      }
       // Order preserved from AniList's POPULARITY_DESC -- see mediaOrdered.
-      return media.map(toMedia);
+      // (The per-room filter application died with the filter rip-out:
+      // cour deals the whole season.)
+      return visibleList().map(toMedia);
     },
 
     getArtwork: async (

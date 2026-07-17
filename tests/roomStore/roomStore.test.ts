@@ -44,11 +44,10 @@ const makeCtx = (withCour = true): RouteContext => ({
 });
 
 const makeWsRoom = (over: Partial<{
-  roomName: string; displayName: string; filters: unknown; routeContext: RouteContext;
+  roomName: string; displayName: string; routeContext: RouteContext;
 }> = {}): Room => ({
   roomName: 'movie-night',
   displayName: 'Movie-Night',
-  filters: undefined,
   createdAt: 1000,
   routeContext: over.routeContext ?? makeCtx(),
   ...over,
@@ -110,37 +109,17 @@ describe('saveRoom (SQLite)', () => {
     expect(row?.year).toBe(2026);
   });
 
-  it('updates filters on later saves instead of duplicating', () => {
+  it('later saves are idempotent (no duplicate rows)', () => {
     const room = makeWsRoom();
     saveRoom(room);
-    (room as unknown as { filters: unknown }).filters = [
-      { key: 'genre', operator: '=', value: ['Comedy'] },
-    ];
     saveRoom(room);
     expect(cour.rooms.list()).toHaveLength(1);
-    expect(cour.rooms.byName('movie-night')?.filters).toEqual([
-      { key: 'genre', operator: '=', value: ['Comedy'] },
-    ]);
   });
 
   it('no-ops without a cour store (test-harness Rooms)', () => {
     expect(() => saveRoom(makeWsRoom({ routeContext: makeCtx(false) }))).not.toThrow();
   });
 
-  it('a filterless save does not NULL previously saved filters (audit 17 M1)', () => {
-    const filters = [{ key: 'genre', operator: '=', value: ['Action'] }];
-    saveRoom(makeWsRoom({ filters }));
-    expect(cour.rooms.byName('movie-night')?.filters).toEqual(filters);
-
-    // A bare-join Room (restore failed, create branch) carries
-    // filters === undefined; saving it used to wipe filters_json.
-    saveRoom(makeWsRoom({ filters: undefined }));
-    expect(cour.rooms.byName('movie-night')?.filters).toEqual(filters);
-
-    // A deliberate clear-all arrives as [] and still persists.
-    saveRoom(makeWsRoom({ filters: [] }));
-    expect(cour.rooms.byName('movie-night')?.filters).toEqual([]);
-  });
 });
 
 describe('loadRoom (SQLite first)', () => {
@@ -150,13 +129,11 @@ describe('loadRoom (SQLite first)', () => {
       displayName: 'Stored-Room',
       season: 'SUMMER',
       year: 2026,
-      filters: [{ key: 'genre', operator: '=', value: ['Action'] }],
       showSequels: false,
     });
     const room = await loadRoom('stored-room', makeCtx());
     expect(room?.roomName).toBe('stored-room');
     expect(room?.displayName).toBe('Stored-Room');
-    expect(room?.filters).toEqual([{ key: 'genre', operator: '=', value: ['Action'] }]);
     // No filesystem read on the database path.
     expect(vi.mocked(fs.readFile)).not.toHaveBeenCalled();
   });
@@ -168,7 +145,6 @@ describe('loadRoom (SQLite first)', () => {
       displayName: 'Rolled-Room',
       season: 'WINTER',
       year: 2025,
-      filters: [{ key: 'genre', operator: '=', value: ['Action'] }],
       showSequels: false,
     });
     cour.members.ensure(row.id, user);
@@ -211,7 +187,6 @@ describe('loadRoom legacy JSON import', () => {
   const legacyBody = JSON.stringify({
     roomName: 'legacy-room',
     displayName: 'Legacy-Room',
-    filters: [{ key: 'genre', operator: '=', value: ['Drama'] }],
     createdAt: 12345,
     updatedAt: 67890,
   });

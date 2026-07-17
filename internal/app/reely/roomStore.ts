@@ -1,6 +1,6 @@
 import { join, resolve, sep } from 'node:path';
 import { readFile, rename } from 'node:fs/promises';
-import type { CreateRoomRequest, Filter } from '../../../types/reely';
+import type { CreateRoomRequest } from '../../../types/reely';
 import { detectSeason, servedSeason } from '../anilist/season';
 import type { CourRoom } from '../cour/store';
 import { getConfig } from './config/main';
@@ -89,7 +89,6 @@ const roomFilePath = (roomName: string) => {
 interface LegacyPersistedRoom {
   roomName: string;
   displayName?: string;
-  filters?: Filter[];
   createdAt: number;
   updatedAt: number;
 }
@@ -108,41 +107,27 @@ const isLegacyRoomShape = (
   if (r.displayName !== undefined && typeof r.displayName !== 'string') {
     return fail('displayName must be a string when present');
   }
-  if (r.filters !== undefined && !Array.isArray(r.filters)) {
-    return fail('filters must be an array when present');
-  }
   if (typeof r.createdAt !== 'number') return fail('createdAt must be a number');
   if (typeof r.updatedAt !== 'number') return fail('updatedAt must be a number');
   return true;
 };
 
 /**
- * Persist the room's mutable state (today: filters). No-op without a cour
- * store -- test harnesses construct Rooms without one, and there is no
- * JSON fallback to write anymore.
+ * Ensure the room's row exists. (Filters died in the audit-v1.2.0
+ * rip-out; identity + season are all a row carries now.) No-op without
+ * a cour store -- test harnesses construct Rooms without one.
  */
 export const saveRoom = (room: Room): void => {
   const cour = room.routeContext.cour;
   if (!cour) return;
   try {
-    const existing = cour.rooms.byName(room.roomName);
-    if (existing) {
-      // Only persist filters the Room actually carries (audit 17 M1). A
-      // Room built from a bare join has filters === undefined; writing
-      // that through NULLed the row's saved filters permanently whenever
-      // a restore failed and the join fell through to the create branch.
-      // A deliberate "clear all filters" arrives as [] and still saves.
-      if (room.filters !== undefined) {
-        cour.rooms.updateFilters(existing.id, room.filters);
-      }
-    } else {
+    if (!cour.rooms.byName(room.roomName)) {
       const { season, year } = resolveRoomSeason(room.routeContext.providers);
       cour.rooms.create({
         name: room.roomName,
         displayName: room.displayName,
         season,
         year,
-        filters: room.filters,
         showSequels: getConfig().anime?.showSequels ?? false,
       });
     }
@@ -150,11 +135,6 @@ export const saveRoom = (room: Room): void => {
     logger.error(`Failed to save room "${room.roomName}": ${String(err)}`);
   }
 };
-
-/** Legacy filters are opaque JSON in SQLite; only a Filter[]-shaped value
- * is handed back to the Room. */
-const filtersFrom = (value: unknown): Filter[] | undefined =>
-  Array.isArray(value) ? (value as Filter[]) : undefined;
 
 export const loadRoom = async (roomName: string, ctx: RouteContext): Promise<Room | null> => {
   // SQLite first: the source of truth since 0.5.0.
@@ -181,7 +161,6 @@ export const loadRoom = async (roomName: string, ctx: RouteContext): Promise<Roo
         {
           roomName: courRoom.name,
           displayName: courRoom.displayName,
-          filters: filtersFrom(courRoom.filters),
         },
         ctx,
       );
@@ -191,8 +170,7 @@ export const loadRoom = async (roomName: string, ctx: RouteContext): Promise<Roo
       return room;
     } catch (err) {
       // Most commonly the provider fetch failed (AniList down with no
-      // cache, or the saved filter set matches nothing). Row stays for
-      // the next attempt.
+      // cache). Row stays for the next attempt.
       logger.error(
         `Failed to restore room "${roomName}" from the database ` +
           `(most likely the provider fetch failed): ${String(err)}`,
@@ -211,7 +189,6 @@ export const loadRoom = async (roomName: string, ctx: RouteContext): Promise<Roo
       // The filename is the canonical identity, not the file's own field.
       roomName,
       displayName: parsed.displayName ?? roomName,
-      filters: parsed.filters,
     };
     const room = new Room(req, ctx);
     await room.media;

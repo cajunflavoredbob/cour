@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Media, VerdictValue } from "../../../../../types/reely";
 import { AccountMenu } from "../organisms/AccountMenu";
 import { AppHeader } from "../organisms/AppHeader";
@@ -38,7 +38,13 @@ const PILE_LABELS: Record<VerdictValue, string> = {
  * once and placed per layout.
  */
 export const ReviewScreen = () => {
-  const [{ room, review, members }] = useStore(["room", "review", "members"]);
+  const [{ room, review, members, connectionStatus, finalizing }] = useStore([
+    "room",
+    "review",
+    "members",
+    "connectionStatus",
+    "finalizing",
+  ]);
   const dispatch = useDispatch();
   const isDesktop = useMediaQuery(DESKTOP_QUERY);
   const [pile, setPile] = useState<VerdictValue>("like");
@@ -64,6 +70,24 @@ export const ReviewScreen = () => {
 
   // Hook: must run before the early return below.
   const { season } = useSeason();
+  const offline = connectionStatus !== "connected";
+  const lockingIn = finalizing?.kind === "lock";
+
+  // The lock-in ceremony holds "Locking in..." for a MINIMUM of 3s (the
+  // owner's spec, audit v1.2.0 #9) even when the ack lands faster; the
+  // clear also gates HomeScreen's flip to the standings.
+  const ackedAt = review?.lockedAt ?? null;
+  const finalizingStartedAt = finalizing?.startedAt;
+  const dispatchStable = dispatch;
+  useEffect(() => {
+    if (finalizing?.kind !== "lock" || ackedAt == null || finalizingStartedAt == null) return;
+    const remaining = Math.max(0, finalizingStartedAt + 3000 - Date.now());
+    const timer = setTimeout(
+      () => dispatchStable({ type: "finalizing", payload: null }),
+      remaining,
+    );
+    return () => clearTimeout(timer);
+  }, [finalizing?.kind, ackedAt, finalizingStartedAt, dispatchStable]);
 
   if (!room || !review) return null;
 
@@ -208,7 +232,7 @@ export const ReviewScreen = () => {
             type="button"
             className={styles.verdictPill}
             data-verdict={row.verdict}
-            disabled={locked}
+            disabled={locked || offline}
             onClick={() =>
               dispatch({
                 type: "verdict",
@@ -241,6 +265,7 @@ export const ReviewScreen = () => {
       <button
         type="button"
         className={styles.lockBtn}
+        data-complete={true}
         onClick={() => dispatch({ type: "viewLockedReview", payload: { open: false } })}
         data-test-handle="back-to-standings"
       >
@@ -253,15 +278,19 @@ export const ReviewScreen = () => {
       <button
         type="button"
         className={styles.lockBtn}
-        data-complete={remaining === 0}
-        disabled={remaining > 0}
+        data-complete={remaining === 0 && !lockingIn}
+        disabled={remaining > 0 || offline || lockingIn}
         onClick={() => {
           setConfirmChecked(false);
           setConfirmOpen(true);
         }}
         data-test-handle="lock-in"
       >
-        {remaining > 0 ? `Lock in · ${remaining} to go` : "Lock in"}
+        {lockingIn
+          ? "Locking in\u2026"
+          : remaining > 0
+            ? `Lock in · ${remaining} to go`
+            : "Lock in"}
       </button>
       <p className={styles.lockCaption}>NEXT: RANK YOUR KEEPS · PASSED AND UNSURE ARE DISCARDED</p>
     </>
@@ -303,6 +332,7 @@ export const ReviewScreen = () => {
             disabled={!confirmChecked}
             onClick={() => {
               setConfirmOpen(false);
+              dispatch({ type: "finalizing", payload: { kind: "lock" } });
               dispatch({ type: "lockIn" });
             }}
             data-test-handle="confirm-lock"

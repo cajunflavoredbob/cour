@@ -145,10 +145,12 @@ export const reducer = (state: Store = initialState, action: Actions): Store => 
       }
       return base;
     }
+    case "submitRankingsError":
+      // Same as lockInError: a failed submit ends the ceremony.
+      return { ...state, finalizing: undefined, ...addErrorToast(state, action.payload.message) };
     case "verdictError":
     case "reviewError":
     case "skipRemainingError":
-    case "submitRankingsError":
     case "resultsError":
       return { ...state, ...addErrorToast(state, action.payload.message) };
     case "resultsSuccess":
@@ -179,7 +181,9 @@ export const reducer = (state: Store = initialState, action: Actions): Store => 
       };
     }
     case "lockInError":
-      return { ...state, ...addErrorToast(state, action.payload.message) };
+      // A failed lock also ends its in-flight ceremony -- the button must
+      // come back armed, not stick on "Locking in...".
+      return { ...state, finalizing: undefined, ...addErrorToast(state, action.payload.message) };
     case "roomPulse": {
       // Another member locked in: refresh the live member state, and on
       // the all-locked edge fire the celebration here too -- the server
@@ -207,6 +211,13 @@ export const reducer = (state: Store = initialState, action: Actions): Store => 
       return { ...state, tutorialOpen: action.payload.open };
     case "ledgerStalled":
       return { ...state, ledgerStalled: action.payload.stalled || undefined };
+    case "finalizing":
+      return {
+        ...state,
+        finalizing: action.payload
+          ? { kind: action.payload.kind, startedAt: Date.now() }
+          : undefined,
+      };
     case "seasonRotated": {
       // The server just rotated seasons: rooms were deleted and re-decked
       // server-side, so every piece of season-scoped client state is
@@ -290,26 +301,19 @@ export const reducer = (state: Store = initialState, action: Actions): Store => 
             joined: true,
             media: action.payload.media,
             users: action.payload.users,
-            activeFilters: action.payload.filters ?? [],
           },
         };
       }
       // Defensive guard: room is always set before a success response per protocol
       return state;
     }
-    case "filterChangeApplied": {
-      // Server-initiated deck swaps only (stills enrichment, season
-      // rotation re-decks): the user-facing filter UI died in audit 17's
-      // strip, so appliedBy is always empty and there is no toast.
+    case "mediaChanged": {
+      // Server-initiated deck swap (the daily pre-freeze refresh, stills
+      // enrichment, or a season-rotation re-deck).
       if (!state.room) return state;
-      const { media, filters } = action.payload;
       return {
         ...state,
-        room: {
-          ...state.room,
-          media,
-          activeFilters: filters,
-        },
+        room: { ...state.room, media: action.payload.media },
       };
     }
     case "joinRoomError":

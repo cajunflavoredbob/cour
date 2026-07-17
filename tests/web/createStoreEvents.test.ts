@@ -381,7 +381,7 @@ describe('deck-swap and results handling', () => {
     mod.useZustandStore.getState().dispatch({ type: 'joinOrCreateRoom', payload: { roomName: 'movie-night' } } as any);
     emit({ type: 'joinRoomSuccess', payload: { roomName: 'movie-night', media: [], users: [] } });
     clientMock.review.mockClear();
-    emit({ type: 'filterChangeApplied', payload: { appliedBy: '', media: [], filters: [] } });
+    emit({ type: 'mediaChanged', payload: { media: [] } });
     expect(clientMock.review).toHaveBeenCalledTimes(1);
   });
 
@@ -389,7 +389,7 @@ describe('deck-swap and results handling', () => {
     const mod = await loadCreateStore();
     mod.createStore();
     clientMock.review.mockClear();
-    emit({ type: 'filterChangeApplied', payload: { appliedBy: '', media: [], filters: [] } });
+    emit({ type: 'mediaChanged', payload: { media: [] } });
     expect(clientMock.review).not.toHaveBeenCalled();
   });
 

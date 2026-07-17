@@ -64,6 +64,17 @@ describe('HomeScreen (review-or-join)', () => {
     expect(screen.queryByTestId('review-screen')).toBeNull();
   });
 
+  it('holds the review screen through the lock ceremony (audit v1.2.0 #9)', () => {
+    withState({
+      room: { name: 'couch-coop', joined: true },
+      review: { verdicts: [], counts: { like: 0, dislike: 0, skip: 0 }, members: [], lockedAt: 111, total: 3 },
+      finalizing: { kind: 'lock', startedAt: Date.now() },
+    });
+    render(<HomeScreen />);
+    expect(screen.getByTestId('review-screen')).toBeDefined();
+    expect(screen.queryByTestId('rank-screen')).toBeNull();
+  });
+
   it('locked + viewLockedReview shows the read-only ledger peek (audit 17 UX 6)', () => {
     withState({
       room: { name: 'couch-coop', joined: true },

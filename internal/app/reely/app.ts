@@ -18,7 +18,7 @@ import { createProvider as createAnimeProvider } from './providers/anime';
 import type { ReelyProvider } from './providers/types';
 import { openDb } from '../cour/db';
 import { createCourStore } from '../cour/store';
-import { getAllRooms } from './room';
+import { getAllRooms, removeRoom } from './room';
 import { reconcileRoomSeasons } from './roomStore';
 import { Client } from './client';
 
@@ -61,21 +61,26 @@ export const Application = (config: Config, signal?: AbortSignal): ApplicationIn
       const cour = createCourStore(openDb());
 
       // Re-fetch each open in-memory room's deck and push it to connected
-      // clients. Shared by stills enrichment and season rotation -- both
-      // swap the provider snapshot under rooms that are already open.
+      // clients. Shared by stills enrichment, the daily pre-freeze
+      // refresh, and season rotation -- all swap the provider snapshot
+      // under rooms that are already open.
       const pushMediaToOpenRooms = () => {
         for (const room of getAllRooms()) {
           void room
-            .applyFilters(room.filters ?? [])
+            .refreshMedia()
             .then((media) => {
-              if (media) {
-                // Empty appliedBy: media update without the
-                // "<user> applied filters" toast client-side.
-                room.notifyFilterApplied('', media, room.filters ?? []);
-              }
+              if (media) room.notifyMediaChanged(media);
             })
             .catch((err) => {
-              logger.warn(`media push to "${room.roomName}" failed: ${String(err)}`);
+              // A room that can't re-deck must not keep serving the OLD
+              // snapshot while its DB rows are stamped with the new
+              // season (audit v1.2.0 #12) -- evict it; the next join
+              // rebuilds it against whatever the provider serves, or
+              // surfaces the honest empty-season error.
+              logger.warn(
+                `media push to "${room.roomName}" failed; evicting the in-memory room: ${String(err)}`,
+              );
+              removeRoom(room.roomName);
             });
         }
       };
@@ -103,6 +108,10 @@ export const Application = (config: Config, signal?: AbortSignal): ApplicationIn
             // already open need the refreshed media pushed or their
             // clients keep the stale (still-less) payload until a rejoin.
             onStillsEnriched: pushMediaToOpenRooms,
+            // Same push for the startup self-refresh and the daily
+            // pre-freeze refresh (audit v1.2.0 #13): the snapshot must
+            // never drift ahead of open rooms until a restart.
+            onRefreshed: pushMediaToOpenRooms,
             // Season rotation landed (new snapshot already serving):
             // delete last season's rooms (the rotation reaper -- rows
             // resurrect fresh on the next join or verdict), re-deck open

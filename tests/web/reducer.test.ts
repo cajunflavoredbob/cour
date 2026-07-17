@@ -175,14 +175,14 @@ describe('reducer toastCounter in state (audit 13 #328)', () => {
 
   // filterChangeApplied only bumps toastCounter when the apply came from a
   // DIFFERENT user (self-apply doesn't surface a toast).
-  it('filterChangeApplied swaps media without any toast (server pushes only)', () => {
+  it('mediaChanged swaps media without any toast (server pushes only)', () => {
     const seeded: Store = {
       ...initialState,
       room: { name: 'movie-night', joined: true, media: [] },
     };
     const next = reducer(seeded, {
-      type: 'filterChangeApplied',
-      payload: { appliedBy: '', media: [], filters: [] },
+      type: 'mediaChanged',
+      payload: { media: [] },
     } as Actions);
     expect(next.toasts).toHaveLength(0);
     expect(next.toastCounter).toBe(0);
@@ -457,5 +457,30 @@ describe('reducer roomPulse', () => {
     } as Actions);
     expect(next.toasts).toHaveLength(1);
     expect(next.toasts[0].message).toContain("Everyone's locked in");
+  });
+});
+
+// Audit v1.2.0 #9: the one-shot finalizers' in-flight ceremony.
+describe('reducer finalizing ceremony', () => {
+  it('sets and clears the ceremony state', () => {
+    const on = reducer(initialState, {
+      type: 'finalizing', payload: { kind: 'lock' },
+    } as Actions);
+    expect(on.finalizing?.kind).toBe('lock');
+    expect(on.finalizing?.startedAt).toBeGreaterThan(0);
+    const off = reducer(on, { type: 'finalizing', payload: null } as Actions);
+    expect(off.finalizing).toBeUndefined();
+  });
+
+  it.each([
+    ['lockInError', { type: 'lockInError', payload: { message: 'no' } }],
+    ['submitRankingsError', { type: 'submitRankingsError', payload: { message: 'no' } }],
+  ])('%s ends the ceremony so the button re-arms', (_label, action) => {
+    const armed = reducer(initialState, {
+      type: 'finalizing', payload: { kind: 'lock' },
+    } as Actions);
+    const next = reducer(armed, action as Actions);
+    expect(next.finalizing).toBeUndefined();
+    expect(next.toasts).toHaveLength(1);
   });
 });

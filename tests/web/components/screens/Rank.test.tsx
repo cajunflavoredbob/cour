@@ -45,6 +45,7 @@ const lockedReview = {
 const withState = (slice: any = {}) => {
   useStoreMock.mockReturnValue([
     {
+      connectionStatus: 'connected',
       room: { name: 'couch-coop', joined: true, media },
       review: lockedReview,
       results: {
@@ -122,6 +123,32 @@ describe('RankScreen editor (before submitting)', () => {
       type: 'submitRankings',
       payload: { rankedTitleIds: [102, 101] },
     });
+  });
+});
+
+describe('RankScreen audit v1.2.0 additions', () => {
+  it('Submit disables while disconnected (#8)', () => {
+    withState({ connectionStatus: 'disconnected' });
+    render(<RankScreen />);
+    const btn = document.querySelector('[data-test-handle="submit-rankings"]') as HTMLButtonElement;
+    expect(btn.disabled).toBe(true);
+  });
+
+  it('confirming submit starts the ceremony and the editor holds despite the ack (#9)', () => {
+    withState({
+      results: {
+        submittedCount: 1, memberCount: 2, mySubmitted: true,
+        myRanking: [101], standings: [], members: [],
+      },
+      finalizing: { kind: 'submit', startedAt: Date.now() },
+    });
+    render(<RankScreen />);
+    // mySubmitted is true, but the ceremony holds the editor: the
+    // standings must not flash in before the 3s floor.
+    const btn = document.querySelector('[data-test-handle="submit-rankings"]') as HTMLButtonElement;
+    expect(btn).not.toBeNull();
+    expect(btn.disabled).toBe(true);
+    expect(btn.textContent).toContain('Submitting');
   });
 });
 

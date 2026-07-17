@@ -7,7 +7,6 @@ import type {
   RoomMemberState,
   ClientMessage,
   CreateRoomError,
-  Filter,
   JoinRoomError,
   Media,
   ServerMessage,
@@ -62,6 +61,10 @@ export type ClientActions =
   // typed room AND revokes any ?roomName deep link, so what the user
   // typed always beats what the URL carried.
   | { type: "chooseRoom"; payload: { roomName: string } }
+  // The one-shot finalizers' in-flight ceremony (audit v1.2.0 #9, the
+  // owner's spec): "Locking in..." / "Submitting..." shows for a MINIMUM
+  // of 3 seconds, even when the ack lands faster. null clears it.
+  | { type: "finalizing"; payload: { kind: "lock" | "submit" } | null }
   | ServerMessage;
 
 export type Actions =
@@ -115,6 +118,8 @@ export interface Store {
   tutorialOpen?: boolean;
   // Review fetch retries exhausted; a retry affordance renders.
   ledgerStalled?: boolean;
+  // Active one-shot finalizer ceremony (min 3s of in-flight state).
+  finalizing?: { kind: "lock" | "submit"; startedAt: number } | null;
 
   toasts: Toast[];
   config?: AppConfig;
@@ -129,7 +134,6 @@ export interface Store {
     joined: boolean;
     media?: Media[];
     users?: User[];
-    activeFilters?: Filter[];
   };
 
   // Per-Store monotonic toast counter (audit 13 #328 lineage). The

@@ -15,7 +15,6 @@
  */
 
 import type {
-  Filter,
   Media,
   ProviderType,
 } from '../../../../types/reely';
@@ -53,9 +52,7 @@ export interface ReelyProvider {
     signal?: AbortSignal,
   ): Promise<[ReadableStream<Uint8Array>, Headers]>;
 
-  getMedia(options: {
-    filters?: Filter[];
-  }): Promise<Media[]>;
+  getMedia(): Promise<Media[]>;
 }
 
 // (isUserAuthorized / getServerId / getLibraries / refresh / enrichStills

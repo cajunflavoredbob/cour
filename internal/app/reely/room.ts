@@ -1,7 +1,6 @@
 import type {
   ClientMessage,
   CreateRoomRequest,
-  Filter,
   Media,
   User,
 } from '../../../types/reely';
@@ -37,7 +36,6 @@ export class Room {
   // current connection; broadcast iterates this map. Not for external use
   // outside the Client/Room pair.
   users = new Map<string, Client>();
-  filters?: Filter[];
   media: Promise<Map</* mediaId */ string, Media>>;
 
   createdAt: number = Date.now();
@@ -46,23 +44,15 @@ export class Room {
     this.routeContext = ctx;
     this.roomName = req.roomName;
     this.displayName = req.displayName ?? req.roomName;
-    this.filters = req.filters;
     this.media = this.fetchMedia();
   }
 
-  private async fetchMedia(filters?: Filter[]): Promise<Map<string, Media>> {
+  private async fetchMedia(): Promise<Map<string, Media>> {
     const [provider] = this.routeContext.providers;
-    const applied = filters ?? this.filters;
-    const sourceMedia = await provider.getMedia({ filters: applied });
+    const sourceMedia = await provider.getMedia();
 
     if (sourceMedia.length === 0) {
-      // Only blame filters when some were actually applied (audit 17):
-      // an empty unfiltered season is a data problem, not a user one.
-      throw new NoMediaError(
-        applied?.length
-          ? 'There are no titles matching the applied filters.'
-          : 'There are no titles in the season data yet. Try again shortly.',
-      );
+      throw new NoMediaError('There are no titles in the season data yet. Try again shortly.');
     }
 
     // The anilist provider returns a deliberately-ordered list (popularity
@@ -73,25 +63,25 @@ export class Room {
     return new Map<string, Media>(sourceMedia.map((m) => [m.id, m]));
   }
 
-  // Monotonic token for applyFilters (the internal re-deck path: stills
-  // enrichment + season rotation; the user-facing filter wire died in
-  // audit 17's strip). Two applies racing used to be last-RESOLVED-wins;
-  // the token makes it last-REQUESTED-wins.
-  private applySeq = 0;
+  // Monotonic token for refreshMedia (the re-deck path: stills
+  // enrichment, the daily pre-freeze refresh, season rotation). Two
+  // refreshes racing used to be last-RESOLVED-wins; the token makes it
+  // last-REQUESTED-wins. (This was applyFilters until the audit-v1.2.0
+  // filter rip-out -- cour deals the whole season.)
+  private refreshSeq = 0;
 
-  async applyFilters(newFilters: Filter[]): Promise<Media[] | null> {
-    // Fetch with new filters before mutating state -- if it throws (e.g. NoMediaError)
-    // the room is left intact and this.media remains the previous resolved promise.
-    const seq = ++this.applySeq;
-    const mediaMap = await this.fetchMedia(newFilters);
-    // Only commit if no newer applyFilters started while we were fetching --
-    // otherwise we'd clobber the newer (last-requested) result with a stale one.
-    // Returning null on the losing branch tells the caller not to broadcast
-    // a filterChangeApplied for media the room never adopted.
-    if (seq !== this.applySeq) {
+  async refreshMedia(): Promise<Media[] | null> {
+    // Fetch before mutating state -- if it throws (e.g. NoMediaError)
+    // the room is left intact and this.media remains the previous
+    // resolved promise.
+    const seq = ++this.refreshSeq;
+    const mediaMap = await this.fetchMedia();
+    // Only commit if no newer refresh started while we were fetching.
+    // Returning null on the losing branch tells the caller not to
+    // broadcast media the room never adopted.
+    if (seq !== this.refreshSeq) {
       return null;
     }
-    this.filters = newFilters;
     this.media = Promise.resolve(mediaMap);
     return [...mediaMap.values()];
   }
@@ -113,11 +103,8 @@ export class Room {
     this.broadcastMessage({ type: 'userLeftRoom', payload: user }, user.userName);
   }
 
-  notifyFilterApplied(appliedBy: string, media: Media[], filters: Filter[]) {
-    this.broadcastMessage({
-      type: 'filterChangeApplied',
-      payload: { appliedBy, media, filters },
-    });
+  notifyMediaChanged(media: Media[]) {
+    this.broadcastMessage({ type: 'mediaChanged', payload: { media } });
   }
 
   broadcastMessage(msg: ClientMessage, sourceUserName?: string) {

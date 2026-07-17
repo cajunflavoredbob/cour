@@ -41,6 +41,7 @@ const reviewState = (over: Partial<{
 const withState = (slice: any = {}) => {
   useStoreMock.mockReturnValue([
     {
+      connectionStatus: 'connected',
       room: { name: 'couch-club', displayName: 'Couch-Club', joined: true, media },
       review: reviewState(),
       auth: { userName: 'user1', role: 'user', soundPref: false },

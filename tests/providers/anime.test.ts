@@ -104,7 +104,7 @@ afterEach(() => {
 describe('load orchestration', () => {
   it('cache miss: blocks on the live fetch, then persists the snapshot', async () => {
     const provider = makeProvider();
-    const media = await provider.getMedia({});
+    const media = await provider.getMedia();
     expect(media.length).toBeGreaterThan(0);
     expect(mockApi.fetchSeason).toHaveBeenCalledWith('SUMMER', 2026);
     await flush();
@@ -137,12 +137,12 @@ describe('load orchestration', () => {
     );
 
     const provider = makeProvider();
-    const before = await provider.getMedia({});
+    const before = await provider.getMedia();
     expect(before.map((m) => m.title)).toEqual(['Cached']);
 
     releaseRefresh(SEASON);
     await flush();
-    const after = await provider.getMedia({});
+    const after = await provider.getMedia();
     expect(after.map((m) => m.id)).toEqual(['1', '3', '4']); // sequel hidden
     expect(saveCacheMock).toHaveBeenCalled();
   });
@@ -161,7 +161,7 @@ describe('load orchestration', () => {
     const provider = makeProvider();
     expect(await provider.isAvailable()).toBe(true);
     await flush();
-    expect((await provider.getMedia({})).map((m) => m.title)).toEqual(['Cached']);
+    expect((await provider.getMedia()).map((m) => m.title)).toEqual(['Cached']);
   });
 
   it('first boot offline: isAvailable false, and a later call can recover', async () => {
@@ -178,12 +178,12 @@ describe('load orchestration', () => {
     saveCacheMock.mockRejectedValue(new Error('read-only fs'));
     const provider = makeProvider();
     expect(await provider.isAvailable()).toBe(true);
-    expect((await provider.getMedia({})).length).toBeGreaterThan(0);
+    expect((await provider.getMedia()).length).toBeGreaterThan(0);
   });
 
   it('loads once: concurrent callers share a single fetch', async () => {
     const provider = makeProvider();
-    await Promise.all([provider.getMedia({}), provider.getMedia({}), provider.isAvailable()]);
+    await Promise.all([provider.getMedia(), provider.getMedia(), provider.isAvailable()]);
     expect(mockApi.fetchSeason).toHaveBeenCalledTimes(1);
   });
 });
@@ -192,19 +192,19 @@ describe('deck shape', () => {
   it('is popularity-ordered (source order preserved) and flags mediaOrdered', async () => {
     const provider = makeProvider({ showSequels: true });
     expect(provider.mediaOrdered).toBe(true);
-    const media = await provider.getMedia({});
+    const media = await provider.getMedia();
     expect(media.map((m) => m.id)).toEqual(['1', '2', '3', '4']);
   });
 
   it('hides sequels by default and includes them with showSequels', async () => {
-    expect((await makeProvider().getMedia({})).map((m) => m.id)).toEqual(['1', '3', '4']);
+    expect((await makeProvider().getMedia()).map((m) => m.id)).toEqual(['1', '3', '4']);
     expect(
-      (await makeProvider({ showSequels: true }).getMedia({})).map((m) => m.id),
+      (await makeProvider({ showSequels: true }).getMedia()).map((m) => m.id),
     ).toEqual(['1', '2', '3', '4']);
   });
 
   it('maps SeasonalAnime to the Media wire shape', async () => {
-    const media = await makeProvider().getMedia({});
+    const media = await makeProvider().getMedia();
     const delta = media.find((m) => m.id === '4');
     expect(delta).toEqual({
       id: '4',
@@ -227,46 +227,6 @@ describe('deck shape', () => {
     });
     // No cover art -> no posterUrl rather than a dead proxy link.
     expect(media.find((m) => m.id === '1')?.posterUrl).toBeUndefined();
-  });
-});
-
-describe('filters', () => {
-  it('applies genre = / != with multi-value OR semantics', async () => {
-    const provider = makeProvider({ showSequels: true });
-    const eq = await provider.getMedia({
-      filters: [{ key: 'genre', operator: '=', value: ['Action', 'Romance'] }],
-    });
-    expect(eq.map((m) => m.id)).toEqual(['1', '2', '3']);
-
-    const ne = await provider.getMedia({
-      filters: [{ key: 'genre', operator: '!=', value: ['Action'] }],
-    });
-    expect(ne.map((m) => m.id)).toEqual(['3', '4']);
-  });
-
-  it('applies format filters and ANDs multiple filters', async () => {
-    const provider = makeProvider({ showSequels: true });
-    const media = await provider.getMedia({
-      filters: [
-        { key: 'format', operator: '=', value: ['TV'] },
-        { key: 'genre', operator: '=', value: ['Fantasy'] },
-      ],
-    });
-    expect(media.map((m) => m.id)).toEqual(['1']);
-  });
-
-  it('passes unknown filter keys through instead of zeroing the deck', async () => {
-    const media = await makeProvider().getMedia({
-      filters: [{ key: 'contentRating', operator: '=', value: ['PG-13'] }],
-    });
-    expect(media.length).toBeGreaterThan(0);
-  });
-
-  it('treats an empty value list as a no-op', async () => {
-    const media = await makeProvider().getMedia({
-      filters: [{ key: 'genre', operator: '=', value: [] }],
-    });
-    expect(media.map((m) => m.id)).toEqual(['1', '3', '4']);
   });
 });
 
@@ -354,7 +314,7 @@ describe('TMDB stills (0.9.0)', () => {
     loadCacheMock.mockResolvedValue({ version: 1, fetchedAt: 1, season: 'SUMMER', year: 2026, media: [stillsEntry] });
     mockApi.fetchSeason.mockRejectedValue(new Error('down'));
     const provider = makeProvider();
-    const [media] = await provider.getMedia({});
+    const [media] = await provider.getMedia();
     expect(media.screenshotUrls).toEqual(['/api/poster/0/9/1', '/api/poster/0/9/2']);
   });
 
@@ -392,11 +352,11 @@ describe('TMDB stills (0.9.0)', () => {
     loadCacheMock.mockResolvedValue({ version: 1, fetchedAt: 1, season: 'SUMMER', year: 2026, media: [entry({ id: 1 })] });
     mockApi.fetchSeason.mockRejectedValue(new Error('down'));
     const noKey = makeProvider();
-    await noKey.getMedia({});
+    await noKey.getMedia();
     expect(tmdbEnrichMock).not.toHaveBeenCalled();
 
     const withKey = makeProvider({ getTmdbKey: () => 'key123' });
-    await withKey.getMedia({});
+    await withKey.getMedia();
     // Enrichment is fire-and-forget off the load; give it a tick.
     await new Promise((r) => setTimeout(r, 0));
     expect(tmdbEnrichMock).toHaveBeenCalledTimes(1);
@@ -411,7 +371,7 @@ describe('TMDB stills (0.9.0)', () => {
     });
     saveCacheMock.mockClear();
     const provider = makeProvider({ getTmdbKey: () => 'key123' });
-    await provider.getMedia({});
+    await provider.getMedia();
     await new Promise((r) => setTimeout(r, 0));
     expect(saveCacheMock).toHaveBeenCalled();
   });
@@ -436,7 +396,7 @@ describe('season rotation (unpinned)', () => {
   it('serves the season containing next month', async () => {
     vi.setSystemTime(new Date(2026, 8, 10)); // Sep 10: FALL starts Oct 1
     const provider = unpinned();
-    await provider.getMedia({});
+    await provider.getMedia();
     expect(mockApi.fetchSeason).toHaveBeenCalledWith('FALL', 2026);
     expect(provider.getSeason?.()).toEqual({ season: 'FALL', year: 2026 });
   });
@@ -445,7 +405,7 @@ describe('season rotation (unpinned)', () => {
     vi.setSystemTime(new Date(2026, 7, 31, 12)); // Aug 31 noon: still SUMMER
     const onSeasonRotated = vi.fn();
     const provider = unpinned({ onSeasonRotated });
-    await provider.getMedia({});
+    await provider.getMedia();
     expect(provider.getSeason?.()).toEqual({ season: 'SUMMER', year: 2026 });
 
     // Cross Sep 1 midnight; the next hourly tick fetches FALL and swaps.
@@ -465,14 +425,14 @@ describe('season rotation (unpinned)', () => {
     vi.setSystemTime(new Date(2026, 7, 31, 12));
     const onSeasonRotated = vi.fn();
     const provider = unpinned({ onSeasonRotated });
-    await provider.getMedia({});
+    await provider.getMedia();
 
     mockApi.fetchSeason.mockRejectedValueOnce(new Error('AniList down'));
     await vi.advanceTimersByTimeAsync(12 * HOUR); // first FALL attempt fails
     await flush();
     expect(provider.getSeason?.()).toEqual({ season: 'SUMMER', year: 2026 });
     expect(onSeasonRotated).not.toHaveBeenCalled();
-    expect((await provider.getMedia({})).length).toBeGreaterThan(0);
+    expect((await provider.getMedia()).length).toBeGreaterThan(0);
 
     await vi.advanceTimersByTimeAsync(HOUR); // next tick retries and lands
     await flush();
@@ -497,7 +457,7 @@ describe('season rotation (unpinned)', () => {
     const provider = unpinned();
     expect(await provider.isAvailable()).toBe(true);
     expect(provider.getSeason?.()).toEqual({ season: 'SUMMER', year: 2026 });
-    expect((await provider.getMedia({})).map((m) => m.title)).toEqual(['Old Season']);
+    expect((await provider.getMedia()).map((m) => m.title)).toEqual(['Old Season']);
   });
 
   it('refreshes daily during the pre-season window and freezes two weeks before start', async () => {
@@ -515,7 +475,7 @@ describe('season rotation (unpinned)', () => {
         : Promise.resolve(undefined));
 
     const provider = unpinned();
-    await provider.getMedia({});
+    await provider.getMedia();
     await flush();
     // Startup self-refresh fired (stale cache, pre-freeze).
     expect(mockApi.fetchSeason).toHaveBeenCalledTimes(1);
@@ -545,8 +505,46 @@ describe('season rotation (unpinned)', () => {
         : Promise.resolve(undefined));
 
     const provider = unpinned();
-    expect((await provider.getMedia({})).map((m) => m.title)).toEqual(['Frozen List']);
+    expect((await provider.getMedia()).map((m) => m.title)).toEqual(['Frozen List']);
     await flush();
     expect(mockApi.fetchSeason).not.toHaveBeenCalled();
+  });
+});
+
+// Audit v1.2.0 #13/#14: refresh reaches open rooms; a throwing rotation
+// callback retries instead of half-landing forever.
+describe('refresh + rotation callbacks', () => {
+  const HOUR = 60 * 60 * 1000;
+
+  it('fires onRefreshed after the startup self-refresh lands (#13)', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2026, 4, 15)); // pre-freeze for SUMMER 2026
+    const onRefreshed = vi.fn();
+    loadCacheMock.mockResolvedValue({
+      version: 1, fetchedAt: 0, season: 'SUMMER', year: 2026,
+      media: [entry({ id: 9, title: 'Cached' })],
+    });
+    const provider = makeProvider({ onRefreshed });
+    await provider.getMedia();
+    await flush();
+    expect(onRefreshed).toHaveBeenCalledTimes(1);
+  });
+
+  it('retries a throwing onSeasonRotated on the next tick (#14)', async () => {
+    vi.useFakeTimers({ toFake: ['Date', 'setInterval'] });
+    vi.setSystemTime(new Date(2026, 7, 31, 12)); // SUMMER; rotates Sep 1
+    const onSeasonRotated = vi.fn()
+      .mockImplementationOnce(() => { throw new Error('reaper hiccup'); });
+    const provider = makeProvider({ season: undefined, year: undefined, onSeasonRotated });
+    await provider.getMedia();
+
+    await vi.advanceTimersByTimeAsync(12 * HOUR); // rotation lands, callback throws
+    await flush();
+    expect(onSeasonRotated).toHaveBeenCalledTimes(1);
+    expect(provider.getSeason?.()).toEqual({ season: 'FALL', year: 2026 });
+
+    await vi.advanceTimersByTimeAsync(HOUR); // tick retries the callback
+    await flush();
+    expect(onSeasonRotated).toHaveBeenCalledTimes(2);
   });
 });

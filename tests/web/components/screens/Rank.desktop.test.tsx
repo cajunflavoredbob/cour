@@ -39,6 +39,7 @@ const lockedReview = {
 const withState = (slice: any = {}) => {
   useStoreMock.mockReturnValue([
     {
+      connectionStatus: 'connected',
       room: { name: 'couch-coop', displayName: 'Couch-Coop', joined: true, media },
       review: lockedReview,
       results: { submittedCount: 0, memberCount: 2, mySubmitted: false, myRanking: [], standings: [] },
@@ -120,18 +121,30 @@ describe('RankScreen desktop editor', () => {
     expect(titles[0]).toBe('Second Show');
   });
 
-  it('pointer drag reorders: drag row #1 past #2', () => {
+  it('pointer drag reorders from the GRIP: drag row #1 past #2 (audit v1.2.0 #11)', () => {
     stubRowGeometry();
     const { container } = render(<RankScreen />);
     const rows = () => Array.from(container.querySelectorAll('[data-rank-row]')) as HTMLElement[];
     // Order starts [Iron Bloom, Second Show].
     expect(rows()[0].textContent).toContain('Iron Bloom');
+    const grip = rows()[0].querySelector('[data-test-handle="rank-grip"]') as HTMLElement;
+    fireEvent.pointerDown(grip, { clientY: 10, button: 0 });
+    // Move below the second row's midpoint (row1 mid = 90).
+    fireEvent.pointerMove(grip, { clientY: 100 });
+    fireEvent.pointerUp(grip, { clientY: 100 });
+    expect(rows()[0].textContent).toContain('Second Show');
+  });
+
+  it('the row body is NOT a drag surface -- the list stays scrollable (audit v1.2.0 #11)', () => {
+    stubRowGeometry();
+    const { container } = render(<RankScreen />);
+    const rows = () => Array.from(container.querySelectorAll('[data-rank-row]')) as HTMLElement[];
     const first = rows()[0];
     fireEvent.pointerDown(first, { clientY: 10, button: 0 });
-    // Move below the second row's midpoint (row1 mid = 90).
     fireEvent.pointerMove(first, { clientY: 100 });
     fireEvent.pointerUp(first, { clientY: 100 });
-    expect(rows()[0].textContent).toContain('Second Show');
+    // Order unchanged: only the grip drags.
+    expect(rows()[0].textContent).toContain('Iron Bloom');
   });
 
   it('a pointerdown on the move buttons does NOT start a drag', () => {
@@ -149,10 +162,10 @@ describe('RankScreen desktop editor', () => {
   it('submits the drag-produced order through the dialog', () => {
     stubRowGeometry();
     const { container } = render(<RankScreen />);
-    const first = container.querySelector('[data-rank-row]') as HTMLElement;
-    fireEvent.pointerDown(first, { clientY: 10, button: 0 });
-    fireEvent.pointerMove(first, { clientY: 100 });
-    fireEvent.pointerUp(first, { clientY: 100 });
+    const grip = container.querySelector('[data-test-handle="rank-grip"]') as HTMLElement;
+    fireEvent.pointerDown(grip, { clientY: 10, button: 0 });
+    fireEvent.pointerMove(grip, { clientY: 100 });
+    fireEvent.pointerUp(grip, { clientY: 100 });
     fireEvent.click(screen.getByText('Submit rankings'));
     fireEvent.click(screen.getByText('This is my final ranking'));
     fireEvent.click(document.querySelector('[data-test-handle="confirm-submit"]') as HTMLElement);

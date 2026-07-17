@@ -26,8 +26,9 @@ Names are 1-32 characters, unique case-insensitively.
 ## Rooms and the season lifecycle
 
 - A room is a shared name (no password); joining a room that doesn't
-  exist creates it. Room identity carries a display name and
-  creation-time filters.
+  exist creates it. Room identity is a display name -- nothing more
+  (the filter vocabulary was removed entirely: cour deals the whole
+  season).
 - The server serves ONE season at a time and rotates to the next season
   one month before it airs (Dec 1 / Mar 1 / Jun 1 / Sep 1). The show
   list refreshes daily during the pre-season window and freezes two
@@ -60,18 +61,17 @@ stamped forward only; a database from a newer build refuses to open.
 ## Protocol (WS)
 
 `login`, `createRoom`/`joinRoom`/`joinOrCreateRoom`/`leaveRoom`,
-`requestFilters`/`requestFilterValues`/`applyFilters`, `verdict`,
-`review`, `skipRemaining`, `lockIn`, `submitRankings`, `results`. The
-server pushes `filterChangeApplied` on any deck swap, `resultsSuccess`
-to the room when a ranking lands, and a fresh `config` frame (which
-carries the served season/year) after a season rotation.
+`verdict`, `review`, `skipRemaining`, `lockIn`, `submitRankings`,
+`results`. The server pushes `mediaChanged` on any deck swap,
+`roomPulse` when a member locks, `resultsSuccess` to the room when a
+ranking lands, and a fresh `config` frame (which carries the served
+season/year) after a season rotation.
 
 ## Deferred / not in scope
 
 - Admin surface of any kind (removed 0.12.0; no plans).
-- Per-room sequel/filter toggles beyond creation-time filters.
+- Per-room sequel toggles (the config-level default is the only knob).
 - Notifications, theme music, drawer screenshot gallery slot.
-- The orphaned FilterPanel UI (server filters work; no mount point yet).
 
 ## Phase hygiene
 

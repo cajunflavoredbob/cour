@@ -31,11 +31,13 @@ const STANDINGS_PREVIEW = 5;
  * standings get the elevated-list treatment (#1 hero, medal ranks).
  */
 export const RankScreen = () => {
-  const [{ room, review, results, members }, dispatch] = useStore([
+  const [{ room, review, results, members, connectionStatus, finalizing }, dispatch] = useStore([
     "room",
     "review",
     "results",
     "members",
+    "connectionStatus",
+    "finalizing",
   ]);
   const isDesktop = useMediaQuery(DESKTOP_QUERY);
 
@@ -94,13 +96,32 @@ export const RankScreen = () => {
 
   // Hook: must run before the early return below.
   const { season } = useSeason();
+  const offline = connectionStatus !== "connected";
+  const submitting = finalizing?.kind === "submit";
+
+  // Minimum-3s "Submitting..." ceremony (the owner's spec, audit v1.2.0
+  // #9): the editor holds until BOTH the ack (mySubmitted) and the 3s
+  // floor have passed.
+  const acked = results?.mySubmitted === true;
+  const finalizingStartedAt = finalizing?.startedAt;
+  useEffect(() => {
+    if (finalizing?.kind !== "submit" || !acked || finalizingStartedAt == null) return;
+    const remaining = Math.max(0, finalizingStartedAt + 3000 - Date.now());
+    const timer = setTimeout(
+      () => dispatch({ type: "finalizing", payload: null }),
+      remaining,
+    );
+    return () => clearTimeout(timer);
+  }, [finalizing?.kind, acked, finalizingStartedAt, dispatch]);
 
   if (!room) return <div />;
 
   // Editor-vs-standings can't be decided without the payload; hold.
   if (!results) return <Loading />;
 
-  const submitted = results.mySubmitted;
+  // The editor holds through the submit ceremony so the standings never
+  // flash in early.
+  const submitted = results.mySubmitted && !submitting;
   const roomName = room.displayName ?? room.name;
 
   const move = (index: number, delta: number) => {
@@ -119,9 +140,12 @@ export const RankScreen = () => {
     return url ? posterSrc(url) : undefined;
   };
 
+  // Drag starts ONLY from the grip handle (the owner's spec, audit
+  // v1.2.0 #11): the rest of the row is inert for dragging, so the list
+  // scrolls normally by touch on every platform. The grip captures the
+  // pointer, so the move/up handlers ride on it too.
   const onDragStart = (e: React.PointerEvent, id: number) => {
-    if (!isDesktop || e.button !== 0) return;
-    if ((e.target as Element).closest("[data-move]")) return;
+    if (e.button !== 0) return;
     // Stop the browser's click-drag text selection during a reorder.
     e.preventDefault();
     dragIdRef.current = id;
@@ -178,18 +202,20 @@ export const RankScreen = () => {
             className={styles.row}
             data-rank-row
             data-dragging={draggingId === titleId}
-            onPointerDown={(e) => onDragStart(e, titleId)}
-            onPointerMove={onDragMove}
-            onPointerUp={onDragEnd}
-            onPointerCancel={onDragEnd}
           >
-            {isDesktop && (
-              <span className={styles.grip} aria-hidden="true">
-                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                  <path d="M3 5h10M3 8h10M3 11h10" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-                </svg>
-              </span>
-            )}
+            <span
+              className={styles.grip}
+              aria-hidden="true"
+              data-test-handle="rank-grip"
+              onPointerDown={(e) => onDragStart(e, titleId)}
+              onPointerMove={onDragMove}
+              onPointerUp={onDragEnd}
+              onPointerCancel={onDragEnd}
+            >
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                <path d="M3 5h10M3 8h10M3 11h10" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+              </svg>
+            </span>
             <span className={styles.rankSlot}>
               <span className={styles.rankNumber}>{i + 1}</span>
               {i < RANK_POINTS.length && (
@@ -236,13 +262,14 @@ export const RankScreen = () => {
       <button
         type="button"
         className={styles.submitBtn}
+        disabled={offline || submitting}
         onClick={() => {
           setConfirmChecked(false);
           setConfirmOpen(true);
         }}
         data-test-handle="submit-rankings"
       >
-        Submit rankings
+        {submitting ? "Submitting\u2026" : "Submit rankings"}
       </button>
       <p className={styles.submitCaption}>STANDINGS COMBINE ONCE RANKINGS COME IN</p>
     </>
@@ -414,6 +441,7 @@ export const RankScreen = () => {
             disabled={!confirmChecked}
             onClick={() => {
               setConfirmOpen(false);
+              dispatch({ type: "finalizing", payload: { kind: "submit" } });
               dispatch({ type: "submitRankings", payload: { rankedTitleIds: order } });
             }}
             data-test-handle="confirm-submit"
