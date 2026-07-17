@@ -51,14 +51,13 @@ describe('JoinScreen (passwordless)', () => {
 
   it('submits a login and remembers the room (lowercased)', () => {
     render(<JoinScreen />);
-    fireEvent.change(screen.getByLabelText('Your name'), { target: { value: ' User1 ' } });
+    fireEvent.change(screen.getByLabelText('Your name'), { target: { value: 'User1' } });
     fireEvent.change(screen.getByLabelText('Room name'), { target: { value: 'Couch-Coop' } });
     fireEvent.click(screen.getByText('open the room'));
-    expect(dispatch).toHaveBeenCalledWith({
-      type: 'login',
-      payload: { userName: 'User1' },
-    });
-    expect(localStorage.getItem('courRoom')).toBe('couch-coop');
+    // Room persistence rides the chooseRoom dispatch side-effect now
+    // (audit v1.2.0 #4) -- the store layer owns the localStorage write.
+    expect(dispatch).toHaveBeenCalledWith({ type: 'chooseRoom', payload: { roomName: 'couch-coop' } });
+    expect(dispatch).toHaveBeenCalledWith({ type: 'login', payload: { userName: 'User1' } });
   });
 
   it('prefills from localStorage', () => {
@@ -90,6 +89,24 @@ describe('JoinScreen (passwordless)', () => {
     withState({ joinError: 'Names are 1 to 32 characters.' });
     render(<JoinScreen />);
     expect(screen.getByRole('alert').textContent).toContain('1 to 32');
+  });
+
+  it('submitting dispatches chooseRoom (typed room beats the deep link) then login', () => {
+    render(<JoinScreen />);
+    fireEvent.change(screen.getByLabelText('Your name'), { target: { value: 'user1' } });
+    fireEvent.change(screen.getByLabelText('Room name'), { target: { value: 'My Room' } });
+    fireEvent.click(screen.getByText('open the room'));
+    expect(dispatch).toHaveBeenCalledWith({ type: 'chooseRoom', payload: { roomName: 'my room' } });
+    expect(dispatch).toHaveBeenCalledWith({ type: 'login', payload: { userName: 'user1' } });
+  });
+
+  it('the submit button resolves a real CSS-module class (audit v1.2.0 #1)', () => {
+    // styles.submitBtn resolved undefined (module only defines
+    // .ctaButton), shipping an unstyled primary button on the first
+    // screen. Typecheck can't catch a CSS-module key typo; this can.
+    render(<JoinScreen />);
+    const btn = screen.getByRole('button', { name: /open the room|connecting/ });
+    expect(btn.className).toContain('ctaButton');
   });
 
   it('renders the seasonal kanji watermark, hidden from AT', () => {

@@ -1,5 +1,6 @@
 import { describe, expect, it, beforeEach } from 'vitest';
 import { openDb } from '../../internal/app/cour/db';
+
 import {
   createCourStore,
   MemberLockedError,
@@ -191,3 +192,26 @@ describe('rankings (the couple-profile scoring, 0.13.0)', () => {
   });
 });
 
+
+// Audit v1.2.0 #2: a corrupt filters_json row crash-looped every boot --
+// rooms.list() maps all rows through toRoom, whose bare JSON.parse threw
+// inside the rotation reaper's sweep.
+describe('rooms: corrupt filters_json row', () => {
+  it('degrades to no-filters instead of throwing from list()/byId()', () => {
+    const db = openDb(':memory:');
+    const s = createCourStore(db);
+    const good = s.rooms.create({
+      name: 'fine-room', displayName: 'Fine', season: 'SUMMER', year: 2026,
+    });
+    db.prepare(
+      `INSERT INTO rooms (name, display_name, season, year, filters_json, show_sequels, created_at)
+       VALUES ('bad-room', 'Bad', 'SUMMER', 2026, '{not json', 0, 1)`,
+    ).run();
+
+    const rows = s.rooms.list();
+    expect(rows).toHaveLength(2);
+    const bad = rows.find((r) => r.name === 'bad-room');
+    expect(bad?.filters).toBeUndefined();
+    expect(rows.find((r) => r.id === good.id)?.name).toBe('fine-room');
+  });
+});

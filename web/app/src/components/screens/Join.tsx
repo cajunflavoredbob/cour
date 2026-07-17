@@ -4,7 +4,7 @@ import { AuthBackground } from "../atoms/AuthBackground";
 import { CourMark } from "../atoms/CourMark";
 import { Layout } from "../layout/Layout";
 import { useStore } from "../../store";
-import { getStoredName, getStoredRoom, setStoredRoom } from "../../utils/prefs";
+import { getStoredName, getStoredRoom } from "../../utils/prefs";
 import { useSeason } from "../../hooks/useSeason";
 
 /**
@@ -39,9 +39,11 @@ export const JoinScreen = () => {
 
   const submit = () => {
     if (!canSubmit) return;
-    // login persists the name via the dispatch side-effect; the stored
-    // room is what loginSuccess auto-joins.
-    setStoredRoom(roomName.trim().toLowerCase());
+    // chooseRoom persists the typed room AND revokes any ?roomName deep
+    // link (audit v1.2.0 #4: the URL's room used to silently beat an
+    // edited field); login persists the name via its dispatch
+    // side-effect, and loginSuccess auto-joins the chosen room.
+    dispatch({ type: "chooseRoom", payload: { roomName: roomName.trim().toLowerCase() } });
     dispatch({ type: "login", payload: { userName: name.trim() } });
   };
 
@@ -116,7 +118,7 @@ export const JoinScreen = () => {
             />
           </div>
 
-          <button type="submit" className={styles.submitBtn} disabled={!canSubmit}>
+          <button type="submit" className={styles.ctaButton} disabled={!canSubmit}>
             {connectionStatus === "connected" ? "open the room" : "connecting\u2026"}
           </button>
         </form>

@@ -80,6 +80,9 @@ COPY --from=builder /deploy/package.json ./
 # localization COPY died with the i18n pipeline in audit 17's sweep.)
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/VERSION ./
+# Apache-2.0 section 4: distributions carry the license + NOTICE
+# (upstream attribution) -- the published image is a distribution.
+COPY --from=builder /app/LICENSE /app/NOTICE ./
 
 # Drop root: chown /app and switch to the unprivileged 'node' user that ships
 # with node:24-slim (UID 1000). Reduces blast radius if the process is

@@ -84,4 +84,4 @@ and release process.
 
 ## License
 
-Apache 2.0 -- see [LICENSE](LICENSE).
+Apache 2.0 -- see [LICENSE](LICENSE). Upstream attribution lives in [NOTICE](NOTICE).

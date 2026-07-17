@@ -1,6 +1,6 @@
 {
   "name": "cour",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Pick the season together",
   "license": "Apache-2.0",
   "packageManager": "pnpm@10.33.2",

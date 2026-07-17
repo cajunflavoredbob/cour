@@ -13,6 +13,34 @@ repository; this changelog starts fresh at 0.1.0.
 
 ---
 
+## [1.2.1] - 2026-07-17
+
+The audit-v1.2.0 fix release: both blockers, the top user-felt highs,
+and the licensing restructure.
+
+### Fixed
+- The join screen's primary button referenced a CSS class that didn't
+  exist, so the first button every user sees rendered unstyled. A test
+  now pins the class, since typecheck can't see CSS-module typos.
+- One corrupt filters_json row crash-looped the server on every boot
+  (the rotation reaper maps all rooms through the parser). A bad row now
+  degrades to no-filters and the sweep continues.
+- Editing the pre-filled room on a ?roomName share link was silently
+  ignored -- the URL's room beat what you typed. The typed room wins.
+- A review fetch that died client-side (timeout, reply lost in a
+  reconnect) never retried and stranded the screen on the loading pulse
+  forever. Both failure paths now share the paced retry, and when the
+  budget runs out a "couldn't load your season" screen offers a retry
+  button instead of an infinite pulse.
+- Season rotation is no longer silent: connected users get a toast
+  explaining the reset, and stale prior-season standings are cleared
+  instead of flashing on the rank screen.
+
+### Changed
+- LICENSE is the canonical Apache-2.0 text; upstream attribution moved
+  to a NOTICE file (Apache section 4(d)), and the published image now
+  carries both.
+
 ## [1.2.0] - 2026-07-16
 
 ### Added

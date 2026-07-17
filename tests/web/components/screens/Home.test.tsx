@@ -75,6 +75,13 @@ describe('HomeScreen (review-or-join)', () => {
     expect(screen.queryByTestId('rank-screen')).toBeNull();
   });
 
+  it('swaps the pulse for the retry affordance once the ledger stalls (audit v1.2.0 #5)', () => {
+    withState({ room: { name: 'couch-coop', joined: true }, ledgerStalled: true });
+    render(<HomeScreen />);
+    expect(screen.getByText("couldn't load your season.")).toBeDefined();
+    expect(document.querySelector('[data-test-handle="ledger-retry"]')).not.toBeNull();
+  });
+
   it('holds on the loading pulse while the ledger is still loading', () => {
     // Joined but no review yet: the join form here read as "logged out"
     // to a joined user (audit 17 H5) -- the wordmark pulse holds instead.

@@ -56,7 +56,13 @@ const setupDomGlobals = (opts: {
   historyReplaceState = vi.fn();
   vi.stubGlobal('history', { replaceState: historyReplaceState });
   vi.stubGlobal('navigator', { language: opts.language ?? 'en-US' });
-  vi.stubGlobal('document', { title: 'cour', body: { dataset: {} } });
+  vi.stubGlobal('document', {
+    title: 'cour',
+    body: { dataset: {} },
+    // applySeasonTheme writes accent custom properties on <html> when a
+    // config frame carries a season.
+    documentElement: { style: { setProperty: () => {} } },
+  });
 };
 
 const loadCreateStore = async () => {
@@ -427,5 +433,106 @@ describe('first-run tutorial trigger', () => {
     mod.useZustandStore.getState().dispatch({ type: 'joinOrCreateRoom', payload: { roomName: 'movie-night' } } as any);
     emit({ type: 'joinRoomSuccess', payload: { roomName: 'movie-night', media: [], users: [] } });
     expect(mod.useZustandStore.getState().tutorialOpen).toBeUndefined();
+  });
+});
+
+// Audit v1.2.0 #4: editing the pre-filled room on a share link was
+// silently ignored -- the ?roomName deep link beat the typed room.
+describe('deep link vs typed room', () => {
+  it('the ?roomName deep link drives the auto-join when untouched', async () => {
+    setupDomGlobals({ href: 'https://cour.example.com/?roomName=alpha', name: 'user1' });
+    const mod = await loadCreateStore();
+    mod.createStore();
+    emit({ type: 'loginSuccess', payload: { userName: 'user1' } });
+    expect(clientMock.joinOrCreateRoom).toHaveBeenCalledWith({ roomName: 'alpha' });
+  });
+
+  it('a chooseRoom (manual edit + submit) revokes the deep link', async () => {
+    setupDomGlobals({ href: 'https://cour.example.com/?roomName=alpha' });
+    const mod = await loadCreateStore();
+    mod.createStore();
+    // The join form: user overtypes the pre-filled room, submits.
+    // biome-ignore lint/suspicious/noExplicitAny: test setup shortcut.
+    mod.useZustandStore.getState().dispatch({ type: 'chooseRoom', payload: { roomName: 'beta' } } as any);
+    // biome-ignore lint/suspicious/noExplicitAny: test setup shortcut.
+    mod.useZustandStore.getState().dispatch({ type: 'login', payload: { userName: 'user1' } } as any);
+    emit({ type: 'loginSuccess', payload: { userName: 'user1' } });
+    expect(clientMock.joinOrCreateRoom).toHaveBeenCalledWith({ roomName: 'beta' });
+    expect(clientMock.joinOrCreateRoom).not.toHaveBeenCalledWith({ roomName: 'alpha' });
+    expect(localStore.get('courRoom')).toBe('beta');
+  });
+});
+
+// Audit v1.2.0 #5: a client-side review rejection (timeout / dropped
+// reply) never retried -- only the server error FRAME did.
+describe('review rejection-path retry + stall affordance', () => {
+  const join = async (mod: Awaited<ReturnType<typeof loadCreateStore>>) => {
+    // biome-ignore lint/suspicious/noExplicitAny: test setup shortcut.
+    mod.useZustandStore.getState().dispatch({ type: 'joinOrCreateRoom', payload: { roomName: 'r' } } as any);
+    emit({ type: 'joinRoomSuccess', payload: { roomName: 'r', media: [], users: [] } });
+  };
+
+  it('a rejected review dispatch schedules the paced retry', async () => {
+    clientMock.review = vi.fn().mockRejectedValue(new Error('timeout'));
+    const mod = await loadCreateStore();
+    mod.createStore();
+    vi.useFakeTimers();
+    await join(mod); // join dispatches review -> rejects
+    await vi.advanceTimersByTimeAsync(0); // settle the rejection
+    clientMock.review.mockClear();
+    await vi.advanceTimersByTimeAsync(4100);
+    expect(clientMock.review).toHaveBeenCalledTimes(1);
+    vi.useRealTimers();
+  });
+
+  it('exhausted retries set the stall flag; a manual retry resets it', async () => {
+    clientMock.review = vi.fn().mockRejectedValue(new Error('timeout'));
+    const mod = await loadCreateStore();
+    mod.createStore();
+    vi.useFakeTimers();
+    await join(mod);
+    // Budget is 3 retries; the 4th failure stalls.
+    for (let i = 0; i < 5; i++) {
+      await vi.advanceTimersByTimeAsync(4100);
+    }
+    expect(mod.useZustandStore.getState().ledgerStalled).toBe(true);
+
+    // The stall screen's retry: fresh budget, flag cleared.
+    clientMock.review = vi.fn().mockResolvedValue(undefined);
+    // biome-ignore lint/suspicious/noExplicitAny: test setup shortcut.
+    mod.useZustandStore.getState().dispatch({ type: 'review' } as any);
+    expect(mod.useZustandStore.getState().ledgerStalled).toBeUndefined();
+    expect(clientMock.review).toHaveBeenCalledTimes(1);
+    vi.useRealTimers();
+  });
+});
+
+// Audit v1.2.0 #6: rotation used to be silent -- no toast, stale
+// standings kept in state.
+describe('season rotation reset', () => {
+  it('clears season-scoped state and announces the rotation', async () => {
+    const mod = await loadCreateStore();
+    mod.createStore();
+    emit({ type: 'config', payload: { requiresConfiguration: false, season: 'SUMMER', year: 2026 } });
+    // biome-ignore lint/suspicious/noExplicitAny: test setup shortcut.
+    mod.useZustandStore.getState().dispatch({ type: 'joinOrCreateRoom', payload: { roomName: 'r' } } as any);
+    emit({ type: 'joinRoomSuccess', payload: { roomName: 'r', media: [], users: [] } });
+    emit({
+      type: 'reviewSuccess',
+      payload: { verdicts: [], counts: { like: 0, dislike: 0, skip: 0 }, members: [], lockedAt: 123, total: 3 },
+    });
+    mod.useZustandStore.setState({
+      // biome-ignore lint/suspicious/noExplicitAny: partial results fixture.
+      results: { mySubmitted: true } as any,
+    });
+
+    clientMock.review.mockClear();
+    emit({ type: 'config', payload: { requiresConfiguration: false, season: 'FALL', year: 2026 } });
+
+    const state = mod.useZustandStore.getState();
+    expect(state.review).toBeUndefined();
+    expect(state.results).toBeUndefined();
+    expect(state.toasts.some((t) => t.message.includes('season rotated'))).toBe(true);
+    expect(clientMock.review).toHaveBeenCalledTimes(1);
   });
 });

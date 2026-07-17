@@ -60,6 +60,7 @@ const dispatchToClient = (
     case "soundPref":
     case "viewLockedReview":
     case "tutorial":
+    case "chooseRoom":
       return undefined;
     default: {
       const _exhaustive: never = msg;
@@ -119,6 +120,12 @@ export const createStore = () => {
               },
             }),
           );
+          // A review fetch can die CLIENT-side too (15s timeout, reply
+          // lost mid-reconnect) -- the reviewError frame path never runs
+          // then, and Home/Deck held the pulse forever (audit v1.2.0 #5).
+          if (action.type === "review") {
+            scheduleReviewRetry();
+          }
           // A login that never got an answer must not strand the wordmark
           // pulse: the 5s loading escape was already cleared on connect
           // (audit 17 M8). Fall back to the join form so the user can act.
@@ -138,6 +145,18 @@ export const createStore = () => {
       }
       if (action.type === "login") {
         setStoredName(action.payload.userName);
+      }
+      if (action.type === "chooseRoom") {
+        // The typed room beats the ?roomName deep link (audit v1.2.0 #4):
+        // before this, pendingRoomJoin silently won and the user landed
+        // in the URL's room, with their edit rewritten under them.
+        setStoredRoom(action.payload.roomName);
+        pendingRoomJoin = null;
+      }
+      if (action.type === "review" && useZustandStore.getState().ledgerStalled) {
+        // A manual retry from the stall screen starts a fresh budget.
+        reviewRetries = 0;
+        set((state) => reducer(state, { type: "ledgerStalled", payload: { stalled: false } }));
       }
 
       // Zustand merges shallowly: reducer updates Store keys, dispatch is preserved
@@ -181,12 +200,28 @@ export const createStore = () => {
   // H4) -- mid-deck resumes the deck, done-or-locked lands on home,
   // where HomeScreen picks review vs standings.
   let routeOnNextReview = false;
-  // Bounded retry for a failed post-join review fetch (audit 17 H5):
+  // Bounded retry for a failed review fetch (audit 17 H5 + v1.2.0 #5):
   // without the ledger the deck is held in a loading state, so a lost
-  // reply must not strand it forever.
+  // reply must not strand it forever. Covers BOTH failure shapes -- a
+  // reviewError frame and a client-side rejection. When the budget
+  // exhausts, Home/Deck swap the pulse for a retry affordance.
   let reviewRetries = 0;
   let reviewRetryTimer: ReturnType<typeof setTimeout> | undefined;
   signal.addEventListener("abort", () => clearTimeout(reviewRetryTimer), { once: true });
+  function scheduleReviewRetry() {
+    const state = useZustandStore.getState();
+    if (!state.room?.joined || state.review) return;
+    if (reviewRetries >= 3) {
+      apply({ type: "ledgerStalled", payload: { stalled: true } });
+      return;
+    }
+    reviewRetries += 1;
+    clearTimeout(reviewRetryTimer);
+    reviewRetryTimer = setTimeout(() => {
+      const s = useZustandStore.getState();
+      if (s.room?.joined && !s.review) dispatch({ type: "review" });
+    }, 4000);
+  }
 
   // If there's a room in the URL but no session token, the auto-join can
   // never fire -- keep the pending name so the home screen's join form can
@@ -231,11 +266,13 @@ export const createStore = () => {
         // The server's season always wins over the boot-time local guess.
         applySeasonTheme(msg.payload.season);
         if (prevSeason && prevSeason !== msg.payload.season) {
-          // Mid-session rotation: the server wiped this room's verdicts,
-          // locks, and rankings for the new season. Re-pull the ledger so
-          // progress, lock state, and the deck resume point reset with it.
+          // Mid-session rotation: the server deleted the room's data and
+          // re-decked. Clear every season-scoped slice (stale standings
+          // used to flash) and SAY so -- the reset was silent before
+          // (audit v1.2.0 #6) -- then pull the fresh ledger.
           const state = useZustandStore.getState();
           if (state.room?.joined) {
+            apply({ type: "seasonRotated", payload: { season: msg.payload.season } });
             dispatch({ type: "review" });
           }
         }
@@ -328,17 +365,8 @@ export const createStore = () => {
     if (msg.type === "reviewError") {
       apply(msg as Actions);
       // The deck is held behind the ledger (H5); a lost review reply must
-      // not strand it. Three paced retries, then the error toast from the
-      // reducer stands and a reload is the escape hatch.
-      const state = useZustandStore.getState();
-      if (state.room?.joined && !state.review && reviewRetries < 3) {
-        reviewRetries += 1;
-        clearTimeout(reviewRetryTimer);
-        reviewRetryTimer = setTimeout(() => {
-          const s = useZustandStore.getState();
-          if (s.room?.joined && !s.review) dispatch({ type: "review" });
-        }, 4000);
-      }
+      // not strand it. Three paced retries, then the stall affordance.
+      scheduleReviewRetry();
       return;
     }
 

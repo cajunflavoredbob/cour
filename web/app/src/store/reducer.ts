@@ -110,7 +110,12 @@ export const reducer = (state: Store = initialState, action: Actions): Store => 
       return { ...state, soundPref: action.payload.soundPref };
     // ── Verdict flow ──
     case "reviewSuccess":
-      return { ...state, review: action.payload, members: action.payload.members };
+      return {
+        ...state,
+        review: action.payload,
+        members: action.payload.members,
+        ledgerStalled: undefined,
+      };
     case "verdictSuccess": {
       if (!state.review) return state;
       const { titleId, verdict } = action.payload;
@@ -200,6 +205,36 @@ export const reducer = (state: Store = initialState, action: Actions): Store => 
       return { ...state, viewLockedReview: action.payload.open };
     case "tutorial":
       return { ...state, tutorialOpen: action.payload.open };
+    case "ledgerStalled":
+      return { ...state, ledgerStalled: action.payload.stalled || undefined };
+    case "seasonRotated": {
+      // The server just rotated seasons: rooms were deleted and re-decked
+      // server-side, so every piece of season-scoped client state is
+      // stale. Clear it (fresh fetches follow) and say WHY the screen
+      // just reset -- the rotation used to be completely silent (audit
+      // v1.2.0 #6): mid-deck users silently jumped to card 1 and
+      // standings readers were dumped onto an empty review.
+      const raw = action.payload.season;
+      const seasonName = raw.charAt(0) + raw.slice(1).toLowerCase();
+      return {
+        ...state,
+        review: undefined,
+        results: undefined,
+        members: undefined,
+        deckScope: undefined,
+        viewLockedReview: undefined,
+        toastCounter: state.toastCounter + 1,
+        toasts: [
+          ...state.toasts,
+          {
+            id: mintToastId(state.toastCounter + 1),
+            appearance: "Success" as const,
+            message: `The season rotated -- ${seasonName} is up. Fresh deck, everyone's picks reset.`,
+            showTimeMs: 10000,
+          },
+        ],
+      };
+    }
     case "skipRemainingSuccess":
       return {
         ...state,
@@ -347,6 +382,7 @@ export const reducer = (state: Store = initialState, action: Actions): Store => 
     // `never` check below catch any future variant that gets added to
     // the Actions union without a deliberate decision (audit 13 #305).
     case "leaveRoom":
+    case "chooseRoom":
     // Outbound requests the dispatch layer forwards to the WS client;
     // the reducer reacts to their replies above.
     case "login":

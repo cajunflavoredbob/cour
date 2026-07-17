@@ -10,7 +10,7 @@ services:
     # following the README quick-start get whatever this file says, so
     # leaving it stale ships a stale image. Latest tags:
     #   https://hub.docker.com/r/cajunflavoredbob/cour/tags
-    image: cajunflavoredbob/cour:1.2.0
+    image: cajunflavoredbob/cour:1.2.1
     ports:
       # Publishes on all interfaces for the LAN deployment this app is
       # designed for. Behind a same-host reverse proxy, bind to loopback

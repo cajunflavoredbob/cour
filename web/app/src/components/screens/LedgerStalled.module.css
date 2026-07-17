@@ -1,0 +1,40 @@
+/* Ledger-stall escape hatch (audit v1.2.0 #5): same quiet centered
+   column as the deck's exhausted state. */
+.screen {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 24px;
+  text-align: center;
+}
+
+.headline {
+  font-family: var(--cour-font-display);
+  font-weight: 600;
+  font-size: 26px;
+  color: var(--cour-text-0);
+}
+
+.text {
+  font-family: var(--cour-font-ui);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--cour-text-1);
+  max-width: 320px;
+}
+
+.retry {
+  font-family: var(--cour-font-ui);
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--cour-black, #0a0604);
+  background: var(--cour-accent);
+  border: none;
+  border-radius: 999px;
+  padding: 12px 22px;
+  cursor: pointer;
+  margin-top: 6px;
+}

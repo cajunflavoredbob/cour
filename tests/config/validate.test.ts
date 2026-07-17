@@ -38,13 +38,13 @@ describe('normalizeAndValidateConfig', () => {
     [{ rootPath: '/' },                                            ['ServerBasePathInvalid', 'ServersMustBeArray']],
     [{ rootPath: 123 },                                            ['ServerBasePathInvalid', 'ServersMustBeArray']],
     [{ rootPath: 'noslash' },                                      ['ServerBasePathInvalid', 'ServersMustBeArray']],
-    [{ basicAuth: 'luke:test' },                                   ['BasicAuthInvalid', 'ServersMustBeArray']],
+    [{ basicAuth: 'user1:test' },                                   ['BasicAuthInvalid', 'ServersMustBeArray']],
     [{ basicAuth: {} },                                            ['BasicAuthPasswordInvalid', 'BasicAuthUserNameInvalid', 'ServersMustBeArray']],
-    [{ basicAuth: { userName: 'luke' } },                          ['BasicAuthPasswordInvalid', 'ServersMustBeArray']],
+    [{ basicAuth: { userName: 'user1' } },                          ['BasicAuthPasswordInvalid', 'ServersMustBeArray']],
     // #57: an empty password used to pass (it is a string) -> silent auth bypass.
-    [{ basicAuth: { userName: 'luke', password: '' } },            ['BasicAuthPasswordInvalid', 'ServersMustBeArray']],
+    [{ basicAuth: { userName: 'user1', password: '' } },            ['BasicAuthPasswordInvalid', 'ServersMustBeArray']],
     [{ basicAuth: { userName: '', password: 'test' } },            ['BasicAuthUserNameInvalid', 'ServersMustBeArray']],
-    [{ basicAuth: { userName: 'luke', password: 'test' } },        ['ServersMustBeArray']],
+    [{ basicAuth: { userName: 'user1', password: 'test' } },        ['ServersMustBeArray']],
     [{ tlsConfig: '/foo.crt' },                                    ['ServersMustBeArray', 'TlsConfigInvalid']],
     [{ tlsConfig: {} },                                            ['ServersMustBeArray', 'TlsConfigCertFileInvalid', 'TlsConfigKeyFileInvalid']],
     // 0.4.15 EXPOSE_PLEX_BASE_URL opt-out: must be a boolean when present.

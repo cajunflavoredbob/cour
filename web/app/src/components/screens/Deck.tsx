@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { Media, VerdictValue } from "../../../../../types/reely";
 import { AccountMenu } from "../organisms/AccountMenu";
 import { AppHeader } from "../organisms/AppHeader";
+import { LedgerStalled } from "./LedgerStalled";
 import { Loading } from "./Loading";
 import { DeckDetails } from "../organisms/DeckDetails";
 import { DeckSheet } from "../organisms/DeckSheet";
@@ -36,11 +37,12 @@ const KEY_VERDICTS: Record<string, VerdictValue> = {
  * and updated per verdictSuccess.
  */
 export const DeckScreen = () => {
-  const [{ room, review, deckScope, connectionStatus }, dispatch] = useStore([
+  const [{ room, review, deckScope, connectionStatus, ledgerStalled }, dispatch] = useStore([
     "room",
     "review",
     "deckScope",
     "connectionStatus",
+    "ledgerStalled",
   ]);
   const isDesktop = useMediaQuery(DESKTOP_QUERY);
 
@@ -176,7 +178,7 @@ export const DeckScreen = () => {
   // FIRST card to a user who may be mid-pass or finished, and a tap
   // silently overwrites the verdict they already recorded (audit 17 H5).
   // Hold the deck until the ledger exists.
-  if (!review) return <Loading />;
+  if (!review) return ledgerStalled ? <LedgerStalled /> : <Loading />;
 
   const total = review.total;
   const done = verdictedIds.size;

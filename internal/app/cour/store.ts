@@ -141,13 +141,26 @@ export const createCourStore = (db: DatabaseSync) => {
     created_at: number;
   }
 
+  // A corrupt filters_json row must degrade to "no filters", never throw:
+  // rooms.list() maps EVERY row through here (the rotation reaper runs it
+  // on every boot), so a bare JSON.parse turned one bad row into a boot
+  // crash-loop (audit v1.2.0 #2).
+  const parseFilters = (raw: string | null): unknown => {
+    if (!raw) return undefined;
+    try {
+      return JSON.parse(raw);
+    } catch {
+      return undefined;
+    }
+  };
+
   const toRoom = (row: RoomRow): CourRoom => ({
     id: row.id,
     name: row.name,
     displayName: row.display_name,
     season: row.season,
     year: row.year,
-    filters: row.filters_json ? JSON.parse(row.filters_json) : undefined,
+    filters: parseFilters(row.filters_json),
     showSequels: row.show_sequels === 1,
     createdAt: row.created_at,
   });

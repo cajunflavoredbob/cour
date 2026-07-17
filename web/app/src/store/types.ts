@@ -58,6 +58,10 @@ export type ClientActions =
   // First-login tutorial overlay (audit 17): opened by createStore when
   // no localStorage seen-flag exists; closed by its own CTA.
   | { type: "tutorial"; payload: { open: boolean } }
+  // The join form's explicit room choice (audit v1.2.0 #4): persists the
+  // typed room AND revokes any ?roomName deep link, so what the user
+  // typed always beats what the URL carried.
+  | { type: "chooseRoom"; payload: { roomName: string } }
   | ServerMessage;
 
 export type Actions =
@@ -68,6 +72,12 @@ export type Actions =
   | { type: "setUser"; payload: User }
   // Store-creation seed: local prefs hydrated into state.
   | { type: "hydratePrefs"; payload: { soundPref: boolean } }
+  // Ledger fetch retries exhausted (audit v1.2.0 #5): Home/Deck swap the
+  // infinite pulse for a retry affordance.
+  | { type: "ledgerStalled"; payload: { stalled: boolean } }
+  // Season rotation observed via the config frame (audit v1.2.0 #6):
+  // clears season-scoped state and announces the reset.
+  | { type: "seasonRotated"; payload: { season: string } }
   | ClientActions
   | ClientMessage;
 
@@ -103,6 +113,8 @@ export interface Store {
   viewLockedReview?: boolean;
   // First-login tutorial overlay.
   tutorialOpen?: boolean;
+  // Review fetch retries exhausted; a retry affordance renders.
+  ledgerStalled?: boolean;
 
   toasts: Toast[];
   config?: AppConfig;
