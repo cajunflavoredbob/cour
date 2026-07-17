@@ -30,7 +30,9 @@ Names are 1-32 characters, unique case-insensitively.
   (the filter vocabulary was removed entirely: cour deals the whole
   season).
 - The server serves ONE season at a time and rotates to the next season
-  one month before it airs (Dec 1 / Mar 1 / Jun 1 / Sep 1). The show
+  one month before it airs (Dec 1 / Mar 1 / Jun 1 / Sep 1, evaluated in
+  the server's clock -- UTC as shipped, and precision-to-the-hour is all
+  the mechanism needs; accepted as-is). The show
   list refreshes daily during the pre-season window and freezes two
   weeks before the season starts, so nobody's deck shifts under them
   while they lock in.

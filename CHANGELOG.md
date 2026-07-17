@@ -13,6 +13,37 @@ repository; this changelog starts fresh at 0.1.0.
 
 ---
 
+## [1.2.3] - 2026-07-17
+
+The audit-v1.2.0 low pile -- the final batch.
+
+### Fixed
+- Toasts render above every overlay (a Disconnected toast could hide,
+  un-dismissable, under the lock-in dialog's scrim) and now use the
+  cour palette instead of leftover pre-pivot tokens.
+- "N OF M LOCKED" and the standings' WAITING ON list update the moment a
+  new member joins the verdict flow instead of waiting for the next lock.
+- A null or typeless WebSocket frame is dropped cleanly instead of
+  throwing twice inside the server's message handler.
+- Server failure messages speak to users ("Please try again") instead of
+  telling them to check server logs they don't have.
+- Visual drift: the resume-the-deck action is "Keep picking" everywhere;
+  accent buttons all use white text; mobile standings show the season
+  kanji and room name like every other screen.
+- In-memory rooms with nobody connected are dropped at season rotation,
+  making the room cap per-season instead of per-process-lifetime.
+
+### Changed
+- Season rotation timing is documented as server-clock/UTC, accepted
+  as-is (hour-level precision is all the mechanism needs).
+- A late joiner re-triggering the everyone's-locked celebration when
+  they lock is documented as deliberate: it's true again.
+
+### Removed
+- Dead code: the Plex-era ProviderIcon, an orphaned Avatar sibling, the
+  unused `accepts` dependency, and the last stale Plex-era comments.
+  CONTRIBUTING no longer documents the removed i18n pipeline.
+
 ## [1.2.2] - 2026-07-17
 
 The rest of the audit-v1.2.0 mediums.

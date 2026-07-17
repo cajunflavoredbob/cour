@@ -4,7 +4,7 @@ import { logger } from '../logger';
 import type { ReelyProvider } from '../providers/types';
 
 // Route: GET /api/poster/:providerIndex/:metadataId/:thumbId
-// Proxies and transcodes artwork from Plex, streaming the response body directly.
+// Proxies artwork from the provider (AniList covers / TMDB stills), streaming the response body directly.
 export const handler = async (req: Request, res: Response): Promise<void> => {
   const { providerIndex, metadataId, thumbId } = req.params;
   const providers = res.locals.providers as ReelyProvider[];
@@ -24,8 +24,8 @@ export const handler = async (req: Request, res: Response): Promise<void> => {
     return;
   }
 
-  // Plex metadata and thumb ids are integers. Reject anything else so a request
-  // like /api/poster/0/..%2Fsystem/thumb/1 can't traverse to a different Plex
+  // Metadata and thumb ids are integers. Reject anything else so a request
+  // like /api/poster/0/..%2Fsystem/thumb/1 can't traverse to a different
   // API endpoint via URL pathname normalization.
   if (!/^\d+$/.test(metadataId) || !/^\d+$/.test(thumbId)) {
     logger.warn(
@@ -35,7 +35,7 @@ export const handler = async (req: Request, res: Response): Promise<void> => {
     return;
   }
 
-  // Abort the upstream Plex fetch if the browser disconnects before the
+  // Abort the upstream fetch if the browser disconnects before the
   // stream finishes -- otherwise the proxy keeps pulling bytes into a dead
   // response. On normal completion this fires too, but aborting a settled
   // fetch is a harmless no-op.
@@ -48,7 +48,7 @@ export const handler = async (req: Request, res: Response): Promise<void> => {
       abort.signal,
     );
 
-    // Forward content-type and content-length from Plex if present.
+    // Forward content-type and content-length from upstream if present.
     const contentType = headers.get('content-type');
     if (contentType) res.setHeader('content-type', contentType);
     const contentLength = headers.get('content-length');

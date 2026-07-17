@@ -282,7 +282,7 @@
   font-family: var(--cour-font-ui);
   font-weight: 600;
   font-size: 14px;
-  color: var(--cour-black, #0a0604);
+  color: white;
   background: var(--cour-accent);
   border: none;
   border-radius: 999px;

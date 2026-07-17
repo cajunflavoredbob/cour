@@ -119,6 +119,14 @@ export const Application = (config: Config, signal?: AbortSignal): ApplicationIn
             // relabel and retheme without waiting for a reconnect.
             onSeasonRotated: (season) => {
               reconcileRoomSeasons(cour, season);
+              // Drop in-memory rooms nobody is connected to (audit
+              // v1.2.0 low): their DB rows just died with the reaper,
+              // and without this the process map only ever grew --
+              // MAX_ROOMS was a process-lifetime cap instead of a
+              // per-season one.
+              for (const room of getAllRooms()) {
+                if (room.users.size === 0) removeRoom(room.roomName);
+              }
               pushMediaToOpenRooms();
               const provider = providers[0];
               void provider

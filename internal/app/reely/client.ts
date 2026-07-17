@@ -273,7 +273,21 @@ export class Client {
       year: season.year,
       showSequels: getConfig().anime?.showSequels ?? false,
     });
-    cour.members.ensure(courRoom.id, user.id);
+    const isNewMember = cour.members.ensure(courRoom.id, user.id);
+    if (isNewMember && this.room) {
+      // A genuinely-new member changes every open review screen's
+      // "N OF M LOCKED" line and the standings' WAITING ON list -- pulse
+      // the OTHERS now instead of waiting for the next lock event
+      // (audit v1.2.0 low). allLocked is false by construction: this
+      // member's fresh row is unlocked, so no celebration can fire.
+      this.room.broadcastMessage(
+        {
+          type: 'roomPulse',
+          payload: { members: this.memberStates(cour, courRoom.id), allLocked: false },
+        },
+        this.userName,
+      );
+    }
     return { cour, user, roomId: courRoom.id };
   }
 
@@ -305,7 +319,7 @@ export class Client {
     } catch (err) {
       const message = err instanceof MemberLockedError
         ? err.message
-        : 'Recording the verdict failed. Check the server logs.';
+        : 'Recording the verdict failed. Please try again.';
       if (!(err instanceof MemberLockedError)) {
         logger.error(`verdict failed: ${String(err)}`);
       }
@@ -367,7 +381,7 @@ export class Client {
     } catch (err) {
       const message = err instanceof MemberLockedError
         ? err.message
-        : 'Skipping the rest failed. Check the server logs.';
+        : 'Skipping the rest failed. Please try again.';
       if (!(err instanceof MemberLockedError)) {
         logger.error(`skipRemaining failed: ${String(err)}`);
       }
@@ -448,7 +462,7 @@ export class Client {
       logger.error(`lockIn failed: ${String(err)}`);
       this.sendMessage({
         type: 'lockInError',
-        payload: { message: 'Locking in failed. Check the server logs.' },
+        payload: { message: 'Locking in failed. Please try again.' },
       });
     }
   }
@@ -531,7 +545,7 @@ export class Client {
     } catch (err) {
       const message = err instanceof NotLockedError || err instanceof AlreadySubmittedError
         ? err.message
-        : 'Submitting rankings failed. Check the server logs.';
+        : 'Submitting rankings failed. Please try again.';
       if (!(err instanceof NotLockedError) && !(err instanceof AlreadySubmittedError)) {
         logger.error(`submitRankings failed: ${String(err)}`);
       }
@@ -591,6 +605,13 @@ export class Client {
       logger.error(`Failed to parse message: ${messageText} -- ${String(err)}`);
       return;
     }
+    // Shape-guard (audit v1.2.0 low): JSON.parse("null") succeeds, and a
+    // null/typeless frame used to throw in the switch AND AGAIN in the
+    // catch below (message.type on null) -- an unhandled rejection.
+    if (!message || typeof message !== 'object' || typeof message.type !== 'string') {
+      logger.warn(`Dropping WS frame with unexpected shape: ${messageText.slice(0, 120)}`);
+      return;
+    }
 
     try {
       switch (message.type) {
@@ -608,7 +629,7 @@ export class Client {
         default: logger.info(`Unhandled message: ${messageText}`);
       }
     } catch (err) {
-      logger.error(`Error handling ${message.type}: ${String(err)}`);
+      logger.error(`Error handling ${message?.type}: ${String(err)}`);
     }
   }
 

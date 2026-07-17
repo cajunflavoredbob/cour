@@ -36,11 +36,10 @@ Open <http://localhost:5173>.
 ```
 .
 ├── cmd/reely/             # Server entry point
-├── configs/localization/  # Translation JSON (BCP47 filenames)
 ├── internal/app/
 │   ├── anilist/           # AniList seasonal catalog client
 │   ├── cour/              # Rooms, verdicts, rankings, SQLite store
-│   ├── reely/             # Core server (WebSocket, config, i18n)
+│   ├── reely/             # Core server (WebSocket, config)
 │   └── tmdb/              # Optional screenshot enrichment
 ├── types/reely.ts         # WebSocket protocol + shared types
 ├── web/app/               # Frontend (React 18, Vite, Zustand, CSS Modules)
@@ -65,11 +64,9 @@ Run before every commit (CI runs the same):
 
 ## i18n
 
-Translations live in `configs/localization/` with
-[BCP47](https://tools.ietf.org/html/bcp47) filenames (`en.json`,
-`de.json`, ...). Six locales ship (en, es, fr, pl, de, nl); the German
-and Dutch strings are machine-translated and welcome native review.
-`TranslationKey` in `types/reely.ts` lists the required keys.
+There is none: every user-facing string is English, in source. The
+translation pipeline was removed in the audit-17 sweep (it maintained
+six locale files to localize one string in an unmounted component).
 
 ## CI & releases
 

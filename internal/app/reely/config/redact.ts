@@ -9,7 +9,7 @@ import type { Config } from '../../../../types/reely';
  * abort the registration of fields that are individually fine.
  *
  * Idempotent: addRedaction dedupes internally, so re-calling for the
- * same value is free (PlexApi's constructor also registers its own
+ * same value is free (a caller registering the same secret twice
  * URL+token for defense-in-depth -- 0.4.5 #162).
  *
  * The validator (validate.ts) used to do this inline. Extracted in

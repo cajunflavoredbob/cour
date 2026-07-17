@@ -6,13 +6,18 @@
   display: flex;
   flex-direction: column;
   align-items: center;
+  /* Above every overlay (scrims sit at 600-700): a Disconnected toast
+     under the lock-in scrim was un-dismissable (audit v1.2.0 low). */
+  z-index: 800;
 }
 
 .toast {
   width: 80vw;
   max-width: 19rem;
-  background-color: var(--cour-black);
-  color: var(--cour-white);
+  /* Direction B tokens (the reely-era hsl palette lingered here). */
+  background-color: var(--cour-bg-2);
+  color: var(--cour-text-0);
+  border: 1px solid var(--cour-line-strong);
   border-radius: 0.5rem;
   padding: var(--s2);
   text-align: center;
@@ -32,12 +37,16 @@
 
 .toastSuccess {
   composes: toast;
-  background-color: var(--cour-success-color);
+  background-color: var(--cour-accent);
+  color: white;
+  border-color: transparent;
 }
 
 .toastFailure {
   composes: toast;
-  background-color: var(--cour-failure-color);
+  background-color: var(--cour-negative);
+  color: white;
+  border-color: transparent;
 }
 
 

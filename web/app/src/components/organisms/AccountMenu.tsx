@@ -120,7 +120,7 @@ export const AccountMenu = () => {
                 onClick={() => navigate("room")}
                 data-test-handle="menu-keep-going"
               >
-                Keep going <span className={styles.keepGoingCount}>&middot; {remaining} left</span>
+                Keep picking <span className={styles.keepGoingCount}>&middot; {remaining} left</span>
               </button>
             )}
 

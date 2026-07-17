@@ -210,14 +210,16 @@ export const createCourStore = (db: DatabaseSync) => {
   };
 
   const members = {
-    /** Idempotent join: first sight inserts the membership row. joined_at
-     * records when; nothing reads it back today (the lastRoomFor feature
-     * it was added for never landed), so later calls are pure no-ops --
-     * the recency re-stamp died in audit 17's sweep. */
-    ensure: (roomId: number, userId: number): void => {
-      db.prepare(
+    /** Idempotent join: first sight inserts the membership row; returns
+     * whether THIS call created it, so the caller can pulse the room on
+     * genuinely-new members (audit v1.2.0 low: "N OF M LOCKED" went
+     * stale until the next lock event). joined_at records when; nothing
+     * reads it back today. */
+    ensure: (roomId: number, userId: number): boolean => {
+      const result = db.prepare(
         'INSERT OR IGNORE INTO room_members (room_id, user_id, joined_at) VALUES (?, ?, ?)',
       ).run(roomId, userId, Date.now());
+      return Number(result.changes) > 0;
     },
 
     get: (roomId: number, userId: number): RoomMember | undefined => {

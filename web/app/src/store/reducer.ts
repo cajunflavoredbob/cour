@@ -189,6 +189,9 @@ export const reducer = (state: Store = initialState, action: Actions): Store => 
       // the all-locked edge fire the celebration here too -- the server
       // excludes the locker (their own toast rides lockInSuccess), and
       // only the true edge is broadcast, so no dedup is needed.
+      // Deliberate (the owner's call, audit v1.2.0 low): a late joiner
+      // un-completes the room, and when they lock, the celebration
+      // fires AGAIN -- it's true again.
       const base = { ...state, members: action.payload.members };
       if (!action.payload.allLocked) return base;
       return {

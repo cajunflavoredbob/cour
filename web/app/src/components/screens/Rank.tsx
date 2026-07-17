@@ -9,6 +9,7 @@ import { DESKTOP_QUERY, useMediaQuery } from "../../hooks/useMediaQuery";
 import { useStore } from "../../store";
 import { posterSrc } from "../../utils/poster";
 import { useSeason } from "../../hooks/useSeason";
+import { SEASON_THEMES } from "../../utils/season";
 import styles from "./Rank.module.css";
 
 // The couple-profile point values, shown next to the top five slots so
@@ -98,6 +99,7 @@ export const RankScreen = () => {
   const { season } = useSeason();
   const offline = connectionStatus !== "connected";
   const submitting = finalizing?.kind === "submit";
+  const kanji = SEASON_THEMES[season].kanji;
 
   // Minimum-3s "Submitting..." ceremony (the owner's spec, audit v1.2.0
   // #9): the editor holds until BOTH the ack (mySubmitted) and the 3s
@@ -484,9 +486,15 @@ export const RankScreen = () => {
   return (
     <div className={styles.screen}>
       <header className={styles.topBar}>
-        <span className={styles.wordRow}>
-          <span className={styles.word} translate="no">cour</span>
-        </span>
+        {/* Mobile parity with the deck/review headers (audit v1.2.0
+            low): season kanji + room name were missing here. */}
+        <div className={styles.roomStack}>
+          <span className={styles.roomLabel}>{roomName}</span>
+          <span className={styles.wordRow}>
+            <span className={styles.word} translate="no">cour</span>
+            <span className={styles.kanjiChip} aria-hidden="true">{kanji}</span>
+          </span>
+        </div>
         <AccountMenu />
       </header>
 

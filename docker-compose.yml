@@ -10,7 +10,7 @@ services:
     # following the README quick-start get whatever this file says, so
     # leaving it stale ships a stale image. Latest tags:
     #   https://hub.docker.com/r/cajunflavoredbob/cour/tags
-    image: cajunflavoredbob/cour:1.2.2
+    image: cajunflavoredbob/cour:1.2.3
     ports:
       # Publishes on all interfaces for the LAN deployment this app is
       # designed for. Behind a same-host reverse proxy, bind to loopback
@@ -19,6 +19,9 @@ services:
       - "8000:8000"
     environment:
       # AniList is built in as the only provider -- no wiring needed.
+      # Season rotation dates are evaluated in the container's clock
+      # (UTC as shipped) -- accepted; the mechanism only needs
+      # hour-level precision.
       LOG_LEVEL: INFO
       # Screenshot enrichment for the details drawer (optional). A TMDB
       # API key -- v3 key or v4 read token both work:

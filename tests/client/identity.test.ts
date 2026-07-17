@@ -406,6 +406,10 @@ describe('verdict / review / lockIn', () => {
       push(ws, { type: 'verdict', payload: { titleId: 102, verdict: 'skip' } });
     }
     await flush();
+    // Discard the member-join pulses so the lock assertions below see
+    // only lock traffic.
+    wsK.send.mockClear();
+    wsG.send.mockClear();
 
     push(wsK, { type: 'lockIn' });
     await flush();
@@ -420,6 +424,32 @@ describe('verdict / review / lockIn', () => {
     await flush();
     // The FINAL lock's pulse carries the all-locked edge to the others.
     expect(last(wsK, 'roomPulse')?.payload.allLocked).toBe(true);
+  });
+
+  it('a NEW member joining the verdict flow pulses the others (audit v1.2.0 low)', async () => {
+    const room = makeWsRoom();
+    const { ws: wsK } = await authedInRoom('user1', room);
+    push(wsK, { type: 'verdict', payload: { titleId: 101, verdict: 'like' } });
+    await flush();
+    wsK.send.mockClear();
+
+    // A second member's FIRST verdict-flow message creates their row --
+    // everyone else's "N OF M LOCKED" line updates now, not at the next
+    // lock event. allLocked is false by construction, so no celebration.
+    const { ws: wsG } = await authedInRoom('girlfriend', room);
+    push(wsG, { type: 'review' });
+    await flush();
+    const pulse = last(wsK, 'roomPulse')?.payload;
+    expect(pulse?.allLocked).toBe(false);
+    expect(pulse?.members).toContainEqual({
+      userName: 'girlfriend', locked: false, submitted: false,
+    });
+
+    // Repeat traffic from the SAME member does not re-pulse.
+    wsK.send.mockClear();
+    push(wsG, { type: 'review' });
+    await flush();
+    expect(last(wsK, 'roomPulse')).toBeUndefined();
   });
 
   it('standings rows carry who ranked them by name', async () => {

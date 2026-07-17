@@ -19,10 +19,10 @@ export function getConfig(): Config {
 }
 
 // Config layers, in PRIORITY order (audit 12 #272):
-//   1. ENV vars (top priority) -- loadFromEnv reads PLEX_URL, AUTH_PASS,
+//   1. ENV vars (top priority) -- loadFromEnv reads TMDB_API_KEY, AUTH_PASS,
 //      ALLOWED_ORIGINS, etc. Docker secrets are read INSIDE this layer
 //      (load_secrets.ts is a helper, not a separate layer) for the two
-//      sensitive values (plex_token, auth_pass) that can be mounted as
+//      sensitive values (auth_pass) that can be mounted as
 //      files instead of env vars.
 //   2. YAML file (config.yaml or --config <path>) -- loadFromYaml.
 //   3. defaults (defaults.ts) -- hostname=0.0.0.0, port=8000, etc.
@@ -60,7 +60,7 @@ export async function loadConfig(
 
   // Env config overrides YAML config wholesale. `servers` is NOT merged by
   // index: reely is single-server, and a per-field index-merge could attach
-  // an env PLEX_TOKEN to a YAML server URL it was never meant to pair with
+  // an env credential to a YAML server URL it was never meant to pair with
   // (token sent to the wrong host). If env defines a server at all, the env
   // server replaces the YAML one outright -- the `...envConfig` spread does
   // exactly that.
@@ -82,7 +82,7 @@ export async function loadConfig(
   registerRedactions(config);
 
   // Only cache the config when it passes validation -- or when the only
-  // remaining error is the "no Plex server" case, which main.ts handles as
+  // remaining error is the "no server configured" case, which main.ts handles as
   // a runtime warning + boot in unconfigured mode (not a fatal). A truly
   // broken config (port: "abc", malformed YAML, etc.) leaves cachedConfig
   // unset, so a downstream `getConfig()` call throws "called before the

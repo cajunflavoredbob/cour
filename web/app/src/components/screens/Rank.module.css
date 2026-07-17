@@ -637,3 +637,27 @@
   border-radius: 20px;
   padding: 18px;
 }
+
+/* Mobile header parity (audit v1.2.0 low): mirrors Deck's room stack. */
+.roomStack {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.roomLabel {
+  font-family: var(--cour-font-mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--cour-text-2);
+  max-width: 60vw;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.kanjiChip {
+  font-family: var(--cour-font-display);
+  font-size: 13px;
+  color: var(--cour-accent-bright);
+  margin-left: 6px;
+}
