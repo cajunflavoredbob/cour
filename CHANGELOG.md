@@ -13,6 +13,97 @@ repository; this changelog starts fresh at 0.1.0.
 
 ---
 
+## [1.3.0] - 2026-08-16
+
+The Dependabot backlog (four dependency majors taken deliberately) plus
+the audit pass that shook out what the upgrades disturbed.
+
+### Changed
+- express 4.22 -> 5.2. The SPA fallback route uses express 5's
+  `'/{*splat}'` syntax (the bare `'*'` no longer parses), the poster
+  handler declares its route params explicitly, and a new dispatch test
+  pins the routing seam.
+- react 18.3 -> 19.2 (react-dom and the type packages with it). The JSX
+  type is imported from react directly now that the global namespace is
+  gone.
+- typescript 5.9 -> 7.0 (the native compiler). The server tsconfig moved
+  to NodeNext module resolution (TS 7 removed the legacy node10 mode);
+  emitted output remains CommonJS, so the runtime shape is unchanged.
+- Docker base image node 24.16 -> 24.19-slim. The proposed node 26 jump
+  is deferred until 26 reaches LTS: its image also drops the bundled
+  corepack the builder stage uses, and taking it would force the CI and
+  engines floor past the supported node 24 line.
+- Runtime deps: helmet 8.3, js-yaml 5.3, ws 8.21.3. Tooling: vite 8.2,
+  vitest 4.1.10, biome 2.5.8, tsx 4.23, @vitejs/plugin-react 5.2 (the
+  4.x line never declared vite 8 peer support). CI actions: pnpm/
+  action-setup 6.0.10 and docker/login-action 4.6.0, SHAs verified
+  against the upstream tags.
+- CI now runs on pull_request (the repo is public; fork PRs previously
+  ran zero checks) with push CI narrowed to main so PR branches don't
+  double-run. The workflow token stays read-only.
+- Config parsing pins js-yaml's CORE_SCHEMA: `~` / `Null` / empty still
+  mean null exactly as they did before the js-yaml 5 upgrade, while
+  yes/no/on/off stay strings for the validator to reject. A blank or
+  comments-only config file gets the standard "must be an object" boot
+  error instead of a raw parser exception.
+
+### Fixed
+- A degraded AniList response with zero entries can no longer replace a
+  serving deck or overwrite a good season snapshot on disk; past the
+  list freeze that single response used to brick every join until the
+  next rotation. An empty rotation fetch now defers the rotation for
+  the hourly retry, and a boot-time refresh still in flight when the
+  season rotates is discarded instead of stomping the new deck.
+- A room evicted because it cannot re-deck now disconnects its
+  connected members into the normal reconnect-and-rejoin flow; they
+  previously kept verdicting the orphaned deck while their rows
+  resurrected under the new season.
+- The server refuses a name switch while a join is mid-flight, closing
+  a window that installed room membership under the old name and left a
+  ghost member the disconnect cleanup could never evict.
+- Hold-to-skip-all: sliding a finger off the button now aborts the hold
+  on touch (implicit pointer capture had made the abort gesture dead,
+  so the 1.5s skip-all fired under a finger that slid away); a press
+  whose buttons disable mid-hold can neither fire skip-all nor skip the
+  next unseen card on release; a mouse release that started on a
+  neighboring button no longer records a stray skip; and a cancelled
+  system gesture cleans the press up.
+- Standings refetch after a reconnect rejoin: counts labeled as live no
+  longer serve stale data until someone else submits, and a submit
+  whose ack died in a disconnect no longer traps the user in an editor
+  whose resubmit the server refuses. A refused resubmit also refetches,
+  so the standings replace the editor either way.
+- Browsers with storage blocked no longer white-screen at boot
+  (localStorage access is guarded throughout) and now survive
+  reconnects: the automatic relogin and room rejoin fall back to the
+  in-memory identity when nothing is stored.
+- The cold-load auto-rejoin holds the loading screen instead of
+  flashing the join form for a beat; if the ledger fetch exhausts its
+  retries during that hold, the user lands on Home where the retry
+  affordance actually renders.
+- The ranking editor freezes during the three-second submit ceremony;
+  edits made there were accepted visually and silently discarded.
+- The share-room dialog no longer steals focus from its own link input,
+  so the link is selected and ready to copy again.
+- "Locking in..." can no longer stick forever when a season rotation
+  replaces the ledger while the lock request is in flight.
+- Two request timeouts in the same millisecond no longer collide on one
+  toast id and dismiss together.
+- The poster proxy omits content-length when the upstream image arrived
+  content-encoded, instead of forwarding a compressed byte count for a
+  stream fetch hands over decompressed.
+
+### Removed
+- Dead code: the web-side keystroke sanitizer module and the AniList
+  reachability probe, along with their tests. The server-side sanitizer
+  (the one actually in use) is untouched.
+- @types/js-yaml: js-yaml 5 ships its own type declarations.
+
+### Security
+- `data.snapshot-*` directories (ad-hoc copies of the live database)
+  are excluded from the Docker build context, mirroring the existing
+  .gitignore rule, so they can never be baked into image layers.
+
 ## [1.2.3] - 2026-07-17
 
 The audit-v1.2.0 low pile -- the final batch.
