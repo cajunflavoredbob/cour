@@ -69,6 +69,16 @@ RUN apt-get update \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
+# Strip the package-manager toolchain the base image bundles: runtime
+# only ever invokes `node` (see the pnpm-free COPY strategy below), so
+# npm/npx/corepack are dead weight -- and npm vendors its own dependency
+# tree, which makes the image inherit npm's CVEs. Concretely: the 1.3.0
+# release gate failed on CVE-2026-59873 (CRITICAL, node-tar 7.5.16
+# inside the base image's npm) with the fix not yet in any node:24-slim
+# tag. Removing the unused toolchain both closes that class permanently
+# and trims the image.
+RUN rm -rf /usr/local/lib/node_modules /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack
+
 # Bring in the prod-only node_modules + package.json from the builder's
 # pnpm deploy output. corepack/pnpm are NOT installed in this stage
 # (audit 14 #335) -- runtime only invokes `node`, so the pnpm CLI is
