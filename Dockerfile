@@ -1,11 +1,17 @@
 # Node base image pinned to an exact patch for reproducible production
-# builds (audit 9 #122). The matching CI workflow floors to `24` so an
-# upstream Node 24.x compat issue surfaces in PR CI before it hits the
-# image. Bump in lockstep with `engines.node` in package.json.
-FROM node:24.19.0-slim AS builder
+# builds (audit 9 #122). The image runs the current Node line (26); the
+# CI matrix tests BOTH the `engines.node` floor (24, what self-hosters
+# running from source are promised) and this image's major, so a compat
+# issue on either surfaces in PR CI before it hits the image. Bump the
+# CI matrix in lockstep with this pin.
+FROM node:26.7.0-slim AS builder
 WORKDIR /app
 
-RUN corepack enable && corepack prepare pnpm@10.33.2 --activate
+# Node 26 no longer bundles corepack (dropped in Node 25), so pnpm is
+# installed through the bundled npm instead of the old `corepack
+# prepare` route. Keep this pin in sync with `packageManager` in
+# package.json -- CI reads its pnpm version from that field.
+RUN npm install -g pnpm@10.33.2
 
 # Install deps before copying source for better layer caching
 COPY pnpm-workspace.yaml pnpm-lock.yaml ./
@@ -37,7 +43,7 @@ RUN pnpm --filter=cour deploy --prod --legacy /deploy
 
 # ──────────────────────────────────────
 # Runtime image pinned to the same exact patch as the builder above.
-FROM node:24.19.0-slim
+FROM node:26.7.0-slim
 ENV NODE_ENV=production
 WORKDIR /app
 
@@ -95,7 +101,7 @@ COPY --from=builder /app/VERSION ./
 COPY --from=builder /app/LICENSE /app/NOTICE ./
 
 # Drop root: chown /app and switch to the unprivileged 'node' user that ships
-# with node:24-slim (UID 1000). Reduces blast radius if the process is
+# with the node-slim base (UID 1000). Reduces blast radius if the process is
 # compromised; the server only needs read access to its own bundle and write
 # access to data/.
 #
@@ -109,7 +115,7 @@ RUN mkdir -p /app/data && chown -R node:node /app
 USER node
 
 # Hit /health every 30s to mark container health. node -e is used instead of
-# wget/curl since those aren't installed in node:24-slim. The probe mirrors
+# wget/curl since those aren't installed in the slim base image. The probe mirrors
 # how the app resolves config: port from $PORT, else a `port:` in config.yaml,
 # else 8000; and protocol = https when TLS is configured (TLS_CERT/TLS_KEY env
 # or a `tlsConfig` block in config.yaml), else http. Without the TLS check a

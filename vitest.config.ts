@@ -41,6 +41,8 @@ export default defineConfig({
     // file (audit 13 #338 web-layer setup, 0.4.34). Per-file override
     // keeps the rest of the suite on the faster node env.
     environment: 'node',
+    // Node 26 webstorage-vs-jsdom bridge; see the file's header comment.
+    setupFiles: ['tests/setup-webstorage.ts'],
     // `.tsx` added 0.4.34 so React component tests under tests/web/components/
     // are picked up alongside the existing `.test.ts` files.
     include: ['tests/**/*.test.{ts,tsx}'],
