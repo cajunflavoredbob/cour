@@ -1,26 +1,26 @@
 name: CI
 
-# Trigger surface (audit 13 #343, locked decision per the 0.4.21 design
-# call): push only, no pull_request. reely is a private repo; fork PRs
-# don't exist, so the `pull_request:` trigger was only causing double
-# runs on every PR push (push fires on the branch update, pull_request
-# fires on the same update -- different refs, so the concurrency block
-# below couldn't dedupe them). If reely ever goes public and grows a
-# fork-PR path, switch to keeping both triggers with a smarter
-# concurrency group:
-#   concurrency:
-#     group: ci-${{ github.event.pull_request.number || github.ref }}
-# Trivial change, no ongoing maintenance cost to either path.
+# Trigger surface: pull_request for every branch (the repo is public,
+# so fork PRs are real and must run CI -- audit 13 #343 dropped
+# pull_request back when this was private and fork PRs could not
+# exist), plus push on main only. Narrowing push is what prevents the
+# push+pull_request double-run on PR branches: a concurrency group
+# cannot dedupe them (the push run keys on the branch ref, the PR run
+# on the PR number -- different groups, both execute). A branch pushed
+# without a PR gets no CI until its PR opens; main pushes and tags via
+# release.yaml keep full coverage. The token stays read-only below,
+# which is what makes running fork-PR code safe.
 on:
   push:
-    branches: ["**"]
+    branches: [main]
+  pull_request:
   workflow_dispatch:
 
-# Audit 12 #252: a fresh push to a branch should cancel any in-flight CI on
-# the same ref. Without `concurrency`, pushing twice in quick succession
+# Audit 12 #252: a fresh push should cancel any in-flight CI for the same
+# PR/ref. Without `concurrency`, pushing twice in quick succession
 # spawned two parallel runs and burned Actions minutes on the older one.
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 # Least privilege (audit 17): CI only reads the repo. Without an explicit
@@ -170,13 +170,13 @@ jobs:
           push: false
           load: true
           platforms: linux/amd64
-          tags: reely:trivy-scan
+          tags: cour:trivy-scan
           cache-from: type=gha
           cache-to: type=gha,mode=max
       - name: Trivy scan (PR warn-level)
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
-          image-ref: reely:trivy-scan
+          image-ref: cour:trivy-scan
           format: table
           severity: CRITICAL,HIGH
           # ignore-unfixed: skip CVEs that upstream (Debian / npm) has

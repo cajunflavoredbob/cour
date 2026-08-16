@@ -62,11 +62,43 @@ export const VerdictRow = ({ titleId, remaining, allowSkipAll = true, currentVer
   // the brief post-advance settle (audit v1.2.0 #16).
   const inputsDisabled = offline || settling;
 
+  // True from a pointerdown that started on the Unsure button until its
+  // release/cancel. endHold's tap-skip requires it: without the flag, a
+  // mouse press that started on Keep/Pass and was aborted by dragging
+  // off could release over Unsure and record a stray skip, and a release
+  // after a mid-press cancel (disable window below) skipped the NEXT
+  // card sight-unseen.
+  const pressActive = useRef(false);
+
+  // A button that disables MID-hold stops dispatching pointer events, so
+  // neither endHold nor cancelHold would ever run -- the pending 1.5s
+  // timer would still fire and silently skip-all the rest of the season
+  // from a press the user thinks went dead. Kill any in-flight press the
+  // moment the inputs disable.
+  useEffect(() => {
+    if (inputsDisabled) {
+      clearTimeout(holdTimer.current);
+      setHolding(false);
+      pressActive.current = false;
+      holdFired.current = false;
+    }
+  }, [inputsDisabled]);
+
   const verdict = (v: "like" | "dislike" | "skip") =>
     dispatch({ type: "verdict", payload: { titleId, verdict: v } });
 
-  const startHold = () => {
-    if (!allowSkipAll || inputsDisabled) return;
+  const startHold = (e: React.PointerEvent<HTMLButtonElement>) => {
+    if (inputsDisabled) return;
+    // Touch pointers are implicitly CAPTURED by the element receiving
+    // pointerdown, which retargets every later pointer event back to the
+    // button -- onPointerLeave (the slide-off abort, the only way out of
+    // a hold besides releasing into a skip) would never fire on touch
+    // and the 1.5s skip-all timer would run to completion under a finger
+    // that slid away. Release the capture so touch gets the same
+    // boundary events a mouse does.
+    if (e.currentTarget.hasPointerCapture?.(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    }
     // Pointer events fire per pointerId against these shared refs: a
     // second finger down would overwrite holdTimer and ORPHAN the first
     // timer, so a quick two-finger tap fired a plain skip AND, 1.5s
@@ -74,6 +106,10 @@ export const VerdictRow = ({ titleId, remaining, allowSkipAll = true, currentVer
     // pending hold at a time.
     clearTimeout(holdTimer.current);
     holdFired.current = false;
+    pressActive.current = true;
+    // Without skip-all the press is a plain tap: no timer, no hold UI,
+    // but pressActive still arms endHold's tap-skip path.
+    if (!allowSkipAll) return;
     setHolding(true);
     holdTimer.current = setTimeout(() => {
       holdFired.current = true;
@@ -85,14 +121,17 @@ export const VerdictRow = ({ titleId, remaining, allowSkipAll = true, currentVer
   const endHold = () => {
     clearTimeout(holdTimer.current);
     setHolding(false);
-    // Released before the hold completed: a single skip (the tap path).
-    if (!holdFired.current) verdict("skip");
+    // Released before the hold completed, from a press that started here
+    // and was never cancelled: a single skip (the tap path).
+    if (pressActive.current && !holdFired.current) verdict("skip");
+    pressActive.current = false;
     holdFired.current = false;
   };
 
   const cancelHold = () => {
     clearTimeout(holdTimer.current);
     setHolding(false);
+    pressActive.current = false;
     holdFired.current = false;
   };
 
@@ -127,6 +166,7 @@ export const VerdictRow = ({ titleId, remaining, allowSkipAll = true, currentVer
         onPointerDown={startHold}
         onPointerUp={endHold}
         onPointerLeave={cancelHold}
+        onPointerCancel={cancelHold}
         onKeyDown={(e) => {
           // Keyboard path: plain skip; hold-to-skip-all is pointer-only.
           // e.repeat: a held key fires per OS repeat tick and would

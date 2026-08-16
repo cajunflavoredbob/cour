@@ -170,17 +170,6 @@ export class AniListApi {
     this.url = parsed;
   }
 
-  // Cheap reachability probe: page 1, perPage 1. Used by the provider's
-  // isAvailable when no disk cache exists to fall back on.
-  async isReachable(season: AnimeSeason, year: number): Promise<boolean> {
-    try {
-      await this.fetchPage(season, year, 1, 1);
-      return true;
-    } catch {
-      return false;
-    }
-  }
-
   /**
    * Fetches the full season, paginating until hasNextPage is false, and
    * returns normalized entries in AniList's POPULARITY_DESC order (adult

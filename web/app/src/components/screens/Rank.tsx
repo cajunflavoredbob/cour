@@ -101,6 +101,11 @@ export const RankScreen = () => {
   const submitting = finalizing?.kind === "submit";
   const kanji = SEASON_THEMES[season].kanji;
 
+  // Reconnect staleness is healed by the store, not here: createStore's
+  // joinRoomSuccess handler refetches results after a rejoin lands (a
+  // refetch fired on the raw reconnect would race the rejoin and error
+  // server-side with "Join a room first").
+
   // Minimum-3s "Submitting..." ceremony (the owner's spec, audit v1.2.0
   // #9): the editor holds until BOTH the ack (mySubmitted) and the 3s
   // floor have passed.
@@ -209,7 +214,11 @@ export const RankScreen = () => {
               className={styles.grip}
               aria-hidden="true"
               data-test-handle="rank-grip"
-              onPointerDown={(e) => onDragStart(e, titleId)}
+              // The order already shipped with the submit; a reorder
+              // during the 3s ceremony would render, then silently
+              // vanish when the standings land. Freeze the editor for
+              // the ceremony's duration.
+              onPointerDown={(e) => { if (!submitting) onDragStart(e, titleId); }}
               onPointerMove={onDragMove}
               onPointerUp={onDragEnd}
               onPointerCancel={onDragEnd}
@@ -235,7 +244,7 @@ export const RankScreen = () => {
                 type="button"
                 className={styles.moveBtn}
                 aria-label={`Move ${titleOf(titleId)} up`}
-                disabled={i === 0}
+                disabled={i === 0 || submitting}
                 onClick={() => move(i, -1)}
               >
                 <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
@@ -246,7 +255,7 @@ export const RankScreen = () => {
                 type="button"
                 className={styles.moveBtn}
                 aria-label={`Move ${titleOf(titleId)} down`}
-                disabled={i === order.length - 1}
+                disabled={i === order.length - 1 || submitting}
                 onClick={() => move(i, 1)}
               >
                 <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">

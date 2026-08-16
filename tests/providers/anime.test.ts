@@ -8,7 +8,6 @@ import type { SeasonalAnime } from '../../internal/app/anilist/types';
 const { mockApi, AniListApiMock, loadCacheMock, saveCacheMock } = vi.hoisted(() => {
   const mockApi = {
     fetchSeason: vi.fn(),
-    isReachable: vi.fn(),
   };
   class AniListApiMock {
     constructor() {
@@ -86,7 +85,6 @@ const flush = () => new Promise((r) => setImmediate(r));
 
 beforeEach(() => {
   mockApi.fetchSeason.mockReset();
-  mockApi.isReachable.mockReset();
   loadCacheMock.mockReset();
   saveCacheMock.mockReset();
   // Default: no disk cache, live fetch succeeds.

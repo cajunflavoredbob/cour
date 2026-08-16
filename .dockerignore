@@ -34,5 +34,9 @@ RELEASE_NOTES.markdown
 # `dist/` here just prevents it from polluting the context (audit 9 #124).
 dist/
 data/
+# Ad-hoc data snapshots (mirrors .gitignore): they hold copies of the
+# live SQLite DB, which contains real member names -- personal data
+# that must never enter a build context, even a local one.
+data.snapshot-*/
 secrets/
 web/app/dist

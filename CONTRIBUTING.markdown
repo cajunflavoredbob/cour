@@ -42,7 +42,7 @@ Open <http://localhost:5173>.
 │   ├── reely/             # Core server (WebSocket, config)
 │   └── tmdb/              # Optional screenshot enrichment
 ├── types/reely.ts         # WebSocket protocol + shared types
-├── web/app/               # Frontend (React 18, Vite, Zustand, CSS Modules)
+├── web/app/               # Frontend (React 19, Vite, Zustand, CSS Modules)
 ├── CHANGELOG.md
 ├── VERSION
 └── docker-compose.yml     # Reference deployment

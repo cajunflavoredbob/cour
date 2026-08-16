@@ -231,3 +231,51 @@ describe('template handler: missing-key + dotted-path resolution', () => {
     expect(res.getBody()).toBe('val=[]');
   });
 });
+
+// ─── Express 5 routing seam ─────────────────────────────────────────────
+
+// app.ts registers `app.get('/{*splat}', ...)` as the SPA fallback: the
+// express 5 (path-to-regexp v8) replacement for the v4 `'*'` catch-all.
+// The unit tests above call the handler directly, so nothing else pins
+// the DISPATCH semantics of that pattern -- an unbraced '/*splat' would
+// silently stop matching '/', and a regression here ships a blank root
+// page while every handler test stays green. This mini-app mirrors
+// app.ts's registration order with stub handlers and drives real HTTP
+// through a loopback listen, pinning:
+//   - '/{*splat}' matches the root path AND deep client routes
+//   - earlier routes (/health, the poster route) still win over it
+//   - poster params arrive as plain single strings under express 5
+describe('SPA fallback route dispatch (express 5 seam)', () => {
+  it('routes /, deep links, and odd paths to the fallback; earlier routes win', async () => {
+    const { default: express } = await import('express');
+    const app = express();
+    const hits: Array<{ route: string; params?: Record<string, unknown> }> = [];
+    app.get('/health', (_req, res) => { hits.push({ route: 'health' }); res.status(200).send('ok'); });
+    app.get('/api/poster/:providerIndex/:metadataId/:thumbId', (req, res) => {
+      hits.push({ route: 'poster', params: req.params });
+      res.status(200).send('poster');
+    });
+    app.get('/{*splat}', (_req, res) => { hits.push({ route: 'template' }); res.status(200).send('template'); });
+
+    const server = app.listen(0, '127.0.0.1');
+    await new Promise<void>((resolve) => server.once('listening', resolve));
+    const addr = server.address();
+    if (addr === null || typeof addr === 'string') throw new Error('expected an AddressInfo');
+    const base = `http://127.0.0.1:${addr.port}`;
+
+    try {
+      expect(await (await fetch(`${base}/`)).text()).toBe('template');
+      expect(await (await fetch(`${base}/room/deep/link`)).text()).toBe('template');
+      expect(await (await fetch(`${base}//double-slash`)).text()).toBe('template');
+      expect(await (await fetch(`${base}/health`)).text()).toBe('ok');
+      expect(await (await fetch(`${base}/api/poster/3/14/15`)).text()).toBe('poster');
+
+      const poster = hits.find((h) => h.route === 'poster');
+      expect(poster?.params).toEqual({ providerIndex: '3', metadataId: '14', thumbId: '15' });
+    } finally {
+      await new Promise<void>((resolve, reject) =>
+        server.close((err) => (err ? reject(err) : resolve())),
+      );
+    }
+  });
+});

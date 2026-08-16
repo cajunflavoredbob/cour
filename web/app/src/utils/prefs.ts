@@ -15,35 +15,64 @@ const SOUND_KEY = "courAutoplaySound";
 // left behind, harmless.
 const TUTORIAL_KEY = "courTutorialSeenV2";
 
+// Storage can be entirely unavailable (cookies-blocked settings throw a
+// SecurityError on the mere `window.localStorage` property access) or
+// reject writes (private modes, zero quota). Preferences are best-effort
+// nice-to-haves, so degrade to "no stored prefs" instead of letting a
+// boot-time read white-screen the app before the join form ever renders.
+const readItem = (key: string): string | null => {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+};
+
+const writeItem = (key: string, value: string): void => {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // Best-effort: the session still works, it just won't be remembered.
+  }
+};
+
+const removeItem = (key: string): void => {
+  try {
+    localStorage.removeItem(key);
+  } catch {
+    // Best-effort, as above.
+  }
+};
+
 export const getStoredName = (): string | undefined =>
-  localStorage.getItem(NAME_KEY) ?? undefined;
+  readItem(NAME_KEY) ?? undefined;
 
 export const setStoredName = (name: string): void => {
-  localStorage.setItem(NAME_KEY, name);
+  writeItem(NAME_KEY, name);
 };
 
 export const getStoredRoom = (): string | undefined =>
-  localStorage.getItem(ROOM_KEY) ?? undefined;
+  readItem(ROOM_KEY) ?? undefined;
 
 export const setStoredRoom = (roomName: string): void => {
-  localStorage.setItem(ROOM_KEY, roomName);
+  writeItem(ROOM_KEY, roomName);
 };
 
 export const clearStoredRoom = (): void => {
-  localStorage.removeItem(ROOM_KEY);
+  removeItem(ROOM_KEY);
 };
 
 export const getStoredSoundPref = (): boolean =>
-  localStorage.getItem(SOUND_KEY) === "1";
+  readItem(SOUND_KEY) === "1";
 
 export const setStoredSoundPref = (enabled: boolean): void => {
-  localStorage.setItem(SOUND_KEY, enabled ? "1" : "0");
+  writeItem(SOUND_KEY, enabled ? "1" : "0");
 };
 
 // First-login tutorial (audit 17): shown once per browser.
 export const getStoredTutorialSeen = (): boolean =>
-  localStorage.getItem(TUTORIAL_KEY) === "1";
+  readItem(TUTORIAL_KEY) === "1";
 
 export const setStoredTutorialSeen = (): void => {
-  localStorage.setItem(TUTORIAL_KEY, "1");
+  writeItem(TUTORIAL_KEY, "1");
 };

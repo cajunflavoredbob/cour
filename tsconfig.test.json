@@ -8,8 +8,9 @@
   // Module + resolution overrides (audit 12 #250): vitest runs ESM at
   // runtime via Vite/esbuild, so the test typecheck uses module: ESNext +
   // moduleResolution: Bundler to match. The main tsconfig.json stays on
-  // CommonJS (production server runtime); the override is local to this
-  // typecheck pass only.
+  // NodeNext (which emits CommonJS for the production server runtime --
+  // see its header comment); the override is local to this typecheck
+  // pass only.
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "noEmit": true,

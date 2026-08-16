@@ -29,7 +29,11 @@ export const DialogScrim = ({
 
   useEffect(() => {
     const dialog = dialogRef.current;
-    dialog?.focus();
+    // Child effects and autoFocus commit BEFORE this parent effect runs:
+    // a dialog whose content autofocuses its own control (the share-link
+    // input) must keep that focus, not have the container steal it back.
+    // Only claim focus when nothing inside the dialog holds it yet.
+    if (dialog && !dialog.contains(document.activeElement)) dialog.focus();
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onDismiss();
     };

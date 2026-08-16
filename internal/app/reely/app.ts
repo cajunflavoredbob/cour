@@ -80,6 +80,17 @@ export const Application = (config: Config, signal?: AbortSignal): ApplicationIn
               logger.warn(
                 `media push to "${room.roomName}" failed; evicting the in-memory room: ${String(err)}`,
               );
+              // Disconnect the room's live clients BEFORE dropping the
+              // room: removeRoom only deletes the map entry, so a
+              // connected client would otherwise keep this.room pointing
+              // at the orphaned Room and keep verdicting its stale deck,
+              // with verdictContext resurrecting the DB row under the
+              // new season. Closing the sockets routes everyone through
+              // the normal reconnect + rejoin flow, which rebuilds the
+              // room or surfaces the honest empty-season error.
+              for (const client of room.users.values()) {
+                client.disconnect();
+              }
               removeRoom(room.roomName);
             });
         }

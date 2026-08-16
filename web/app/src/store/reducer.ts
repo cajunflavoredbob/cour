@@ -160,9 +160,14 @@ export const reducer = (state: Store = initialState, action: Actions): Store => 
       // included) carries the state change; nothing to do here.
       return state;
     case "lockInSuccess": {
+      // No review to stamp lockedAt into (a season rotation replaced the
+      // ledger while the lock request was in flight): the ceremony's
+      // clear-effect keys off review.lockedAt and would never fire, so
+      // the "Locking in..." hold must be released here or it sticks
+      // forever.
       const base = state.review
         ? { ...state, review: { ...state.review, lockedAt: action.payload.lockedAt } }
-        : state;
+        : { ...state, finalizing: undefined };
       if (!action.payload.roomLocked) return base;
       // The all-locked edge: scores just got tallied server-side. The
       // results surface isn't designed yet, so a toast carries the moment.

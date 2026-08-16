@@ -62,8 +62,16 @@ export const handler = async (
     // Forward content-type and content-length from upstream if present.
     const contentType = headers.get('content-type');
     if (contentType) res.setHeader('content-type', contentType);
+    // fetch() transparently DECOMPRESSES a Content-Encoding'd body while
+    // leaving the original headers intact, so on an encoded upstream the
+    // content-length describes the compressed bytes of a stream we pipe
+    // decompressed -- the client would truncate the image or desync the
+    // keep-alive connection. Omit the length there; chunked transfer
+    // handles it.
     const contentLength = headers.get('content-length');
-    if (contentLength) res.setHeader('content-length', contentLength);
+    if (contentLength && !headers.get('content-encoding')) {
+      res.setHeader('content-length', contentLength);
+    }
 
     // Web API ReadableStream -> Node.js Readable -> Express response pipe.
     // as any: TypeScript's Node.js and DOM ReadableStream typedefs are

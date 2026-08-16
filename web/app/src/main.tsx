@@ -62,7 +62,7 @@ const App = () => {
   );
 };
 
-// The #app mount-point is in index.html; React 18's createRoot crashes
+// The #app mount-point is in index.html; React's createRoot crashes
 // loudly if it's missing. The non-null assertion is the right type-
 // system shape: a missing #app means a build/template misconfiguration
 // (not a runtime condition to defend against).

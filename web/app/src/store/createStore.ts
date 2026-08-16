@@ -85,6 +85,12 @@ export let useZustandStore: UseBoundStore<StoreApi<ZustandStore>>;
 // module scope so the next call can abort the previous one.
 let listenerController: AbortController | undefined;
 
+// Timeout toasts mint their id here instead of in the reducer's
+// toastCounter path; a bare Date.now() collided when two requests timed
+// out in the same millisecond (both toasts then shared a React key and
+// dismissed together), so a monotonic sequence disambiguates.
+let timeoutToastSeq = 0;
+
 export const createStore = () => {
   if (!client) client = new ReelyClient();
   // Tear down any listeners from a prior createStore call (HMR cycle).
@@ -114,7 +120,7 @@ export const createStore = () => {
             reducer(state, {
               type: "addToast",
               payload: {
-                id: `request-timeout-${Date.now()}`,
+                id: `request-timeout-${++timeoutToastSeq}`,
                 message: "The server isn't responding. Please try again.",
                 appearance: "Failure",
                 showTimeMs: 5000,
@@ -136,7 +142,9 @@ export const createStore = () => {
           // A login that never got an answer must not strand the wordmark
           // pulse: the 5s loading escape was already cleared on connect
           // (audit 17 M8). Fall back to the join form so the user can act.
-          if (action.type === "login") {
+          // The cold-load auto-rejoin holds the loading route too (see
+          // loginSuccess), so its lost reply needs the same escape.
+          if (action.type === "login" || action.type === "joinOrCreateRoom") {
             set((state) =>
               state.route === "loading"
                 ? reducer(state, { type: "navigate", payload: { route: "home" } })
@@ -220,6 +228,14 @@ export const createStore = () => {
     if (!state.room?.joined || state.review) return;
     if (reviewRetries >= 3) {
       apply({ type: "ledgerStalled", payload: { stalled: true } });
+      // The stall affordance renders on Home/Deck only. A cold-load
+      // auto-rejoin holds the "loading" route until the ledger routes
+      // (see loginSuccess), so an exhausted budget there must land the
+      // user somewhere the retry button exists instead of a pulse that
+      // never resolves.
+      if (useZustandStore.getState().route === "loading") {
+        apply({ type: "navigate", payload: { route: "home" } });
+      }
       return;
     }
     reviewRetries += 1;
@@ -247,9 +263,14 @@ export const createStore = () => {
     // Auto-login (0.12.0): a stored name silently re-claims itself on
     // every (re)connect; loginSuccess below decides whether a room
     // rejoin follows. No stored name -> the join form (home fallback).
-    const storedName = getStoredName();
-    if (storedName) {
-      dispatch({ type: "login", payload: { userName: storedName } });
+    // The in-memory identity is the fallback for storage-blocked
+    // browsers (prefs degrade to "nothing stored" there): without it,
+    // any reconnect left such a user sitting on live-looking room
+    // screens with no session -- every action erroring -- because the
+    // relogin only ever consulted localStorage.
+    const relogin = getStoredName() ?? useZustandStore.getState().user?.userName;
+    if (relogin) {
+      dispatch({ type: "login", payload: { userName: relogin } });
     }
   }, { signal });
 
@@ -303,12 +324,21 @@ export const createStore = () => {
       // deep link or the remembered room. No rejoin window: there is no
       // "dead room" to protect against anymore.
       const route = useZustandStore.getState().route;
-      const rejoin = pendingRoomJoin ?? getStoredRoom();
+      // In-memory room name is the storage-blocked fallback, same as the
+      // relogin above: a reconnect must rejoin the room the session is
+      // visibly in even when localStorage remembers nothing.
+      const rejoin =
+        pendingRoomJoin ?? getStoredRoom() ?? useZustandStore.getState().room?.name;
       pendingRoomJoin = null;
       if (rejoin) {
         dispatch({ type: "joinOrCreateRoom", payload: { roomName: rejoin } });
       }
-      if (route === "loading") {
+      // With a rejoin in flight, hold the loading screen instead of
+      // flashing the join form for the beat until the ledger routes
+      // (reviewSuccess -> deck or home). Loading can't strand: a join
+      // failure lands on home via joinRoomError's reducer case, and a
+      // lost reply lands there via the request-timeout fallback below.
+      if (route === "loading" && !rejoin) {
         apply({ type: "navigate", payload: { route: "home" } });
       }
       return;
@@ -347,6 +377,17 @@ export const createStore = () => {
       // The deck needs the verdict ledger (progress chip, current card,
       // resume point) -- fetch it as part of entering the room.
       dispatch({ type: "review" });
+      // Reconnect rejoin with a results payload already on screen: the
+      // resultsSuccess broadcasts missed during the outage never replay,
+      // so refetch NOW -- after the join, because the server's results
+      // handler requires this connection's room and a refetch fired on
+      // the raw "connected" event would land pre-rejoin and error with
+      // "Join a room first". This also heals the lost-submit-ack trap:
+      // the refreshed payload carries mySubmitted=true, replacing an
+      // editor whose resubmit the server would refuse.
+      if (useZustandStore.getState().results) {
+        dispatch({ type: "results" });
+      }
       return;
     }
 
@@ -382,6 +423,16 @@ export const createStore = () => {
       // The ledger changed wholesale server-side; re-fetch rather than
       // reconstruct locally.
       dispatch({ type: "review" });
+      return;
+    }
+
+    if (msg.type === "submitRankingsError") {
+      apply(msg as Actions);
+      // The refusal may mean the server accepted an EARLIER submit whose
+      // ack was lost (AlreadySubmitted after a reconnect re-armed the
+      // editor): refetch results so mySubmitted lands and the standings
+      // replace an editor whose resubmit can never succeed.
+      dispatch({ type: "results" });
       return;
     }
 

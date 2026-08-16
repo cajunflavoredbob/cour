@@ -103,6 +103,15 @@ export class Client {
   private msgCount = 0;
   private msgRateLogged = false;
 
+  // True while a join/create is mid-flight (room load, media fetch, the
+  // 2s liveness probe are all awaits). handleLogin refuses identity
+  // switches in that window: its in-room gate only sees this.room, which
+  // is still unset mid-join, and a login landing there would install
+  // room membership under the OLD name while broadcasts and verdict
+  // writes use the NEW one -- leaving a ghost member the disconnect
+  // cleanup's identity guard can never evict.
+  private joinInFlight = false;
+
 
   constructor(
     ws: WebSocket,
@@ -197,9 +206,12 @@ export class Client {
       });
       return;
     }
-    if (this.room) {
+    if (this.room || this.joinInFlight) {
       // Identity switches inside a room would corrupt the membership
-      // maps; the client leaves first (the UI enforces this too).
+      // maps; the client leaves first (the UI enforces this too). The
+      // joinInFlight half closes the mid-join window, where this.room is
+      // still unset across the join's awaits but membership is about to
+      // be installed under the current name.
       this.sendMessage({
         type: 'loginError',
         payload: { message: 'Leave the room before switching names.' },
@@ -871,10 +883,13 @@ export class Client {
     }
     const sanitizedReq = this.validateRoomRequest(createRoomReq, 'createRoomError');
     if (!sanitizedReq) return;
+    this.joinInFlight = true;
     try {
       await this.createRoomFromSanitized(sanitizedReq, userName);
     } catch (err) {
       this.emitCreateError(err);
+    } finally {
+      this.joinInFlight = false;
     }
   }
 
@@ -897,10 +912,13 @@ export class Client {
     }
     const sanitizedReq = this.validateRoomRequest(joinRoomReq, 'joinRoomError');
     if (!sanitizedReq) return;
+    this.joinInFlight = true;
     try {
       await this.joinRoomFromSanitized(sanitizedReq, userName);
     } catch (err) {
       this.emitJoinError(err);
+    } finally {
+      this.joinInFlight = false;
     }
   }
 
@@ -935,6 +953,7 @@ export class Client {
     // the try so a RoomLimitError from addRoom (disk-load past MAX_ROOMS)
     // surfaces as a proper error response instead of an unhandled throw.
     let exists = hasRoom(sanitizedReq.roomName);
+    this.joinInFlight = true;
     try {
       if (!exists) {
         const loaded = await loadRoom(sanitizedReq.roomName, this.ctx);
@@ -962,6 +981,8 @@ export class Client {
       } else {
         this.emitCreateError(err);
       }
+    } finally {
+      this.joinInFlight = false;
     }
   }
 
@@ -1022,6 +1043,18 @@ export class Client {
   // client auto-reconnect to re-sync state cleanly instead of buffering
   // unboundedly server-side.
   private static readonly MAX_BUFFERED_BYTES = 4 * 1024 * 1024;
+
+  // Server-initiated disconnect (room eviction). A plain close is enough:
+  // the browser client auto-reconnects on ANY close and its login flow
+  // rejoins the remembered room, which either rebuilds the room against
+  // the current provider snapshot or surfaces the honest join error.
+  // Without this, a client attached to an evicted room keeps verdicting
+  // against the orphaned in-memory deck while verdictContext resurrects
+  // the DB row under the new season (see app.ts pushMediaToOpenRooms).
+  // 1012 = Service Restart: "server is going away, reconnect is expected".
+  disconnect(): void {
+    this.ws.close(1012, 'room evicted');
+  }
 
   sendMessage(msg: ClientMessage): void {
     this.sendRaw(JSON.stringify(msg));

@@ -291,14 +291,3 @@ describe('AniListApi.fetchSeason', () => {
     );
   });
 });
-
-describe('AniListApi.isReachable', () => {
-  it('true on a good response, false on failure', async () => {
-    const api = new AniListApi('https://graphql.anilist.co');
-    fetchMock.mockResolvedValueOnce(jsonResponse(pageResponse([])));
-    expect(await api.isReachable('SUMMER', 2026)).toBe(true);
-
-    fetchMock.mockResolvedValueOnce(jsonResponse({ error: 'nope' }, 404));
-    expect(await api.isReachable('SUMMER', 2026)).toBe(false);
-  });
-});

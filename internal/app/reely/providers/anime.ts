@@ -207,7 +207,34 @@ export const createProvider = (
   // the in-memory snapshot is already serving, and a read-only cache dir
   // shouldn't take the deck down with it.
   const refresh = async (): Promise<void> => {
-    const media = await api.fetchSeason(current.season, current.year);
+    // Pin the season this refresh is FOR. The startup self-refresh is
+    // fire-and-forget and can still be in flight when the hourly tick
+    // rotates the season under it; without this pin the late-arriving
+    // old-season payload would stomp the freshly-rotated deck and
+    // persist {new season, old media} into the new season's cache file.
+    const target = { season: current.season, year: current.year };
+    const media = await api.fetchSeason(target.season, target.year);
+    if (current.season !== target.season || current.year !== target.year) {
+      logger.warn(
+        `AniList ${label()}: discarding refresh for ${target.season} ${target.year}; ` +
+          'season rotated while it was in flight',
+      );
+      return;
+    }
+    // A degraded upstream can 200 into an empty page (media: null/[]
+    // alongside a GraphQL errors array is deliberately treated as a
+    // partial success by fetchPage). Swapping the serving snapshot for
+    // an empty one AND persisting it would brick the season: past the
+    // list freeze nothing ever refreshes again, so every join would
+    // fail with NoMediaError until the next rotation. Treat empty as a
+    // failed refresh whenever a non-empty deck is already serving; the
+    // caller's catch keeps the current snapshot, and the scheduler
+    // retries on its normal cadence.
+    if (media.length === 0 && (list?.length ?? 0) > 0) {
+      throw new Error(
+        `refresh for ${target.season} ${target.year} returned 0 entries; keeping the serving snapshot`,
+      );
+    }
     // Carry existing enrichment across refreshes: AniList is the source
     // of truth for the catalog, TMDB data keys by id and survives.
     const prior = new Map((list ?? []).map((e) => [e.id, e]));
@@ -254,6 +281,16 @@ export const createProvider = (
 
   const rotate = async (target: { season: AnimeSeason; year: number }): Promise<void> => {
     const media = await api.fetchSeason(target.season, target.year);
+    // Same empty-page guard as refresh(), but unconditional: rotating an
+    // empty deck in would evict every open room (the app-layer push
+    // fails) and persist an empty snapshot for the incoming season. A
+    // throw keeps the old deck serving and the hourly tick retries the
+    // rotation, exactly the documented swap-only-on-success contract.
+    if (media.length === 0) {
+      throw new Error(
+        `rotation fetch for ${target.season} ${target.year} returned 0 entries; deferring rotation`,
+      );
+    }
     current = target;
     setList(media);
     lastFetchedAt = Date.now();
