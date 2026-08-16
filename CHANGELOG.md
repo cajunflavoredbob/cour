@@ -13,6 +13,20 @@ repository; this changelog starts fresh at 0.1.0.
 
 ---
 
+## [1.3.2] - 2026-08-16
+
+Docs release: the README shows the app now.
+
+### Added
+- README screenshots captured from a live 1.3.1 build: desktop join,
+  deck, and final standings full-width, plus a mobile strip (join,
+  hold-to-skip-all mid-animation, the rank editor, standings).
+- The cour logo lockup as standalone SVGs (`docs/logo-dark.svg` /
+  `docs/logo-light.svg`): the dotted mark plus the Shippori Mincho
+  wordtype outlined to paths, so no font is needed to render it. The
+  README's `<picture>` element serves the right ink per GitHub theme,
+  replacing the plain-text heading.
+
 ## [1.3.1] - 2026-08-16
 
 The last two Dependabot items: the deferred node 26 image major, taken

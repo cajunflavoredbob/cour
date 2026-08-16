@@ -1,6 +1,11 @@
-# cour
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/logo-dark.svg">
+    <img src="docs/logo-light.svg" alt="cour" width="205" height="72">
+  </picture>
+</p>
 
-Pick the season together.
+<p align="center">Pick the season together.</p>
 
 **cour** is a self-hosted seasonal anime picker for a couple or a small
 room of friends. Each broadcast quarter, everyone works through the new
@@ -23,6 +28,22 @@ finding NEW shows.
   and rooms don't expire.
 - **Phone and desktop.** An installable PWA on mobile, a two-pane layout
   on wider screens.
+
+## Screenshots
+
+### Desktop
+
+![The join screen: a name and a room, that's it](docs/screenshots/desktop-join.jpg)
+
+![The deck: one title at a time, Keep / Pass / Unsure](docs/screenshots/desktop-deck.jpg)
+
+![The final standings once every ranking is in](docs/screenshots/desktop-standings.png)
+
+### Mobile
+
+| Join | Hold to skip all | Rank your keeps | Standings |
+|---|---|---|---|
+| ![Mobile join screen](docs/screenshots/mobile-join.png) | ![Holding Unsure marks everything left unsure at once](docs/screenshots/mobile-skip-all.png) | ![Ranking kept titles, top five score points](docs/screenshots/mobile-rank.png) | ![Mobile standings](docs/screenshots/mobile-standings.png) |
 
 ## Run it
 
