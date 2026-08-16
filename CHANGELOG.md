@@ -13,6 +13,16 @@ repository; this changelog starts fresh at 0.1.0.
 
 ---
 
+## [1.3.3] - 2026-08-16
+
+### Added
+- A transparent standalone icon (`docs/icon.svg` + 512/256/64 PNG
+  renders with alpha): the dotted mark with a translucent warm-dark
+  contour behind the ivory arc, so one file reads on dark AND light
+  surfaces. For Docker UIs, dashboards, and anywhere else the app-tile
+  icon's baked-in dark background didn't fit; the PWA tile icon is
+  unchanged.
+
 ## [1.3.2] - 2026-08-16
 
 Docs release: the README shows the app now.

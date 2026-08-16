@@ -1,0 +1,8 @@
+<svg width="512" height="512" viewBox="0 0 72 72" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="cour">
+    <path d="M 52 14 A 27 27 0 1 0 52 58" fill="none" stroke="oklch(0.24 0.014 85 / 0.55)" stroke-width="11" stroke-linecap="round"/>
+    <path d="M 52 14 A 27 27 0 1 0 52 58" fill="none" stroke="oklch(0.97 0.008 85)" stroke-width="8" stroke-linecap="round"/>
+    <circle cx="50" cy="25" r="4.5" fill="oklch(0.75 0.12 350)" stroke="oklch(0.24 0.014 85 / 0.35)" stroke-width="1"/>
+    <circle cx="56.5" cy="31.5" r="4.5" fill="oklch(0.64 0.15 278)" stroke="oklch(0.24 0.014 85 / 0.35)" stroke-width="1"/>
+    <circle cx="56.5" cy="40.5" r="4.5" fill="oklch(0.68 0.15 55)" stroke="oklch(0.24 0.014 85 / 0.35)" stroke-width="1"/>
+    <circle cx="50" cy="47" r="4.5" fill="oklch(0.78 0.09 220)" stroke="oklch(0.24 0.014 85 / 0.35)" stroke-width="1"/>
+</svg>
