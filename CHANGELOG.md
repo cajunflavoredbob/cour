@@ -13,6 +13,26 @@ repository; this changelog starts fresh at 0.1.0.
 
 ---
 
+## [1.3.4] - 2026-08-16
+
+The 1.3.3 transparent icon's dual-surface style, applied consistently
+across every rendering of the mark.
+
+### Changed
+- The in-app mark (CourMark, both size variants) carries the
+  dual-surface contour: a translucent warm-dark under-stroke behind the
+  ivory/gray strokes plus dot hairlines. Reads as subtle edge weight on
+  the app's dark surfaces; identical to the external icon everywhere.
+- The tab favicon set went transparent: `icon.svg` is the dual-surface
+  full mark (the dark tile no longer rides along in browser tabs), and
+  `favicon.ico` / `icon-32.png` are regenerated as the contoured small
+  two-arc variant with real alpha.
+- The README lockups use the contoured ivory mark in both theme
+  variants; only the wordtype ink flips with the theme.
+- APP_MARK.md documents the dual-surface variant (exact colors and
+  widths) and why the PWA / maskable / apple-touch icons keep the
+  opaque tile: app-icon duty requires a background.
+
 ## [1.3.3] - 2026-08-16
 
 ### Added

@@ -1,15 +1,14 @@
-<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="cour">
+<svg width="512" height="512" viewBox="0 0 72 72" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="cour">
   <!-- "Dotted answer" (design addendum APP_MARK.md): the c asks, the four
-       seasons answer. Tile: bg-2, radius 23%, mark ~60% width nudged
-       left 2% (the c opens right). -->
-  <rect width="512" height="512" rx="118" fill="oklch(0.24 0.014 85)"/>
-  <rect x="0.5" y="0.5" width="511" height="511" rx="117.5" fill="none" stroke="oklch(1 0 0 / 0.16)" stroke-width="1"/>
-  <g transform="translate(92.4,102.4) scale(4.2667)">
-    <path d="M 52 14 A 27 27 0 1 0 52 58"
-          fill="none" stroke="oklch(0.97 0.008 85)" stroke-width="8" stroke-linecap="round"/>
-    <circle cx="50"   cy="25"   r="4.5" fill="oklch(0.75 0.12 350)"/>
-    <circle cx="56.5" cy="31.5" r="4.5" fill="oklch(0.64 0.15 278)"/>
-    <circle cx="56.5" cy="40.5" r="4.5" fill="oklch(0.68 0.15 55)"/>
-    <circle cx="50"   cy="47"   r="4.5" fill="oklch(0.78 0.09 220)"/>
-  </g>
+       seasons answer. Dual-surface variant: transparent, with a
+       translucent warm-dark contour behind the ivory so the mark holds
+       on light AND dark browser chrome. The opaque tile lives on in the
+       PNG app icons (PWA / apple-touch / maskable), where app-icon duty
+       requires a background. -->
+  <path d="M 52 14 A 27 27 0 1 0 52 58" fill="none" stroke="oklch(0.24 0.014 85 / 0.55)" stroke-width="11" stroke-linecap="round"/>
+  <path d="M 52 14 A 27 27 0 1 0 52 58" fill="none" stroke="oklch(0.97 0.008 85)" stroke-width="8" stroke-linecap="round"/>
+  <circle cx="50" cy="25" r="4.5" fill="oklch(0.75 0.12 350)" stroke="oklch(0.24 0.014 85 / 0.35)" stroke-width="1"/>
+  <circle cx="56.5" cy="31.5" r="4.5" fill="oklch(0.64 0.15 278)" stroke="oklch(0.24 0.014 85 / 0.35)" stroke-width="1"/>
+  <circle cx="56.5" cy="40.5" r="4.5" fill="oklch(0.68 0.15 55)" stroke="oklch(0.24 0.014 85 / 0.35)" stroke-width="1"/>
+  <circle cx="50" cy="47" r="4.5" fill="oklch(0.78 0.09 220)" stroke="oklch(0.24 0.014 85 / 0.35)" stroke-width="1"/>
 </svg>
