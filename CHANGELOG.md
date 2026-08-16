@@ -13,6 +13,27 @@ repository; this changelog starts fresh at 0.1.0.
 
 ---
 
+## [1.3.1] - 2026-08-16
+
+The last two Dependabot items: the deferred node 26 image major, taken
+deliberately this time, and a zustand patch.
+
+### Changed
+- Docker base image node 24.19-slim -> 26.7.0-slim. The builder installs
+  pnpm through the bundled npm (Node 25+ dropped corepack from the
+  image). PR CI now runs the full typecheck/build/test matrix on BOTH
+  node 24 (the `engines.node` floor promised to self-hosters running
+  from source) and node 26 (what the image runs), and the release gate
+  tests on 26; a compat break on either line surfaces before it ships.
+- zustand 5.0.14 -> 5.0.15.
+
+### Fixed
+- Component tests crashed under Node 26: its experimental WebStorage
+  defines a `localStorage` global that reads as undefined without a
+  storage file, shadowing jsdom's storage in the test environment. A
+  vitest setup file now installs a spec-shaped in-memory Storage when
+  the DOM environment lacks a usable one.
+
 ## [1.3.0] - 2026-08-16
 
 The Dependabot backlog (four dependency majors taken deliberately) plus
