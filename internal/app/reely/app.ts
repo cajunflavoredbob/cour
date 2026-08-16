@@ -256,7 +256,10 @@ export const Application = (config: Config, signal?: AbortSignal): ApplicationIn
       app.use(basicAuthHandler);
       app.get('/api/poster/:providerIndex/:metadataId/:thumbId', posterLimit, posterHandler);
       app.use(serveStaticHandler);
-      app.get('*', templateLimit, templateHandler);
+      // express 5 (path-to-regexp v8) rejects a bare '*' route. The braced
+      // named wildcard is the v5 equivalent: it matches every path
+      // INCLUDING '/' (an unbraced '/*splat' would skip the root).
+      app.get('/{*splat}', templateLimit, templateHandler);
 
       // Build the underlying http/https server so we can attach the WS upgrade listener.
       // TLS bundle was already read at the top of this IIFE (audit 13

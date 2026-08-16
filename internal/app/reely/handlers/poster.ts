@@ -5,7 +5,18 @@ import type { ReelyProvider } from '../providers/types';
 
 // Route: GET /api/poster/:providerIndex/:metadataId/:thumbId
 // Proxies artwork from the provider (AniList covers / TMDB stills), streaming the response body directly.
-export const handler = async (req: Request, res: Response): Promise<void> => {
+//
+// Params are declared explicitly because express 5's default params type
+// widened to `string | string[]` (repeatable params like :id+ yield
+// arrays). These three are plain single-segment params, so each is
+// always one string. Exported so the test suite's request stub stays in
+// sync with the handler's signature.
+export type PosterParams = { providerIndex: string; metadataId: string; thumbId: string };
+
+export const handler = async (
+  req: Request<PosterParams>,
+  res: Response,
+): Promise<void> => {
   const { providerIndex, metadataId, thumbId } = req.params;
   const providers = res.locals.providers as ReelyProvider[];
 

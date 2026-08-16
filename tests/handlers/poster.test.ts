@@ -6,16 +6,18 @@ import { ReadableStream } from 'node:stream/web';
 import { loggerMockFactory } from '../helpers';
 vi.mock('../../internal/app/reely/logger', () => loggerMockFactory());
 
-import { handler as posterHandler } from '../../internal/app/reely/handlers/poster';
+import { handler as posterHandler, type PosterParams } from '../../internal/app/reely/handlers/poster';
 import type { ReelyProvider } from '../../internal/app/reely/providers/types';
 
 // ─── Stubs ──────────────────────────────────────────────────────────────
 
 // Express-shaped Request stub: only `params` is read by the handler.
+// Typed with the handler's own PosterParams so a signature change there
+// surfaces here at typecheck time.
 const makeReq = (
-  params: { providerIndex?: string; metadataId?: string; thumbId?: string },
-): Request =>
-  ({ params } as unknown as Request);
+  params: Partial<PosterParams>,
+): Request<PosterParams> =>
+  ({ params } as unknown as Request<PosterParams>);
 
 // Express-shaped Response stub: status/send/setHeader spies, a captured
 // headers map, an EventEmitter for `on('close')`, a destroy spy, and a
