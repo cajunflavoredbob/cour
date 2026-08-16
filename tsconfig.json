@@ -1,19 +1,23 @@
-// Module mode is CommonJS by deliberate choice (audit 10 #172).
-// reely's runtime ships as Node CommonJS; the server entry is
+// The emitted runtime format is CommonJS by deliberate choice (audit 10
+// #172). reely's runtime ships as Node CommonJS; the server entry is
 // `node dist/cmd/reely/main.js` -- no bundler, no `"type": "module"` in
 // package.json. Migrating to ESM is straightforward in isolation, but two
 // long-tail dependencies still publish their CommonJS API as primary:
 //   - `pino` exposes ESM, used here via the CJS bridge
 //   - `pino-pretty` (dev-only) is ESM-first in newer majors
-// When a dependency we use goes ESM-only and breaks the CJS interop bridge,
-// flip `module` -> `NodeNext`, add `"type": "module"` to package.json, and
-// rewrite the few `require()` calls (the healthcheck inline node -e and the
-// dynamic `require(proto)` in Dockerfile HEALTHCHECK).
+//
+// `module: NodeNext` (TS 7 removed the legacy CommonJS+node10 pairing)
+// decides each file's format from package.json: with no `"type": "module"`
+// here, every file still EMITS CommonJS -- same dist output as before.
+// To actually move the runtime to ESM one day: add `"type": "module"` to
+// package.json and rewrite the few `require()` calls (the healthcheck
+// inline node -e and the dynamic `require(proto)` in Dockerfile
+// HEALTHCHECK).
 {
   "compilerOptions": {
     "target": "ES2022",
-    "module": "CommonJS",
-    "moduleResolution": "Node",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
     "outDir": "dist",
     "rootDir": ".",
     "strict": true,
