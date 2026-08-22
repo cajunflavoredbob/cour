@@ -13,6 +13,15 @@ repository; this changelog starts fresh at 0.1.0.
 
 ---
 
+## [1.3.5] - 2026-08-21
+
+Dev dependency majors. No runtime or user-facing changes.
+
+### Changed
+- jsdom 29.1.1 to 30.0.1 (test environment).
+- @vitejs/plugin-react 5.2.0 to 6.0.5 (build tooling).
+- @types/node 24.0.0 to 26.2.0, matching the node 26 runtime image.
+
 ## [1.3.4] - 2026-08-16
 
 The 1.3.3 transparent icon's dual-surface style, applied consistently
