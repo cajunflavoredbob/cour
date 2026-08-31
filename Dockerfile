@@ -4,7 +4,7 @@
 # running from source are promised) and this image's major, so a compat
 # issue on either surfaces in PR CI before it hits the image. Bump the
 # CI matrix in lockstep with this pin.
-FROM node:26.7.0-slim AS builder
+FROM node:26.8.1-slim AS builder
 WORKDIR /app
 
 # Node 26 no longer bundles corepack (dropped in Node 25), so pnpm is
@@ -43,7 +43,7 @@ RUN pnpm --filter=cour deploy --prod --legacy /deploy
 
 # ──────────────────────────────────────
 # Runtime image pinned to the same exact patch as the builder above.
-FROM node:26.7.0-slim
+FROM node:26.8.1-slim
 ENV NODE_ENV=production
 WORKDIR /app
 
