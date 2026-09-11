@@ -13,6 +13,40 @@ repository; this changelog starts fresh at 0.1.0.
 
 ---
 
+## [1.3.8] - 2026-09-11
+
+Rooms are now locked while the season is settling, instead of quietly
+losing picks either way.
+
+### Added
+- **Rooms are locked out while the provider is down.** If the server
+  restarts and cannot reach AniList, it serves the previous season's
+  cached deck and knows that value is stale. For as long as that lasts,
+  joining, creating and verdicting are all refused with "The anime
+  provider is down. Rooms are locked until it's back, then access
+  restores automatically." Previously those operations ran anyway, and
+  both outcomes cost picks: a room created against the stale season was
+  deleted the moment the real season landed, and a room belonging to the
+  real season was deleted for not matching. Refusing costs nothing. The
+  log names the room that was refused, once per connection.
+- The provider retries a stale deck every 30 seconds instead of waiting
+  for the hourly tick, so the lockout tracks the outage rather than
+  outlasting it by up to an hour.
+
+### Fixed
+- The lockout can no longer strand itself. The stale-season flag is now
+  cleared whenever the served season catches up with the target, and
+  re-armed whenever a rotation attempt fails, so it always reflects
+  reality. Without both halves a clock that stepped backwards (a VM
+  restored from a snapshot, a corrected RTC) could either lock every
+  room for the process lifetime or leave rooms open against last
+  season's deck.
+- A season change no longer leaves a stale "provider is down" message on
+  screen. The season label and colours repainted while the alert box
+  kept contradicting them.
+- Screenshots no longer go missing for a season that rotated in while
+  the previous season's image fetching was still running.
+
 ## [1.3.7] - 2026-09-11
 
 Hardening around the 1.3.6 rotation change. Several ways a bad day at

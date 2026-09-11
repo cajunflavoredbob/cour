@@ -37,6 +37,7 @@ import {
   getRoom,
 } from '../../internal/app/reely/room';
 import type { Room } from '../../internal/app/reely/room';
+import { logger } from '../../internal/app/reely/logger';
 import { makeWs, push, sent, flush } from '../helpers';
 
 // Cast helpers for the mocked exports.
@@ -85,6 +86,123 @@ describe('Client malformed-payload handling', () => {
     expect(msgs[0].type).toBe('joinRoomError');
   });
 
+});
+
+// ---------------------------------------------------------------------------
+
+// While the provider serves a season it KNOWS is stale (its
+// incoming-season fetch failed and it fell back), room operations are
+// refused. The alternatives both lose data: running against the stale
+// season stamps rooms with it and the reaper deletes them when the real
+// season lands, and deleting the mismatched rooms throws away picks that
+// are still valid. Refusing loses nothing and clears itself.
+describe('provider-down lockout', () => {
+  // biome-ignore lint/suspicious/noExplicitAny: season surface only; the rest of ReelyProvider is unused here.
+  const provider = (provisional: boolean): any => [{
+    type: 'anilist',
+    options: { url: 'https://graphql.anilist.co' },
+    getSeason: () => ({ season: 'SUMMER', year: 2026 }),
+    isSeasonProvisional: () => provisional,
+  }];
+
+  const drive = async (type: string, provisional: boolean) => {
+    const ws = makeWs();
+    const client = new Client(ws, provider(provisional));
+    client.userName = 'user1';
+    client.isLoggedIn = true;
+    ws.send.mockClear();
+    push(ws, { type, payload: { roomName: 'movie-night' } });
+    await flush();
+    return sent(ws);
+  };
+
+  it.each([
+    ['joinRoom', 'joinRoomError'],
+    ['createRoom', 'createRoomError'],
+    ['joinOrCreateRoom', 'joinRoomError'],
+  ])('refuses %s while the season is settling', async (type, errType) => {
+    const msgs = await drive(type, true);
+    expect(msgs).toHaveLength(1);
+    expect(msgs[0].type).toBe(errType);
+    expect(msgs[0].payload.name).toBe('ProviderDownError');
+    expect(msgs[0].payload.message).toMatch(/anime provider is down/i);
+    expect(msgs[0].payload.message).toMatch(/restores automatically/i);
+  });
+
+  it.each(['joinRoom', 'createRoom', 'joinOrCreateRoom'])(
+    'does NOT refuse %s once the season is settled',
+    async (type) => {
+      const msgs = await drive(type, false);
+      expect(
+        msgs.some((m) => m.payload?.name === 'ProviderDownError'),
+      ).toBe(false);
+    },
+  );
+
+  it.each([
+    // A PRESENT provider that simply predates the optional method: this is
+    // the case that matters, and an empty providers array does not test it
+    // (the gate short-circuits on providers[0] being undefined long before
+    // it looks for the method).
+    // biome-ignore lint/suspicious/noExplicitAny: deliberately partial provider surfaces.
+    ['no isSeasonProvisional at all', [{ type: 'anilist', getSeason: () => ({ season: 'SUMMER', year: 2026 }) }] as any],
+    // biome-ignore lint/suspicious/noExplicitAny: deliberately partial provider surfaces.
+    ['no providers configured', [] as any],
+  ])('fails OPEN when the provider offers %s', async (_label, providers) => {
+    // ReelyProvider.isSeasonProvisional is optional. A provider without it
+    // must behave exactly as before rather than locking rooms forever.
+    const ws = makeWs();
+    const client = new Client(ws, providers);
+    client.userName = 'user1';
+    client.isLoggedIn = true;
+    ws.send.mockClear();
+    push(ws, { type: 'joinRoom', payload: { roomName: 'movie-night' } });
+    await flush();
+    expect(
+      sent(ws).some((m) => m.payload?.name === 'ProviderDownError'),
+    ).toBe(false);
+  });
+
+  it('explains the lockout once per connection, naming the room', async () => {
+    const ws = makeWs();
+    const client = new Client(ws, provider(true));
+    client.userName = 'user1';
+    client.isLoggedIn = true;
+    vi.mocked(logger.warn).mockClear();
+
+    push(ws, { type: 'joinRoom', payload: { roomName: 'movie-night' } });
+    await flush();
+    push(ws, { type: 'joinRoom', payload: { roomName: 'movie-night' } });
+    await flush();
+    push(ws, { type: 'createRoom', payload: { roomName: 'other-room' } });
+    await flush();
+
+    const lockoutWarns = vi.mocked(logger.warn).mock.calls
+      .map((c) => String(c[0]))
+      .filter((m) => m.includes('Room access LOCKED'));
+    // Three refusals, one explanation: a locked-out browser retries on
+    // every reconnect, and the log is what the operator is reading.
+    expect(lockoutWarns).toHaveLength(1);
+    expect(lockoutWarns[0]).toContain('"movie-night"');
+    expect(lockoutWarns[0]).toContain('SUMMER 2026');
+  });
+
+  it('still locks, without throwing, when a provisional provider has no getSeason', async () => {
+    // getSeason is optional too, and the refusal log reads it. A provider
+    // that reports provisional must lock regardless, and the missing
+    // season must not turn the gate into an exception.
+    const ws = makeWs();
+    // biome-ignore lint/suspicious/noExplicitAny: deliberately partial provider surface.
+    const client = new Client(ws, [{ type: 'anilist', isSeasonProvisional: () => true }] as any);
+    client.userName = 'user1';
+    client.isLoggedIn = true;
+    ws.send.mockClear();
+    push(ws, { type: 'joinRoom', payload: { roomName: 'movie-night' } });
+    await flush();
+    const msgs = sent(ws);
+    expect(msgs).toHaveLength(1);
+    expect(msgs[0].payload.name).toBe('ProviderDownError');
+  });
 });
 
 // ---------------------------------------------------------------------------

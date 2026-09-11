@@ -41,7 +41,19 @@ Names are 1-32 characters, unique case-insensitively.
 - **Rooms and their members are deleted at rotation** (the rotation
   reaper). Until then everything stays saved. A reused room name simply
   creates fresh next season; user identities are global and survive.
+- **Rooms are LOCKED while the season is settling.** If the server
+  restarts and cannot fetch the incoming season, it serves the previous
+  season's cached deck and knows that value is stale. For as long as
+  that holds, joins, creates and verdicts are all refused with "the
+  anime provider is down": running them would either stamp rooms with
+  the wrong season (the reaper deletes those when the real season
+  lands) or delete rooms whose picks are still good. Refusing costs
+  nothing and lifts on its own, and the provider retries every 30
+  seconds rather than waiting for the hourly tick, so the lockout
+  tracks the outage rather than outlasting it.
 - Pinning `ANIME_SEASON`/`ANIME_YEAR` disables rotation (testing only).
+  A PARTIAL pin counts: setting either field alone pins both, with the
+  unset half resolved once at startup.
 
 ## The verdict flow
 

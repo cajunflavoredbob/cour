@@ -1,6 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SeasonalAnime } from '../../internal/app/anilist/types';
 
+import { loggerMockFactory } from '../helpers';
+vi.mock('../../internal/app/reely/logger', () => loggerMockFactory());
+
 // AniListApi and the disk cache are mocked at the module boundary (same
 // class-boundary pattern as tests/providers/plex.test.ts): the provider
 // tests assert the load/refresh orchestration and the ReelyProvider surface,
@@ -50,6 +53,7 @@ vi.mock('../../internal/app/tmdb/api', () => ({
 }));
 
 import { DegradedUpstreamError } from '../../internal/app/anilist/api';
+import { logger } from '../../internal/app/reely/logger';
 import { type AnimeProviderConfig, createProvider } from '../../internal/app/reely/providers/anime';
 
 const entry = (over: Partial<SeasonalAnime> = {}): SeasonalAnime => ({
@@ -446,14 +450,18 @@ describe('season rotation (unpinned)', () => {
     const provider = unpinned({ onSeasonRotated });
     await provider.getMedia();
 
-    mockApi.fetchSeason.mockRejectedValueOnce(new Error('AniList down'));
-    await vi.advanceTimersByTimeAsync(12 * HOUR); // first FALL attempt fails
+    // Persistent failure, not a single one: the stale-deck retry runs every
+    // 30s, so a one-shot rejection would be recovered from inside the same
+    // advance and never observed.
+    mockApi.fetchSeason.mockRejectedValue(new Error('AniList down'));
+    await vi.advanceTimersByTimeAsync(12 * HOUR); // FALL attempts keep failing
     await flush();
     expect(provider.getSeason?.()).toEqual({ season: 'SUMMER', year: 2026 });
     expect(onSeasonRotated).not.toHaveBeenCalled();
     expect((await provider.getMedia()).length).toBeGreaterThan(0);
 
-    await vi.advanceTimersByTimeAsync(HOUR); // next tick retries and lands
+    mockApi.fetchSeason.mockResolvedValue(SEASON); // upstream recovers
+    await vi.advanceTimersByTimeAsync(60_000); // next retry lands
     await flush();
     expect(provider.getSeason?.()).toEqual({ season: 'FALL', year: 2026 });
     expect(onSeasonRotated).toHaveBeenCalledTimes(1);
@@ -524,6 +532,146 @@ describe('season rotation (unpinned)', () => {
     const provider = unpinned();
     expect(await provider.isAvailable()).toBe(false);
     expect(saveCacheMock).not.toHaveBeenCalled();
+  });
+
+  it('retries within seconds while provisional, not on the hourly tick', async () => {
+    // Room joins, creates and verdicts are locked out for exactly as long
+    // as the provisional state lasts, so retrying only hourly would keep
+    // rooms locked for up to an hour AFTER AniList recovers, on top of the
+    // outage. One minute of ticks must be enough to clear it.
+    vi.setSystemTime(new Date(2026, 8, 20));
+    loadCacheMock.mockImplementation((_dir: string, season: string) =>
+      season === 'SUMMER'
+        ? Promise.resolve({
+          version: 1,
+          fetchedAt: 5,
+          season: 'SUMMER',
+          year: 2026,
+          media: [entry({ id: 9, title: 'Old Season' })],
+        })
+        : Promise.resolve(undefined));
+    mockApi.fetchSeason.mockRejectedValueOnce(new Error('fetch failed: ECONNREFUSED'));
+
+    const provider = unpinned();
+    await provider.getMedia();
+    expect(provider.isSeasonProvisional?.()).toBe(true);
+
+    // Upstream comes back.
+    mockApi.fetchSeason.mockResolvedValue(SEASON);
+    await vi.advanceTimersByTimeAsync(60_000);
+    await flush();
+
+    expect(provider.getSeason?.()).toEqual({ season: 'FALL', year: 2026 });
+    expect(provider.isSeasonProvisional?.()).toBe(false);
+  });
+
+  it('clears a stale provisional flag when the target converges on the served season', async () => {
+    // The lockout is wired to this flag, and rotate() -- its only other
+    // clearing edge -- is never reached when target already equals
+    // current. So a clock that steps BACKWARD past a lock instant used to
+    // park the provider provisional forever with a healthy deck in memory,
+    // refusing every join, create and verdict for the process lifetime.
+    vi.setSystemTime(new Date(2026, 8, 20)); // past FALL's Sep 17 lock
+    loadCacheMock.mockImplementation((_dir: string, season: string) =>
+      season === 'SUMMER'
+        ? Promise.resolve({
+          version: 1,
+          fetchedAt: 5,
+          season: 'SUMMER',
+          year: 2026,
+          media: [entry({ id: 9, title: 'Old Season' })],
+        })
+        : Promise.resolve(undefined));
+    mockApi.fetchSeason.mockRejectedValueOnce(new Error('fetch failed: ECONNREFUSED'));
+
+    const provider = unpinned();
+    await provider.getMedia();
+    expect(provider.getSeason?.()).toEqual({ season: 'SUMMER', year: 2026 });
+    expect(provider.isSeasonProvisional?.()).toBe(true);
+
+    // Clock steps back before the lock: the target is now SUMMER 2026,
+    // which is exactly what the fallback already installed.
+    vi.setSystemTime(new Date(2026, 8, 10));
+    mockApi.fetchSeason.mockResolvedValue(SEASON);
+    await vi.advanceTimersByTimeAsync(2 * 60_000);
+    await flush();
+
+    expect(provider.getSeason?.()).toEqual({ season: 'SUMMER', year: 2026 });
+    expect(provider.isSeasonProvisional?.()).toBe(false);
+  });
+
+  it('re-arms the lockout when a rotation fails, and keeps it set while the deck is stale', async () => {
+    // The flag used to have exactly one set site, inside ensureLoaded's
+    // once-per-process catch. Combined with the new clearing edge that
+    // meant a backward clock step could clear it and a forward step with
+    // the upstream still down would leave rooms UNLOCKED against a stale
+    // deck, stamping them with a season the reaper deletes on rotation.
+    vi.setSystemTime(new Date(2026, 8, 20)); // target FALL 2026
+    loadCacheMock.mockImplementation((_dir: string, season: string) =>
+      season === 'SUMMER'
+        ? Promise.resolve({
+          version: 1,
+          fetchedAt: 5,
+          season: 'SUMMER',
+          year: 2026,
+          media: [entry({ id: 9, title: 'Old Season' })],
+        })
+        : Promise.resolve(undefined));
+    mockApi.fetchSeason.mockRejectedValue(new Error('fetch failed: ECONNREFUSED'));
+
+    const provider = unpinned();
+    await provider.getMedia();
+    expect(provider.isSeasonProvisional?.()).toBe(true);
+
+    // Clock steps back: target converges on what we serve, lockout clears.
+    vi.setSystemTime(new Date(2026, 8, 10));
+    await vi.advanceTimersByTimeAsync(60_000);
+    await flush();
+    expect(provider.isSeasonProvisional?.()).toBe(false);
+
+    // Clock steps forward again, upstream STILL down. The served deck is
+    // stale once more, so the lockout must come back rather than leaving
+    // rooms open against SUMMER while FALL is due.
+    vi.setSystemTime(new Date(2026, 8, 20));
+    await vi.advanceTimersByTimeAsync(60_000);
+    await flush();
+    expect(provider.getSeason?.()).toEqual({ season: 'SUMMER', year: 2026 });
+    expect(provider.isSeasonProvisional?.()).toBe(true);
+  });
+
+  it('stays locked for as long as the upstream is down', async () => {
+    // The equality guard in clearProvisionalIfSettled is what stops the
+    // lockout lifting while the deck is genuinely still the old season.
+    vi.setSystemTime(new Date(2026, 8, 20));
+    loadCacheMock.mockImplementation((_dir: string, season: string) =>
+      season === 'SUMMER'
+        ? Promise.resolve({
+          version: 1,
+          fetchedAt: 5,
+          season: 'SUMMER',
+          year: 2026,
+          media: [entry({ id: 9, title: 'Old Season' })],
+        })
+        : Promise.resolve(undefined));
+    mockApi.fetchSeason.mockRejectedValue(new Error('fetch failed: ECONNREFUSED'));
+
+    const provider = unpinned();
+    await provider.getMedia();
+
+    await vi.advanceTimersByTimeAsync(5 * 60_000); // five minutes of retries
+    await flush();
+    expect(provider.isSeasonProvisional?.()).toBe(true);
+    expect(provider.getSeason?.()).toEqual({ season: 'SUMMER', year: 2026 });
+    // The equality guard inside clearProvisionalIfSettled is what stops the
+    // lockout lifting while the deck is genuinely still last season's.
+    // Asserting only the FLAG cannot see that guard: the retry's failed
+    // rotation re-arms it, so a wrongly-cleared flag is restored within the
+    // same tick and the end state looks identical. The "cleared" log is the
+    // observable that discriminates, and it must never appear here.
+    const clearedLogs = vi.mocked(logger.info).mock.calls
+      .map((c) => String(c[0]))
+      .filter((m) => m.includes('room lockout is cleared'));
+    expect(clearedLogs).toEqual([]);
   });
 
   it('a DEGRADED upstream does not fall back: the season must not move backward', async () => {

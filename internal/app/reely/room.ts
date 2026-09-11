@@ -11,6 +11,14 @@ export class RoomExistsError extends Error { name = 'RoomExistsError'; }
 export class RoomLimitError extends Error { name = 'RoomLimitError'; }
 export class RoomNotFoundError extends Error { name = 'RoomNotFoundError'; }
 export class NoMediaError extends Error { name = 'NoMediaError'; }
+// NOTE: there is deliberately no ProviderDownError class here. The
+// provider-down lockout is refused at the room ENTRY points (the three
+// join/create handlers and verdictContext in client.ts), each of which
+// sends its typed error frame inline and returns, so nothing ever throws
+// this condition and emitJoinError/emitCreateError never see it. A class
+// with no throw site would be dead weight; the wire-level name lives in
+// CreateRoomError/JoinRoomError in types/reely.ts.
+
 // Thrown when a join request tries to add a connection under a username
 // that's already taken by a DIFFERENT live connection in the same room.
 // The named error surfaces through the join path so the UI can show a

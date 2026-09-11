@@ -158,22 +158,84 @@ export const createProvider = (
   const REFRESH_EVERY_MS = 24 * 60 * 60 * 1000;
   const SEASON_CHECK_MS = 60 * 60 * 1000;
   let busy = false;
+  // How often to retry while provisional. Declared here, above every
+  // closure that reads it, rather than next to its setInterval: these
+  // callbacks are built before that line runs.
+  const PROVISIONAL_RETRY_MS = 30_000;
+  // One rotation-failure warn per run of failures; reset when the
+  // lockout clears so the next outage reports again.
+  let rotationFailureLogged = false;
+
+  // `seasonProvisional` means "current is BEHIND target". If the two have
+  // since converged, the flag is stale by definition and must be cleared
+  // here, because rotate() -- its only other clearing edge -- is never
+  // reached when target already equals current.
+  //
+  // Without this the flag can stick with a HEALTHY upstream and no retries
+  // pending: boot provisional near a lock instant, then have the wall
+  // clock step backward past it (a VM restored from a snapshot, an RTC set
+  // ahead then corrected by NTP, an operator fixing the timezone), and
+  // resolveTarget lands back on the season the fallback already installed.
+  // Before the room lockout that was a dormant flag suppressing the boot
+  // sweep; now it refuses every join, create and verdict for the process
+  // lifetime while a perfectly good deck is in memory.
+  const clearProvisionalIfSettled = (target: { season: AnimeSeason; year: number }) => {
+    if (!seasonProvisional) return;
+    if (target.season !== current.season || target.year !== current.year) return;
+    seasonProvisional = false;
+    rotationFailureLogged = false;
+    logger.info(
+      `AniList ${label()}: served season matches the target again; ` +
+        `the provisional room lockout is cleared.`,
+    );
+    // Deliberately does NOT run the deferred boot sweep. app.ts skips that
+    // sweep while provisional and expects onSeasonRotated to run it, which
+    // only fires on an actual rotation, not on this convergence edge. So a
+    // room stamped with an older season can outlive this clear. That is
+    // harmless (loadRoom and the next real rotation both reap it) and
+    // strictly safer than firing a destructive sweep from a path whose
+    // whole purpose is recovering from a confused clock.
+  };
+
+  // Shared by the hourly tick and the provisional retry below.
+  const attemptRotation = (target: { season: AnimeSeason; year: number }) => {
+    busy = true;
+    void rotate(target)
+      .catch((err) => {
+        // A FAILED rotation means we are knowingly serving a season that
+        // is behind the target, which is the same condition the boot
+        // fallback creates. Re-arm the flag here or the lockout would
+        // cover only the boot case: clearProvisionalIfSettled can clear
+        // it (a backward clock step), and without this set site a clock
+        // moving forward again while the upstream is still down would
+        // leave rooms UNLOCKED against a stale deck, stamping new rooms
+        // with a season the reaper deletes as soon as rotation lands.
+        seasonProvisional = true;
+        // Damped: the retry below runs every 30s while provisional, so
+        // an undamped warn is ~120 identical lines an hour for the whole
+        // outage. Log the first failure of a run, then stay quiet until
+        // something changes. rotate() logs its own success.
+        if (!rotationFailureLogged) {
+          rotationFailureLogged = true;
+          logger.warn(
+            `AniList ${formatSeason(target.season, target.year)}: rotation fetch failed; ` +
+              `still serving ${label()} and refusing room operations until it lands. ` +
+              `Retrying every ${PROVISIONAL_RETRY_MS / 1000}s; further failures are not logged: ${String(err)}`,
+          );
+        }
+      })
+      .finally(() => { busy = false; });
+  };
+
   const scheduleCheck = setInterval(() => {
     if (busy) return;
     // A rotation whose post-swap callback threw retries here until it
     // lands (audit v1.2.0 #14).
     if (rotationCallbackPending) fireSeasonRotated();
     const target = resolveTarget();
+    clearProvisionalIfSettled(target);
     if (target.season !== current.season || target.year !== current.year) {
-      busy = true;
-      void rotate(target)
-        .catch((err) => {
-          logger.warn(
-            `AniList ${formatSeason(target.season, target.year)}: rotation fetch failed; ` +
-              `still serving ${label()}: ${String(err)}`,
-          );
-        })
-        .finally(() => { busy = false; });
+      attemptRotation(target);
       return;
     }
     const freeze = listFreezeAt(current.season, current.year).getTime();
@@ -190,13 +252,52 @@ export const createProvider = (
   // Never keep the process alive just for this timer.
   scheduleCheck.unref?.();
 
+  // Stale-deck retry. Gated on the CONDITION (the served season differs
+  // from the target), not on the seasonProvisional flag.
+  //
+  // Gating on the flag looked equivalent and was not: the flag is an
+  // OUTPUT (set when a fetch fails, cleared when the seasons converge or
+  // a rotation lands), so a cleared flag would have stopped this loop from
+  // ever noticing that the deck had gone stale again. A backward clock
+  // step clears it; a forward step with the upstream still down then left
+  // rooms UNLOCKED against a stale deck until the hourly tick came round.
+  // Reading the condition directly makes that unrepresentable.
+  //
+  // Cadence: room joins, creates and verdicts are refused for exactly as
+  // long as the deck is stale, so an hourly retry would mean up to an hour
+  // of lockout AFTER AniList recovers, on top of the outage. Two requests
+  // a minute is far inside AniList's limit, and it only runs in a state
+  // the provider is actively trying to leave.
+  const staleDeckRetry = setInterval(() => {
+    if (busy) return;
+    const target = resolveTarget();
+    // Converged: clear the flag rather than merely returning, or a lockout
+    // raised before the convergence would never lift.
+    clearProvisionalIfSettled(target);
+    if (target.season === current.season && target.year === current.year) return;
+    attemptRotation(target);
+  }, PROVISIONAL_RETRY_MS);
+  staleDeckRetry.unref?.();
+
   // TMDB stills enrichment (0.9.0). Mutates the in-memory snapshot's
   // entries, rebuilds the proxy maps, and persists. Serialized: a second
   // call while one runs is a no-op (boot + settings-save can overlap).
   let enriching = false;
+  // Set when a call is dropped because one was already running, so the
+  // in-flight run can re-enter for the NEW deck instead of the request
+  // being lost. Boot enrichment takes minutes (tmdb/api.ts paces ~180
+  // requests), and the stale-deck retry can now land a rotation inside
+  // that window: rotate()'s enrich call would short-circuit here and
+  // nothing would ever reschedule it, so the incoming season served with
+  // no screenshots until the process restarted.
+  let enrichRequestedAgain = false;
   const enrichFromTmdb = async (): Promise<number> => {
     const key = options.getTmdbKey?.();
-    if (!key || !list || enriching) return 0;
+    if (!key || !list) return 0;
+    if (enriching) {
+      enrichRequestedAgain = true;
+      return 0;
+    }
     enriching = true;
     try {
       // Pin the array being enriched: the startup self-refresh can swap
@@ -227,6 +328,17 @@ export const createProvider = (
       return enriched;
     } finally {
       enriching = false;
+      // A call arrived while this one was running (most likely a rotation
+      // landing mid-enrichment). Re-enter for whatever deck is current
+      // now; the key/list guards above stop it looping when there is
+      // nothing left to do, and tmdbEnrichStills skips entries that
+      // already carry stills.
+      if (enrichRequestedAgain) {
+        enrichRequestedAgain = false;
+        void enrichFromTmdb().catch((err) => {
+          logger.warn(`TMDB re-enrichment after a mid-flight swap failed: ${String(err)}`);
+        });
+      }
     }
   };
 

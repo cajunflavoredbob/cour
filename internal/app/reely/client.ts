@@ -112,6 +112,9 @@ export class Client {
   // cleanup's identity guard can never evict.
   private joinInFlight = false;
 
+  // One provider-down explanation per connection; see seasonSettling.
+  private lockoutLogged = false;
+
 
   constructor(
     ws: WebSocket,
@@ -278,6 +281,19 @@ export class Client {
     // source of truth. This used to re-derive from config + the clock,
     // which drifts from a rotated (or rotation-lagged) provider.
     const season = resolveRoomSeason(this.ctx.providers);
+    // Gating the join path alone is not enough: a member already inside a
+    // room when the provider falls back would reach here and CREATE the
+    // row under the stale season (or write into a row stamped with the
+    // real one), which the reaper then deletes when the real season
+    // lands. Refuse for the duration, same as a join.
+    if (season.provisional) {
+      this.seasonSettling(this.room.roomName);
+      this.sendMessage({
+        type: errType,
+        payload: { message: Client.PROVIDER_DOWN_MESSAGE },
+      } as ClientMessage);
+      return undefined;
+    }
     const courRoom = cour.rooms.byName(this.room.roomName) ?? cour.rooms.create({
       name: this.room.roomName,
       displayName: this.room.displayName,
@@ -883,6 +899,13 @@ export class Client {
     }
     const sanitizedReq = this.validateRoomRequest(createRoomReq, 'createRoomError');
     if (!sanitizedReq) return;
+    if (this.seasonSettling(sanitizedReq.roomName)) {
+      this.sendMessage({
+        type: 'createRoomError',
+        payload: { name: 'ProviderDownError', message: Client.PROVIDER_DOWN_MESSAGE },
+      });
+      return;
+    }
     this.joinInFlight = true;
     try {
       await this.createRoomFromSanitized(sanitizedReq, userName);
@@ -892,6 +915,43 @@ export class Client {
       this.joinInFlight = false;
     }
   }
+
+  /**
+   * True when the provider is serving a season it knows is stale. Every
+   * room entry point checks this first: while it holds, creating or
+   * joining would either stamp rooms with the wrong season (the reaper
+   * deletes them when the real one lands) or delete rooms that are still
+   * valid. Refusing loses nothing and clears itself within a retry cycle.
+   *
+   * Logs at warn ONCE per connection, naming the room that was refused.
+   * An operator watching a lockout needs the explanation and a concrete
+   * room, but a locked-out browser retries on every reconnect, so logging
+   * every refusal would flood the log during exactly the window they are
+   * reading it. Same dampening the message rate limiter uses above.
+   */
+  private seasonSettling(roomName: string): boolean {
+    const provider = this.ctx.providers?.[0];
+    if (!provider?.isSeasonProvisional?.()) return false;
+    // Log once per connection, same reasoning as the message rate limiter
+    // above: a locked-out browser retries, and an operator reading the log
+    // during exactly this window needs the explanation once, not once per
+    // click. The provider logs the underlying fallback separately.
+    if (!this.lockoutLogged) {
+      this.lockoutLogged = true;
+      const served = provider.getSeason?.();
+      logger.warn(
+        `Room access LOCKED for "${roomName}": the provider is serving a provisional ` +
+          `${served ? `${served.season} ${served.year}` : 'season'} because its ` +
+          `incoming-season fetch failed. Joins, creates and verdicts are refused so ` +
+          `no room is created or deleted against the wrong season. This clears ` +
+          `automatically once a rotation attempt succeeds.`,
+      );
+    }
+    return true;
+  }
+
+  private static readonly PROVIDER_DOWN_MESSAGE =
+    "The anime provider is down. Rooms are locked until it's back, then access restores automatically.";
 
   private async handleJoinRoom(joinRoomReq: JoinRoomRequest) {
     if (!this.isLoggedIn) {
@@ -912,6 +972,13 @@ export class Client {
     }
     const sanitizedReq = this.validateRoomRequest(joinRoomReq, 'joinRoomError');
     if (!sanitizedReq) return;
+    if (this.seasonSettling(sanitizedReq.roomName)) {
+      this.sendMessage({
+        type: 'joinRoomError',
+        payload: { name: 'ProviderDownError', message: Client.PROVIDER_DOWN_MESSAGE },
+      });
+      return;
+    }
     this.joinInFlight = true;
     try {
       await this.joinRoomFromSanitized(sanitizedReq, userName);
@@ -945,6 +1012,15 @@ export class Client {
     }
     const sanitizedReq = this.validateRoomRequest(req, 'joinRoomError');
     if (!sanitizedReq) return;
+    // This is the path the browser takes on every reconnect, so it is the
+    // one that would otherwise drive the reaper automatically.
+    if (this.seasonSettling(sanitizedReq.roomName)) {
+      this.sendMessage({
+        type: 'joinRoomError',
+        payload: { name: 'ProviderDownError', message: Client.PROVIDER_DOWN_MESSAGE },
+      });
+      return;
+    }
 
     // Probe the in-memory and on-disk room indexes; take the join path if
     // found, otherwise try create. A RoomExistsError from the create branch

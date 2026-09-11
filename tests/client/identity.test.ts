@@ -68,6 +68,17 @@ const makeClient = () => {
   return { ws, client };
 };
 
+// A provider that has fallen back to the previous season and knows it.
+const makeProvisionalProvider = (): ReelyProvider =>
+  ({
+    type: 'anilist',
+    options: { url: 'https://graphql.anilist.co' },
+    mediaOrdered: true,
+    getName: vi.fn().mockResolvedValue('AniList Summer 2026'),
+    getSeason: () => ({ season: 'SUMMER', year: 2026 }),
+    isSeasonProvisional: () => true,
+  }) as unknown as ReelyProvider;
+
 const last = (ws: ReturnType<typeof makeWs>, type: string) =>
   sent(ws).filter((m) => m.type === type).at(-1);
 
@@ -176,6 +187,30 @@ describe('verdict / review / lockIn', () => {
     ws.send.mockClear();
     return { ws, client };
   };
+
+  it('refuses a verdict while the season is settling, and creates no room row', async () => {
+    // Gating the join path alone is not enough: a member ALREADY in a room
+    // when the provider falls back reaches verdictContext, which would
+    // create the room row under the stale season (or write into one
+    // stamped with the real season). Either way the reaper deletes it when
+    // the real season lands, taking the verdicts with it.
+    const room = makeWsRoom();
+    const ws = makeWs();
+    const client = new Client(ws, [makeProvisionalProvider()], cour);
+    push(ws, { type: 'login', payload: { userName: 'user1' } });
+    await flush();
+    client.room = room;
+    (room.users as Map<string, Client>).set('user1', client);
+    ws.send.mockClear();
+
+    push(ws, { type: 'verdict', payload: { titleId: 101, verdict: 'like' } });
+    await flush();
+
+    expect(last(ws, 'verdictError')?.payload.message).toMatch(/anime provider is down/i);
+    expect(last(ws, 'verdictSuccess')).toBeUndefined();
+    // Nothing was written, and no row was minted under the stale season.
+    expect(cour.rooms.byName('couch-club')).toBeUndefined();
+  });
 
   it('records a verdict for a title in the room deck', async () => {
     const room = makeWsRoom();

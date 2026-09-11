@@ -97,8 +97,7 @@ export type ClientMessage =
   | { type: "userJoinedRoom"; payload: User }
   | { type: "userLeftRoom"; payload: User }
   // PUSHED when the deck swaps under an open room (the pinned-season
-  // daily pre-freeze
-  // refresh, stills enrichment, season rotation re-deck).
+  // daily pre-freeze refresh, stills enrichment, season rotation re-deck).
   | { type: "mediaChanged"; payload: { media: Media[] } }
   | { type: "loginSuccess"; payload: { userName: string } }
   | { type: "loginError"; payload: { message: string } }
@@ -218,6 +217,10 @@ export interface CreateRoomError {
     | "NotLoggedInError"
     | "NoMediaError"
     | "InvalidRoomNameError"
+    // The anime provider is serving a season it knows is stale (its
+    // incoming-season fetch failed), so rooms are locked until it
+    // reconnects. Recovers on its own; the UI shows the message verbatim.
+    | "ProviderDownError"
     | "UnknownError";
   message: string;
 }
@@ -236,6 +239,11 @@ export interface JoinRoomError {
     // this room. The UI shows the message verbatim.
     | "UsernameTakenError"
     | "NotLoggedInError"
+    // See CreateRoomError. Carried by BOTH unions because the refusal
+    // is raised on the join path as well as the create path, and the
+    // name field is typed per-union: without it here the join-side frame
+    // does not compile.
+    | "ProviderDownError"
     | "UnknownError";
   message: string;
 }

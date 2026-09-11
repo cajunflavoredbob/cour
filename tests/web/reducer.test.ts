@@ -13,6 +13,58 @@ const joined = (userName: string): Actions => ({
   payload: { userName },
 });
 
+describe('reducer config clears a standing room error', () => {
+  // The provider-down lockout refuses a join with copy promising that
+  // access restores automatically. When the rotation lands, the season
+  // label and accent repaint from the config frame; without this the same
+  // alert box kept saying the provider was down, contradicting both the
+  // promise and the rest of the screen.
+  const lockedOut: Store = {
+    ...initialState,
+    error: {
+      name: 'ProviderDownError',
+      message: "The anime provider is down. Rooms are locked until it's back, then access restores automatically.",
+    } as Store['error'],
+  };
+
+  const configFrame = (requiresConfiguration = false): Actions => ({
+    type: 'config',
+    payload: {
+      requiresConfiguration,
+      season: 'FALL',
+      year: 2026,
+    } as Actions extends { type: 'config'; payload: infer P } ? P : never,
+  });
+
+  it('clears the error when a fresh config frame arrives', () => {
+    expect(reducer(lockedOut, configFrame()).error).toBeUndefined();
+  });
+
+  it('clears it on the requiresConfiguration branch too', () => {
+    const next = reducer(lockedOut, configFrame(true));
+    expect(next.error).toBeUndefined();
+    expect(next.route).toBe('config');
+  });
+
+  it('still applies the new season from the frame', () => {
+    const next = reducer(lockedOut, configFrame());
+    expect(next.config?.season).toBe('FALL');
+    expect(next.config?.year).toBe(2026);
+  });
+
+  it.each([
+    ['UsernameTakenError', 'That name is in use in this room.'],
+    ['InvalidRoomNameError', 'That room name is not allowed.'],
+    ['RoomLimitError', 'Room limit reached. Try again later.'],
+  ])('does NOT clear a still-true %s', (name, message) => {
+    // A rotation does not free a taken username, fix an invalid room name,
+    // or lower the room cap. Only the lockout error is made false by the
+    // season landing, so only it may be cleared here.
+    const state: Store = { ...initialState, error: { name, message } as Store['error'] };
+    expect(reducer(state, configFrame()).error).toEqual({ name, message });
+  });
+});
+
 describe('reducer userJoinedRoom', () => {
   it('appends a newly joined user', () => {
     const next = reducer(withUsers([]), joined('user1'));

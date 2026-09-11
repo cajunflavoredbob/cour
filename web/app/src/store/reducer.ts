@@ -70,10 +70,25 @@ export const reducer = (state: Store = initialState, action: Actions): Store => 
       };
     }
     case "config": {
+      // Clear a standing PROVIDER-DOWN error, and only that one. A config
+      // frame after the first arrives when the server's season state
+      // changed, which is exactly when the lockout stops being true: the
+      // rotation landed, the season label and accent repaint from this
+      // frame, and the alert box would otherwise keep insisting the
+      // provider was down, contradicting a message that promised the
+      // recovery had happened.
+      //
+      // Deliberately NOT a blanket clear. Every other room error is still
+      // true after a rotation: the other device still holds the username
+      // (UsernameTakenError), the room name is still invalid, the room
+      // limit is still reached. Wiping those would silently drop a real
+      // message the user has not acted on.
+      const clearsLockout = state.error?.name === "ProviderDownError";
+      const error = clearsLockout ? undefined : state.error;
       if (action.payload.requiresConfiguration) {
-        return { ...state, config: action.payload, route: "config" };
+        return { ...state, config: action.payload, route: "config", error };
       }
-      return { ...state, config: action.payload };
+      return { ...state, config: action.payload, error };
     }
     case "enterDeckScope":
       return { ...state, deckScope: action.payload, route: "room" };
