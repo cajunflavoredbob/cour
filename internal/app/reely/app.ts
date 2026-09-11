@@ -352,7 +352,7 @@ export const Application = (config: Config, signal?: AbortSignal): ApplicationIn
       const posterLimit   = rateLimit({ windowMs: 60_000, max: 600, name: 'poster' });
       const templateLimit = rateLimit({ windowMs: 60_000, max: 60,  name: 'template' });
 
-      app.get('/health', healthLimit, healthHandler);
+      app.get('/health', healthLimit, healthHandler({ providers, cour }));
       app.use(basicAuthHandler);
       app.get('/api/poster/:providerIndex/:metadataId/:thumbId', posterLimit, posterHandler);
       app.use(serveStaticHandler);

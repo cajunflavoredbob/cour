@@ -464,9 +464,6 @@ export const createProvider = (
   const ensureLoaded = (): Promise<void> => {
     if (!loadPromise) {
       loadPromise = (async () => {
-        // Set when a zero-entry cache file for the SERVED season is thrown
-        // away below. It gates the previous-season fallback: see the catch.
-        let discardedEmptyCache = false;
         const cachedFile = await loadSeasonCache(cacheDir, current.season, current.year);
         // An EMPTY cache file is treated as a miss, not as a snapshot.
         // loadSeasonCache validates only that `media` is an array, and a
@@ -476,7 +473,6 @@ export const createProvider = (
         // so fall through to the live fetch below and let the (now
         // unconditional) empty guard decide.
         if (cachedFile && cachedFile.media.length === 0) {
-          discardedEmptyCache = true;
           logger.warn(
             `AniList ${label()}: cached snapshot has 0 entries; ignoring it and fetching live`,
           );
@@ -529,27 +525,27 @@ export const createProvider = (
           // tick complete the rotation once the API is back. A true
           // first boot (no prior season either) still fails: there is
           // nothing to serve.
+          // A PINNED provider has no previous season to fall back to --
+          // the pin IS the target -- so there is nothing to serve.
           if (pinned) throw err;
-          // A DEGRADED upstream must not take the fallback. Falling back
-          // moves the served season BACKWARD, and every room stamped with
-          // the real incoming season is then in front of the reaper and
-          // loadRoom's delete -- measured worse than 1.3.6, which served a
-          // short deck here with the season still correct and the data
-          // intact. The fallback exists for an UNREACHABLE upstream (ride
-          // out an outage), not for one that answered with garbage. Fail
-          // the boot loudly instead; a restart recovers once AniList is
-          // healthy, and nothing is destroyed in the meantime.
-          if (err instanceof DegradedUpstreamError) throw err;
-          // Same reasoning, different route in: we just threw away a
-          // zero-entry cache file for the SERVED season. Falling back now
-          // would move the served season BACKWARD while rooms stamped with
-          // the real served season exist, putting them in front of the
-          // reaper and loadRoom's delete. Before the empty-is-a-miss rule
-          // this case served the empty file and kept the season CORRECT,
-          // so falling back here would be a regression against 1.3.6.
-          // Fail the boot instead: nothing is destroyed, and a restart
-          // repairs the file once upstream is healthy.
-          if (discardedEmptyCache) throw err;
+          // Every other failure takes the fallback, INCLUDING a degraded
+          // upstream and a discarded zero-entry cache. Both used to fail
+          // the boot instead, on the reasoning that falling back moves the
+          // served season backwards and puts every room of the real
+          // incoming season in front of the reaper and loadRoom's delete.
+          // That reasoning was correct until the room lockout existed: the
+          // fallback sets seasonProvisional, and while that holds, joins,
+          // creates and verdicts are all refused, so none of those
+          // destructive paths is reachable.
+          //
+          // With the lockout in place, failing the boot is strictly worse.
+          // It takes the whole app down and, under the shipped
+          // `restart: unless-stopped`, crash-loops for the duration of
+          // someone else's outage. Falling back keeps the server up on
+          // last season's deck with rooms locked, retries every 30s, and
+          // recovers on its own without an operator restarting anything.
+          // Nothing bad is persisted either way: the guards that raise
+          // these errors reject the data before it is ever accepted.
           const prev = previousSeason(current.season, current.year);
           const fallback = await loadSeasonCache(cacheDir, prev.season, prev.year);
           // Same empty-is-a-miss rule as the primary cache read above: a

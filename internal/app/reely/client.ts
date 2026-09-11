@@ -177,7 +177,14 @@ export class Client {
   private assumeIdentity(user: CourUser): void {
     if (this.userName && this.userName !== user.username) {
       const previousRoom = this.leaveRoomCleanup();
-      if (previousRoom) void saveRoom(previousRoom);
+      // Not while the season is settling: saveRoom stamps a NEW row with
+    // resolveRoomSeason, which returns the provisional (stale) season, and
+    // the reaper deletes exactly that stamp when the real season lands.
+    // It is a no-op when the row already exists, so the only thing this
+    // skips is minting an orphan row under a season we know is wrong.
+    if (previousRoom && !this.seasonSettling(previousRoom.roomName)) {
+      void saveRoom(previousRoom);
+    }
     }
     this.authedUser = user;
     this.userName = user.username;
@@ -1111,7 +1118,14 @@ export class Client {
     // `if (this.room) saveRoom(...)` -- always false; the disconnect-time
     // save never fired.
     const previousRoom = this.leaveRoomCleanup();
-    if (previousRoom) void saveRoom(previousRoom);
+    // Not while the season is settling: saveRoom stamps a NEW row with
+    // resolveRoomSeason, which returns the provisional (stale) season, and
+    // the reaper deletes exactly that stamp when the real season lands.
+    // It is a no-op when the row already exists, so the only thing this
+    // skips is minting an orphan row under a season we know is wrong.
+    if (previousRoom && !this.seasonSettling(previousRoom.roomName)) {
+      void saveRoom(previousRoom);
+    }
   }
 
   // Beyond this much queued outbound data the WS is unhealthy -- either the

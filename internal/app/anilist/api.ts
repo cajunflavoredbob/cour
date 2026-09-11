@@ -29,15 +29,15 @@ const ANILIST_RETRY_BACKOFF_MS = 500;
  * The upstream ANSWERED, but the answer was unusable: a page truncated
  * mid-pagination, an unusable pageInfo, or a zero-entry season.
  *
- * Distinct from an UNREACHABLE upstream, and the distinction is
- * load-bearing. `ensureLoaded` may fall back to the PREVIOUS season's
- * cache when AniList cannot be reached, which moves the served season
- * BACKWARD; every room stamped with the real incoming season is then in
- * front of the rotation reaper and loadRoom's delete. A degraded answer
- * must never take that path. Before these guards existed a degraded
- * response produced a short deck with the season still CORRECT, which
- * was recoverable; falling back is not. Failing the boot loudly leaves
- * the data intact and a restart recovers once upstream is healthy.
+ * Its job is to make the data REJECTED, not to steer recovery. Nothing
+ * branches on the type any more: an unusable answer and an unreachable
+ * upstream both take the previous-season fallback, and the room lockout
+ * (which the fallback engages) is what makes that safe. This briefly
+ * WAS load-bearing -- for one release it forced a boot failure, so a
+ * backwards season could not reach the rotation reaper -- but the lockout
+ * closed those paths directly, and failing the boot only bought a crash
+ * loop. The name survives because "degraded upstream" reads better in a
+ * log than a bare Error.
  */
 export class DegradedUpstreamError extends Error {
   name = 'DegradedUpstreamError';

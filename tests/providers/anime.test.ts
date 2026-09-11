@@ -674,14 +674,14 @@ describe('season rotation (unpinned)', () => {
     expect(clearedLogs).toEqual([]);
   });
 
-  it('a DEGRADED upstream does not fall back: the season must not move backward', async () => {
-    // The fallback exists for an UNREACHABLE upstream, so a boot can ride
-    // out an outage. It must NOT engage for an upstream that answered with
-    // garbage, because falling back moves the served season BACKWARD and
-    // puts every room stamped with the real incoming season in front of
-    // the reaper and loadRoom's delete. Before the truncation and
-    // empty-deck guards existed, this case served a short deck with the
-    // season still correct and the data intact, which was recoverable.
+  it('a DEGRADED upstream falls back and LOCKS rooms rather than failing boot', async () => {
+    // This used to fail the boot, because falling back moves the served
+    // season backwards and put every room of the real incoming season in
+    // front of the reaper and loadRoom's delete. The room lockout closed
+    // those paths, so the fallback is safe again and failing the boot is
+    // strictly worse: it crash-loops under `restart: unless-stopped` for
+    // the duration of someone else's outage. Stay up on last season's
+    // deck, refuse room operations, and recover on the retry.
     vi.setSystemTime(new Date(2026, 8, 20)); // served season FALL 2026
     loadCacheMock.mockImplementation((_dir: string, season: string) =>
       season === 'SUMMER'
@@ -698,9 +698,17 @@ describe('season rotation (unpinned)', () => {
     );
 
     const provider = unpinned();
-    expect(await provider.isAvailable()).toBe(false);
-    // Season stayed correct, and nothing was marked provisional, so the
-    // boot sweep and loadRoom never act against a stale value.
+    expect(await provider.isAvailable()).toBe(true);
+    expect(provider.getSeason?.()).toEqual({ season: 'SUMMER', year: 2026 });
+    // Rooms are locked, which is what makes serving a stale deck safe.
+    expect(provider.isSeasonProvisional?.()).toBe(true);
+    // Nothing degraded was persisted.
+    expect(saveCacheMock).not.toHaveBeenCalled();
+
+    // Upstream recovers: no restart needed.
+    mockApi.fetchSeason.mockResolvedValue(SEASON);
+    await vi.advanceTimersByTimeAsync(60_000);
+    await flush();
     expect(provider.getSeason?.()).toEqual({ season: 'FALL', year: 2026 });
     expect(provider.isSeasonProvisional?.()).toBe(false);
   });
@@ -725,15 +733,14 @@ describe('season rotation (unpinned)', () => {
     expect(provider.isSeasonProvisional?.()).toBe(true);
   });
 
-  it('a discarded EMPTY served-season cache does not fall back either', async () => {
-    // The empty-is-a-miss rule opened a second route into the backward
-    // fallback: discard the served season's zero-entry file, fail the live
-    // fetch with an unreachable-upstream error (a plain Error, so the
-    // DegradedUpstreamError rethrow does not catch it), and the provider
-    // would drop to the PREVIOUS season and set provisional, putting every
-    // room stamped with the real served season in front of the reaper.
-    // Before the rule existed this case served the empty file and kept the
-    // season CORRECT, so falling back here is a regression against 1.3.6.
+  it('a discarded EMPTY served-season cache falls back and locks rooms too', async () => {
+    // A zero-entry file for the served season is discarded, the live
+    // fetch then fails, and the provider drops to the previous season
+    // with the lockout engaged. That is the intended shape: the server
+    // stays up on a deck people can look at, room operations are refused
+    // so nothing is stamped or reaped against the wrong season, and the
+    // 30s retry repairs the file without an operator restarting anything.
+    // This briefly failed the boot instead, before the lockout existed.
     vi.setSystemTime(new Date(2026, 8, 20)); // served season FALL 2026
     loadCacheMock.mockImplementation((_dir: string, season: string) =>
       season === 'FALL'
@@ -748,10 +755,9 @@ describe('season rotation (unpinned)', () => {
     mockApi.fetchSeason.mockRejectedValue(new Error('fetch failed: ECONNREFUSED'));
 
     const provider = unpinned();
-    expect(await provider.isAvailable()).toBe(false);
-    // Season stayed correct; nothing became provisional; no room is at risk.
-    expect(provider.getSeason?.()).toEqual({ season: 'FALL', year: 2026 });
-    expect(provider.isSeasonProvisional?.()).toBe(false);
+    expect(await provider.isAvailable()).toBe(true);
+    expect(provider.getSeason?.()).toEqual({ season: 'SUMMER', year: 2026 });
+    expect(provider.isSeasonProvisional?.()).toBe(true);
   });
 
   it('an EMPTY previous-season cache is not served as a fallback', async () => {

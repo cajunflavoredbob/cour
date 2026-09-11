@@ -289,6 +289,11 @@ export const createStore = () => {
       // Season rollover detection BEFORE the frame is applied: the server
       // re-broadcasts config when its served season rotates mid-session.
       const prevSeason = useZustandStore.getState().config?.season;
+      // Read BEFORE apply(): the reducer's config case clears exactly this
+      // error, so after the frame lands there is no way to tell a lockout
+      // recovery from any other rotation.
+      const wasLockedOut =
+        useZustandStore.getState().error?.name === "ProviderDownError";
       apply(msg as Actions);
       if (msg.payload.season) {
         // The server's season always wins over the boot-time local guess.
@@ -299,9 +304,53 @@ export const createStore = () => {
           // used to flash) and SAY so -- the reset was silent before
           // (audit v1.2.0 #6) -- then pull the fresh ledger.
           const state = useZustandStore.getState();
-          if (state.room?.joined) {
+          // Clear the season-scoped slices for anyone who is about to be
+          // IN a room under the new season, which now includes the
+          // locked-out cohort. joinRoomError deliberately clears `room`
+          // but leaves review/results/members/deckScope alone, so a user
+          // refused on reconnect is still holding the OUTGOING season's
+          // ledger. Re-entering without this crossed last season's
+          // verdicts with this season's deck, skipped the "everyone's
+          // picks were reset" notice (audit v1.2.0 #6) for exactly the
+          // people whose picks the reaper had just wiped, and parked a
+          // failed review refetch: scheduleReviewRetry early-returns
+          // while a stale `review` is truthy, so there was no retry and
+          // no stalled-ledger affordance either.
+          if (state.room?.joined || wasLockedOut) {
             apply({ type: "seasonRotated", payload: { season: msg.payload.season } });
+          }
+          if (state.room?.joined) {
             dispatch({ type: "review" });
+          } else if (wasLockedOut) {
+            // Locked out by the provider-down refusal, and a season just
+            // landed. The refusal copy promises access restores
+            // automatically, so make that true rather than leaving the
+            // user on the join form guessing when to click.
+            //
+            // A rotation is not the ONLY edge that lifts the lockout:
+            // clearProvisionalIfSettled can clear it with no rotation at
+            // all (a corrected clock), and that edge broadcasts no config
+            // frame, so it does not reach here. Those users still click
+            // once. This covers the common case, not every case.
+            //
+            // getStoredRoom() only: the joinRoomError that raised this
+            // lockout also set room: undefined, so state.room?.name is
+            // always undefined on this path.
+            const rejoin = getStoredRoom();
+            if (rejoin) {
+              // Hand the room to the loginSuccess rejoin instead of
+              // dispatching here when a login is still in flight. On a
+              // FRESH socket the config frame arrives first (the server
+              // sends it from the Client constructor) and loginSuccess
+              // follows with its own rejoin, so dispatching here too put
+              // two identical joinOrCreateRoom frames on one connection.
+              // pendingRoomJoin is the existing one-shot handoff slot.
+              if (getStoredName() && !useZustandStore.getState().user) {
+                pendingRoomJoin = rejoin;
+              } else {
+                dispatch({ type: "joinOrCreateRoom", payload: { roomName: rejoin } });
+              }
+            }
           }
         }
       }

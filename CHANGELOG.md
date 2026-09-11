@@ -13,6 +13,38 @@ repository; this changelog starts fresh at 0.1.0.
 
 ---
 
+## [1.3.9] - 2026-09-11
+
+Finishes what 1.3.8 started: now that rooms are locked while the season
+is settling, the server no longer has to take itself down to stay safe.
+
+### Changed
+- **A bad response from AniList no longer takes the server down.** 1.3.7
+  made it fail to start rather than fall back to the previous season,
+  because falling back put every room of the incoming season in front of
+  the reaper. That was the right call at the time and is superseded
+  here: 1.3.8's lockout closed those paths directly, so the server now
+  stays up on the previous season's deck with rooms locked, retries
+  every 30 seconds, and recovers without anyone restarting it. Under the
+  shipped `restart: unless-stopped` the old behaviour was a container
+  crash loop for the length of someone else's outage. (This reverses the
+  "fails loudly instead" line in the 1.3.7 entry below.)
+- **`/health` now reports 503 while rooms are locked.** It was an
+  unconditional 200. That was honest when a provider which could not
+  serve its season failed to start, because the outage was visible as a
+  restart loop; with the server staying up it would have reported a
+  completely unusable instance as healthy, including to a
+  `condition: service_healthy` gate. It flips back on its own.
+
+### Fixed
+- Rejoining after a lockout lifts now happens by itself, which is what
+  the message always promised. Previously the season repainted and the
+  user was left on the join form deciding when to click.
+- That rejoin also clears last season's ledger first. Without it a
+  returning member landed on the outgoing season's verdicts crossed with
+  the new season's deck, never saw the "everyone's picks were reset"
+  notice, and could not recover from a failed refresh without reloading.
+
 ## [1.3.8] - 2026-09-11
 
 Rooms are now locked while the season is settling, instead of quietly
