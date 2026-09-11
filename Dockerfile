@@ -121,7 +121,7 @@ USER node
 # or a `tlsConfig` block in config.yaml), else http. Without the TLS check a
 # TLS-enabled container would be probed over http and falsely marked unhealthy.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
-  CMD node -e "const fs=require('fs');let port=process.env.PORT;let tls=!!(process.env.TLS_CERT||process.env.TLS_KEY);try{const c=require('js-yaml').load(fs.readFileSync(process.env.CONFIG_PATH||'/app/config.yaml','utf8'));port=port||c.port;tls=tls||!!c.tlsConfig;}catch{}port=port||8000;const proto=tls?'https':'http';require(proto).get(proto+'://127.0.0.1:'+port+'/health',tls?{rejectUnauthorized:false}:{},(r)=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"
+  CMD node -e "const fs=require('fs');let port=process.env.PORT;let tls=!!(process.env.TLS_CERT||process.env.TLS_KEY);try{const c=require('js-yaml').load(fs.readFileSync(process.env.CONFIG_PATH||'/app/config.yaml','utf8'));port=port||c.port;tls=tls||!!c.tlsConfig;}catch{}port=port||8000;const proto=tls?'https':'http';const q=require(proto).get(proto+'://127.0.0.1:'+port+'/health',tls?{rejectUnauthorized:false}:{},(r)=>{if(r.statusCode===200){r.resume();process.exit(0);}let b='';r.setEncoding('utf8');r.on('data',(d)=>{b+=d;});r.on('end',()=>{console.log(b.slice(0,300));process.exit(1);});r.on('aborted',()=>process.exit(1));r.on('error',()=>process.exit(1));});q.on('error',(e)=>{console.log(String(e.message));process.exit(1)});q.setTimeout(4000,()=>{q.destroy();process.exit(1)})"
 
 # EXPOSE is image metadata only -- it can't read runtime env. If you change
 # PORT, remap on the host side (-p host:container).

@@ -15,6 +15,7 @@ import { openDb } from '../../internal/app/cour/db';
 import { createCourStore, type CourStore } from '../../internal/app/cour/store';
 import type { ReelyProvider } from '../../internal/app/reely/providers/types';
 import type { Room } from '../../internal/app/reely/room';
+import { logger } from '../../internal/app/reely/logger';
 import { makeWs, push, sent, flush } from '../helpers';
 
 // End-to-end handler tests over a real :memory: cour store: the
@@ -35,20 +36,37 @@ const makeProvider = (): ReelyProvider =>
 // resultsSuccess push both ride Room.broadcastMessage).
 const makeRoomWithTitles = (name: string, titleIds: number[]): Room => {
   const users = new Map<string, Client>();
+  // A standalone function rather than `this.broadcastMessage`: inside an
+  // object literal that is cast to Room, `this` types as {} and the
+  // notify* helpers below would not compile.
+  const broadcastMessage = (msg: object, sourceUserName?: string) => {
+    const json = JSON.stringify(msg);
+    for (const [userName, client] of users) {
+      if (userName !== sourceUserName) client.sendRaw(json);
+    }
+  };
   return {
     roomName: name,
     displayName: name,
     filters: undefined,
     users,
+    // saveRoom reads room.routeContext.cour, so the disconnect-time save
+    // needs this or it throws inside handleClose before the assertion.
+    get routeContext() {
+      return { providers: [], cour };
+    },
     media: Promise.resolve(new Map(
       titleIds.map((id) => [String(id), makeMedia({ id: String(id), anilistId: id })]),
     )),
-    broadcastMessage(msg: object, sourceUserName?: string) {
-      const json = JSON.stringify(msg);
-      for (const [userName, client] of users) {
-        if (userName !== sourceUserName) client.sendRaw(json);
-      }
-    },
+    broadcastMessage,
+    // Real Room fans these out via broadcastMessage; the disconnect path
+    // (leaveRoomCleanup) calls notifyLeave, so the double needs them or a
+    // close-event test dies inside the cleanup before reaching its
+    // assertion.
+    notifyJoin: (user: { userName: string }) =>
+      broadcastMessage({ type: 'userJoinedRoom', payload: user }, user.userName),
+    notifyLeave: (user: { userName: string }) =>
+      broadcastMessage({ type: 'userLeftRoom', payload: user }, user.userName),
   } as unknown as Room;
 };
 
@@ -187,6 +205,49 @@ describe('verdict / review / lockIn', () => {
     ws.send.mockClear();
     return { ws, client };
   };
+
+  it('does not mint a room row on disconnect while the season is settling', async () => {
+    // saveRoom is create-if-absent and stamps with resolveRoomSeason,
+    // which returns the PROVISIONAL season while the lockout holds. A
+    // disconnect is the one room-row write that no refusal path covers,
+    // so without this gate it mints an orphan row under a season the
+    // reaper deletes as soon as the real one lands.
+    const room = makeWsRoom();
+    const ws = makeWs();
+    const client = new Client(ws, [makeProvisionalProvider()], cour);
+    push(ws, { type: 'login', payload: { userName: 'user1' } });
+    await flush();
+    client.room = room;
+    (room.users as Map<string, Client>).set('user1', client);
+
+    vi.mocked(logger.warn).mockClear();
+    // The socket closes.
+    ws.emit('close');
+    await flush();
+    expect(cour.rooms.byName('couch-club')).toBeUndefined();
+    // And it does NOT claim a refusal. The gate reads the pure predicate,
+    // not seasonSettling, whose warn says "Joins, creates and verdicts
+    // are refused" and would both lie about a clean disconnect and burn
+    // the once-per-connection budget that a real refusal needs. Asserting
+    // only the row cannot see the difference: both predicates return the
+    // same boolean.
+    expect(
+      vi.mocked(logger.warn).mock.calls.filter((c) => String(c[0]).includes('Room access LOCKED')),
+    ).toEqual([]);
+  });
+
+  it('DOES write the room row on disconnect once the season is settled', async () => {
+    const room = makeWsRoom();
+    const { ws, client } = makeClient();
+    push(ws, { type: 'login', payload: { userName: 'user1' } });
+    await flush();
+    client.room = room;
+    (room.users as Map<string, Client>).set('user1', client);
+
+    ws.emit('close');
+    await flush();
+    expect(cour.rooms.byName('couch-club')).toBeDefined();
+  });
 
   it('refuses a verdict while the season is settling, and creates no room row', async () => {
     // Gating the join path alone is not enough: a member ALREADY in a room

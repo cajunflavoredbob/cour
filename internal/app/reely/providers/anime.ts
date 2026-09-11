@@ -77,16 +77,12 @@ export const createProvider = (
   // the incoming season's lock instant, two weeks before it airs
   // (servedSeason's contract).
   const pinned = options.season != null || options.year != null;
-  // A pin is resolved exactly ONCE, here at construction. This used to
-  // compose the pinned half with a live detectSeason() on every hourly
-  // tick, which meant a "pinned" provider still rotated, contradicting
-  // every doc that says a pin disables rotation: ANIME_YEAR alone flipped
-  // the season at each calendar quarter, and ANIME_SEASON alone flipped
-  // the year at New Year -- rotating a full twelve months BACKWARD into a
-  // season that finished airing a year earlier, and firing the rotation
-  // reaper over every room on the way. Config validation accepts both
-  // partial forms (validate.ts checks the two fields independently), so
-  // this was reachable from plain config with no clock tampering.
+  // Resolved ONCE, at construction. Composing the unset half of a partial
+  // pin with a live clock would make a "pinned" provider rotate: a
+  // year-only pin flips season each quarter, a season-only pin flips year
+  // at New Year (twelve months BACKWARD), and every such rotation fires
+  // the reaper. validate.ts accepts both partial forms, so that is plain
+  // config, not clock tampering.
   const pinnedTarget = pinned
     ? {
       season: options.season ?? detectSeason(new Date()).season,
@@ -176,9 +172,8 @@ export const createProvider = (
   // clock step backward past it (a VM restored from a snapshot, an RTC set
   // ahead then corrected by NTP, an operator fixing the timezone), and
   // resolveTarget lands back on the season the fallback already installed.
-  // Before the room lockout that was a dormant flag suppressing the boot
-  // sweep; now it refuses every join, create and verdict for the process
-  // lifetime while a perfectly good deck is in memory.
+  // The flag gates the room lockout, so a stuck one refuses every join,
+  // create and verdict for the process lifetime with a good deck in hand.
   const clearProvisionalIfSettled = (target: { season: AnimeSeason; year: number }) => {
     if (!seasonProvisional) return;
     if (target.season !== current.season || target.year !== current.year) return;
@@ -367,11 +362,6 @@ export const createProvider = (
     // list freeze nothing ever refreshes again, so every join would
     // fail with NoMediaError until the next rotation.
     //
-    // The guard used to require a non-empty deck already serving, which
-    // left the cold-boot case accepting zero entries, persisting them,
-    // and serving them for the whole season: with rotation and freeze now
-    // the same instant, no later fetch repairs it.
-    //
     // The condition is "would this empty deck be PERMANENT", not simply
     // "is it empty". A frozen season gets no further fetch, so an empty
     // one must be refused even on a cold boot. A season still inside its
@@ -465,13 +455,10 @@ export const createProvider = (
     if (!loadPromise) {
       loadPromise = (async () => {
         const cachedFile = await loadSeasonCache(cacheDir, current.season, current.year);
-        // An EMPTY cache file is treated as a miss, not as a snapshot.
-        // loadSeasonCache validates only that `media` is an array, and a
-        // zero-entry file is exactly what the pre-1.3.7 cold-boot path
-        // persisted against a degraded AniList. Serving it would mean zero
-        // titles for the whole season with no refresh left to repair it,
-        // so fall through to the live fetch below and let the (now
-        // unconditional) empty guard decide.
+        // An EMPTY cache file is a miss, not a snapshot: loadSeasonCache
+        // only checks that `media` is an array, and serving a zero-entry
+        // file means no titles for the whole season with no refresh left
+        // to repair it. Fall through to the live fetch.
         if (cachedFile && cachedFile.media.length === 0) {
           logger.warn(
             `AniList ${label()}: cached snapshot has 0 entries; ignoring it and fetching live`,
@@ -529,19 +516,12 @@ export const createProvider = (
           // the pin IS the target -- so there is nothing to serve.
           if (pinned) throw err;
           // Every other failure takes the fallback, INCLUDING a degraded
-          // upstream and a discarded zero-entry cache. Both used to fail
-          // the boot instead, on the reasoning that falling back moves the
-          // served season backwards and puts every room of the real
-          // incoming season in front of the reaper and loadRoom's delete.
-          // That reasoning was correct until the room lockout existed: the
-          // fallback sets seasonProvisional, and while that holds, joins,
-          // creates and verdicts are all refused, so none of those
-          // destructive paths is reachable.
-          //
-          // With the lockout in place, failing the boot is strictly worse.
-          // It takes the whole app down and, under the shipped
-          // `restart: unless-stopped`, crash-loops for the duration of
-          // someone else's outage. Falling back keeps the server up on
+          // upstream and a discarded zero-entry cache. Falling back moves
+          // the served season backwards, which is only safe because it
+          // sets seasonProvisional and the lockout then refuses every
+          // join, create and verdict, so no destructive path is reachable.
+          // Failing the boot instead would crash-loop under the shipped
+          // `restart: unless-stopped`. Falling back keeps the server up on
           // last season's deck with rooms locked, retries every 30s, and
           // recovers on its own without an operator restarting anything.
           // Nothing bad is persisted either way: the guards that raise

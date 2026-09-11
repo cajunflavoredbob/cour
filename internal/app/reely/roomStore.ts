@@ -166,23 +166,11 @@ export const loadRoom = async (roomName: string, ctx: RouteContext): Promise<Roo
     // room fresh under the served season.
     const served = resolveRoomSeason(ctx.providers);
     if (courRoom.season !== served.season || courRoom.year !== served.year) {
-      // NOTE (1.3.7 audit, BENCH-NEEDED): deleting here is a real data
-      // loss when `served` is PROVISIONAL, because the provider is then
-      // reporting a season it knows is behind. The obvious fix -- refuse
-      // to restore but keep the row -- was tried and REVERTED: it is
-      // worse. loadRoom returning null sends the join to the create path,
-      // saveRoom no-ops because byName still finds the surviving row, and
-      // verdictContext rebinds to it, so the session ends up bound to the
-      // other season's row while being served the provisional deck. A
-      // member who locked in before the restart then reads zero verdicts,
-      // is routed to the rank screen, and submits an empty ranking that
-      // the store stamps permanently; foreign title ids also land in the
-      // row and survive the reaper once the season settles, because the
-      // row matches by then. Deletion is recoverable by re-picking; that
-      // is not. Closing this properly means teaching the CREATE/adopt
-      // path about the provisional season too (saveRoom at :133 and
-      // verdictContext in client.ts), which needs the owner's call on what
-      // a join should do while the season is settling.
+      // Safe to delete unconditionally: every caller refuses while the
+      // provider's season is provisional, so `served` is never the stale
+      // value here. Do NOT relax that gating without revisiting this --
+      // deleting against a season the provider knows is behind destroys
+      // rooms that are still valid.
       ctx.cour.rooms.delete(courRoom.id);
       logger.info(
         `Room "${roomName}": stale season ${courRoom.season} ${courRoom.year} deleted on load.`,

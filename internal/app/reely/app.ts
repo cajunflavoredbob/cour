@@ -42,9 +42,8 @@ export const Application = (config: Config, signal?: AbortSignal): ApplicationIn
     // an undrained WAL sidecar and exit -- which is precisely the state
     // that makes a backup of cour.db alone incomplete.
     let db: DatabaseSync | undefined;
-    // Assigned once the WebSocket server exists, so callbacks constructed
-    // earlier (season rotation) can reach every connected socket without
-    // naming a binding that has not been initialised yet.
+    // Set once wss exists, so callbacks built earlier (season rotation)
+    // can reach every socket without naming an uninitialised binding.
     let wssRef: WebSocketServer | undefined;
     // Idempotent: called from both the graceful shutdown and the startup
     // catch, and either may run alone.
@@ -186,32 +185,12 @@ export const Application = (config: Config, signal?: AbortSignal): ApplicationIn
                     season: season.season,
                     year: season.year,
                   };
-                  // EVERY connected socket, not just room members. This
-                  // used to iterate getAllRooms() and call
-                  // room.broadcastMessage, which only reaches users
-                  // inside a room, and sendConfig() runs exactly once per
-                  // connection (in the Client constructor). So a client
-                  // sitting on the join form, or one that had left a
-                  // room, kept the OUTGOING season's label, kanji and
-                  // accent for the life of its socket -- and the 30s ping
-                  // keeps healthy idle sockets alive rather than cycling
-                  // them, so no reconnect repaired it. Joining afterwards
-                  // dealt them the new season's deck under the old
-                  // season's chip.
-                  //
-                  // Stringify once, same reasoning as
-                  // Room.broadcastMessage with multi-KB payloads.
-                  //
-                  // wssRef, not wss: this closure is built while the
-                  // provider is constructed, ~150 lines before `const wss`
-                  // executes, so naming wss directly is a latent TDZ
-                  // ReferenceError if anything ever invokes the callback
-                  // earlier than the first scheduler tick.
-                  //
-                  // Per-socket try/catch: a single bad socket must not
-                  // abort the loop and leave the remaining clients on the
-                  // outgoing season, which is the exact failure this
-                  // broadcast exists to prevent.
+                  // EVERY socket, not just room members: sendConfig runs
+                  // once per connection, so a client idle on the join form
+                  // would keep the outgoing season for its socket's life.
+                  // wssRef because this closure predates `const wss` (TDZ).
+                  // Per-socket try/catch so one bad socket can't strand the
+                  // rest. Stringify once, as Room.broadcastMessage does.
                   const frame = JSON.stringify({ type: 'config', payload });
                   for (const ws of wssRef?.clients ?? []) {
                     if (ws.readyState !== ws.OPEN) continue;

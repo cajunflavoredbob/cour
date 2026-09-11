@@ -26,18 +26,10 @@ const ANILIST_RETRY_ATTEMPTS = 2;
 const ANILIST_RETRY_BACKOFF_MS = 500;
 
 /**
- * The upstream ANSWERED, but the answer was unusable: a page truncated
- * mid-pagination, an unusable pageInfo, or a zero-entry season.
- *
- * Its job is to make the data REJECTED, not to steer recovery. Nothing
- * branches on the type any more: an unusable answer and an unreachable
- * upstream both take the previous-season fallback, and the room lockout
- * (which the fallback engages) is what makes that safe. This briefly
- * WAS load-bearing -- for one release it forced a boot failure, so a
- * backwards season could not reach the rotation reaper -- but the lockout
- * closed those paths directly, and failing the boot only bought a crash
- * loop. The name survives because "degraded upstream" reads better in a
- * log than a bare Error.
+ * The upstream ANSWERED but the answer was unusable: a page truncated
+ * mid-pagination, an unusable pageInfo, or a zero-entry season. Its job
+ * is to reject the data, not to steer recovery; nothing branches on the
+ * type. Named rather than a bare Error so the log says why.
  */
 export class DegradedUpstreamError extends Error {
   name = 'DegradedUpstreamError';

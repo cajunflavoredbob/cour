@@ -209,6 +209,12 @@ export const createStore = () => {
   // Cleared after use or when a server-restart reconnect forces the user to login manually.
   const initialParams = new URLSearchParams(location.search);
   let pendingRoomJoin: string | null = initialParams.get("roomName");
+  // Whether loginSuccess has answered on the CURRENT socket. Reset by the
+  // connected handler, set by the loginSuccess handler. Distinguishes "a
+  // rejoin is already coming from the login path" from "nothing else will
+  // rejoin", which is what the lockout rejoin needs and what `user` could
+  // not tell it.
+  let loginSettledThisSocket = false;
 
   // Set by a FRESH join success (not a reconnect rejoin): the next
   // reviewSuccess decides where to land based on the ledger (audit 17
@@ -256,6 +262,14 @@ export const createStore = () => {
 
   client.addEventListener("connected", () => {
     apply({ type: "updateConnectionStatus", payload: "connected" });
+    // Fresh socket: the login for THIS connection has not answered yet,
+    // so the lockout rejoin below must hand its room to the login path
+    // instead of dispatching its own. Reset here rather than testing
+    // `user`, which is written once on the first loginSuccess and never
+    // cleared, so it is always set by the time a lockout can exist (every
+    // room error the lockout raises sits behind a login check server
+    // side). Gating on it made that branch unreachable.
+    loginSettledThisSocket = false;
     // Clear the 5s loading-escape timer: we're connected; the config /
     // resume handlers below route the user explicitly.
     clearTimeout(loadingEscapeTimer);
@@ -345,7 +359,7 @@ export const createStore = () => {
               // follows with its own rejoin, so dispatching here too put
               // two identical joinOrCreateRoom frames on one connection.
               // pendingRoomJoin is the existing one-shot handoff slot.
-              if (getStoredName() && !useZustandStore.getState().user) {
+              if (getStoredName() && !loginSettledThisSocket) {
                 pendingRoomJoin = rejoin;
               } else {
                 dispatch({ type: "joinOrCreateRoom", payload: { roomName: rejoin } });
@@ -367,6 +381,9 @@ export const createStore = () => {
     }
 
     if (msg.type === "loginSuccess") {
+      // This connection's login has answered, so from here on the lockout
+      // rejoin above dispatches for itself rather than handing off.
+      loginSettledThisSocket = true;
       apply(msg as Actions);
       // Rooms are permanent and membership durable (0.12.0), so every
       // login -- cold start or reconnect -- simply rejoins the ?roomName

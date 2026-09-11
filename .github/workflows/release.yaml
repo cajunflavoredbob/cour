@@ -76,6 +76,16 @@ jobs:
             echo "package.json version does not match ${VERSION}"
             exit 1
           fi
+          # The fourth file. The comment above has claimed a 4-file rule
+          # since audit 16 #435 while only three were checked, and
+          # CONTRIBUTING.markdown documents four, so a release could ship
+          # an image whose CHANGELOG topped out at an older version with
+          # nothing failing. `generate_release_notes: true` builds the
+          # Release body from commits, so the gap was invisible end to end.
+          if ! grep -qE "^## \[${VERSION}\]" CHANGELOG.md; then
+            echo "CHANGELOG.md has no '## [${VERSION}]' heading"
+            exit 1
+          fi
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4

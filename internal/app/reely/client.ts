@@ -176,15 +176,15 @@ export class Client {
    */
   private assumeIdentity(user: CourUser): void {
     if (this.userName && this.userName !== user.username) {
+      // Unreachable today: handleLogin refuses an identity switch while
+      // `this.room` or `joinInFlight` is set, so previousRoom is always
+      // undefined. Kept as defence in depth if that invariant changes.
+      // Provisional guard as in handleClose: saveRoom would stamp the
+      // stale season, which the reaper then deletes.
       const previousRoom = this.leaveRoomCleanup();
-      // Not while the season is settling: saveRoom stamps a NEW row with
-    // resolveRoomSeason, which returns the provisional (stale) season, and
-    // the reaper deletes exactly that stamp when the real season lands.
-    // It is a no-op when the row already exists, so the only thing this
-    // skips is minting an orphan row under a season we know is wrong.
-    if (previousRoom && !this.seasonSettling(previousRoom.roomName)) {
-      void saveRoom(previousRoom);
-    }
+      if (previousRoom && !this.seasonIsProvisional) {
+        void saveRoom(previousRoom);
+      }
     }
     this.authedUser = user;
     this.userName = user.username;
@@ -924,17 +924,31 @@ export class Client {
   }
 
   /**
-   * True when the provider is serving a season it knows is stale. Every
-   * room entry point checks this first: while it holds, creating or
-   * joining would either stamp rooms with the wrong season (the reaper
-   * deletes them when the real one lands) or delete rooms that are still
-   * valid. Refusing loses nothing and clears itself within a retry cycle.
+   * Pure predicate, no logging. The saveRoom gates need the answer
+   * without claiming in the log that a user was refused something, which
+   * seasonSettling's warn says explicitly and which is false on a
+   * disconnect or an identity switch.
+   */
+  private get seasonIsProvisional(): boolean {
+    return this.ctx.providers?.[0]?.isSeasonProvisional?.() === true;
+  }
+
+  /**
+   * True when the provider is serving a season it knows is stale, AND
+   * this call is a refusal. Every room entry point checks it first:
+   * while it holds, creating or joining would either stamp rooms with
+   * the wrong season (the reaper deletes them when the real one lands)
+   * or delete rooms that are still valid. Refusing loses nothing and
+   * clears itself within a retry cycle.
    *
    * Logs at warn ONCE per connection, naming the room that was refused.
    * An operator watching a lockout needs the explanation and a concrete
    * room, but a locked-out browser retries on every reconnect, so logging
    * every refusal would flood the log during exactly the window they are
    * reading it. Same dampening the message rate limiter uses above.
+   *
+   * Use seasonIsProvisional instead anywhere nothing is being refused;
+   * this one's log says "refused" and would be lying.
    */
   private seasonSettling(roomName: string): boolean {
     const provider = this.ctx.providers?.[0];
@@ -1123,7 +1137,7 @@ export class Client {
     // the reaper deletes exactly that stamp when the real season lands.
     // It is a no-op when the row already exists, so the only thing this
     // skips is minting an orphan row under a season we know is wrong.
-    if (previousRoom && !this.seasonSettling(previousRoom.roomName)) {
+    if (previousRoom && !this.seasonIsProvisional) {
       void saveRoom(previousRoom);
     }
   }

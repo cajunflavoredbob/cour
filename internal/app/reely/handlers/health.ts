@@ -2,24 +2,17 @@ import type { Request, Response } from 'express';
 import type { RouteContext } from '../types';
 
 /**
- * Liveness AND usability, deliberately both.
+ * Liveness AND readiness. A provider knowingly serving a stale season
+ * refuses every join, create and verdict, so reporting 200 there would
+ * call a totally unusable server healthy, including to a
+ * `condition: service_healthy` gate. It flips back on its own once the
+ * provider's retry lands.
  *
- * This used to be an unconditional 200. That was honest while a provider
- * that could not serve its season failed the boot outright: the container
- * sat visibly in `Restarting` and an operator, an uptime monitor or a
- * `condition: service_healthy` gate all saw the outage. The server now
- * stays up on the previous season's deck instead of crash-looping, which
- * is better for everyone EXCEPT the signal: in that state every join,
- * create and verdict is refused, and an unconditional 200 would report a
- * totally unusable server as healthy.
- *
- * So a provider that is knowingly serving a stale season reports 503.
- * The process is alive and the response says why; what it is not is
- * ready. Recovery needs no intervention (the provider retries every 30s),
- * so this flips back on its own.
+ * `ctx` is required so tsc catches a wiring reduced to `healthHandler()`,
+ * which would silently restore the unconditional 200.
  */
-export const handler = (ctx?: RouteContext) => (_req: Request, res: Response): void => {
-  const provider = ctx?.providers?.[0];
+export const handler = (ctx: RouteContext) => (_req: Request, res: Response): void => {
+  const provider = ctx.providers?.[0];
   if (provider?.isSeasonProvisional?.()) {
     const served = provider.getSeason?.();
     res

@@ -13,6 +13,23 @@ repository; this changelog starts fresh at 0.1.0.
 
 ---
 
+## [1.3.10] - 2026-09-11
+
+Follow-up to 1.3.9: the automatic rejoin did not survive a reconnect,
+and the container healthcheck could call an unreachable server healthy.
+
+### Fixed
+- Coming back after a provider-down lockout now lands you in the deck
+  rather than on the home screen. The guard meant to stop a duplicate
+  rejoin never actually engaged, so a reconnect sent two joins and the
+  second one cancelled the resume. Restarting the container during an
+  outage, which 1.3.9 made more likely by marking it unhealthy, is
+  exactly the path that hit this.
+- The container healthcheck no longer reports healthy when the server
+  dies partway through answering. It also gives up on its own instead of
+  waiting to be killed, and it records the reason the instance is not
+  ready, which 1.3.9 wrote but then discarded.
+
 ## [1.3.9] - 2026-09-11
 
 Finishes what 1.3.8 started: now that rooms are locked while the season

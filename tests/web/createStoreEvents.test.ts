@@ -148,50 +148,64 @@ describe('config frame routing', () => {
   // automatically. The rotation landing is the event that lifts the
   // lockout, so it has to actually put them back in rather than leaving
   // them on the join form guessing when to click.
-  it('rejoins the refused room when a rotation lifts the lockout', async () => {
-    setupDomGlobals({ name: 'user1', room: 'movie-night' });
-    const mod = await loadCreateStore();
-    mod.createStore();
+  // Every one of these drives the PRODUCTION frame order. The server
+  // sends config from the Client constructor, and all three room errors
+  // sit behind a login check, so a standing ProviderDownError always
+  // implies loginSuccess already landed. Earlier versions of these tests
+  // omitted loginSuccess, which made the lockout gate unreachable and
+  // left them passing under mutations of the code they name.
+  const lockedOut = (mod: Awaited<ReturnType<typeof loadCreateStore>>) => {
+    clientMock.dispatchEvent(new Event('connected'));
     emit({ type: 'config', payload: { requiresConfiguration: false, season: 'SUMMER', year: 2026 } });
-    // Already logged in: this is the mid-session case, where nothing else
-    // is going to rejoin on the user's behalf.
     emit({ type: 'loginSuccess', payload: { userName: 'user1' } });
+    // A real ledger, so the clearing assertions below are not vacuous.
+    emit({
+      type: 'reviewSuccess',
+      payload: { verdicts: [{ titleId: 101, verdict: 'like' }], total: 2, lockedAt: null },
+    });
     emit({
       type: 'joinRoomError',
       payload: { name: 'ProviderDownError', message: 'The anime provider is down.' },
     });
+    expect(mod.useZustandStore.getState().review).toBeDefined();
     clientMock.joinOrCreateRoom.mockClear();
+  };
+
+  it('rejoins the refused room when a rotation lifts the lockout', async () => {
+    setupDomGlobals({ name: 'user1', room: 'movie-night' });
+    const mod = await loadCreateStore();
+    mod.createStore();
+    lockedOut(mod);
 
     // The season lands, which is exactly when the lockout lifts.
     emit({ type: 'config', payload: { requiresConfiguration: false, season: 'FALL', year: 2026 } });
+
+    expect(clientMock.joinOrCreateRoom).toHaveBeenCalledTimes(1);
     expect(clientMock.joinOrCreateRoom).toHaveBeenCalledWith({ roomName: 'movie-night' });
     expect(mod.useZustandStore.getState().error).toBeUndefined();
     // The outgoing season's ledger must be gone BEFORE re-entering, or
     // the user lands on last season's verdicts crossed with this
     // season's deck, with no "picks were reset" notice and a review
     // refetch that cannot retry because the stale ledger is truthy.
-    const after = mod.useZustandStore.getState();
-    expect(after.review).toBeUndefined();
-    expect(after.results).toBeUndefined();
+    expect(mod.useZustandStore.getState().review).toBeUndefined();
   });
 
-  it('sends exactly ONE rejoin when the lockout lifts on a fresh socket', async () => {
-    // On a fresh socket the server sends config from the Client
-    // constructor, so the rotation frame can arrive BEFORE loginSuccess,
-    // whose handler has its own rejoin. Dispatching from both put two
-    // identical joinOrCreateRoom frames on one connection; the lockout
-    // branch hands the room to pendingRoomJoin instead.
+  it('sends exactly ONE rejoin when the lockout lifts across a reconnect', async () => {
+    // The operational path: AniList goes down, users are refused, the
+    // container is restarted (1.3.9's /health now reports 503, so an
+    // operator is likelier to), and every locked-out client reconnects
+    // into a settled season. The reconnect's own login rejoin and the
+    // lockout rejoin both want to fire; only one may.
     setupDomGlobals({ name: 'user1', room: 'movie-night' });
     const mod = await loadCreateStore();
     mod.createStore();
-    emit({ type: 'config', payload: { requiresConfiguration: false, season: 'SUMMER', year: 2026 } });
-    emit({
-      type: 'joinRoomError',
-      payload: { name: 'ProviderDownError', message: 'The anime provider is down.' },
-    });
-    clientMock.joinOrCreateRoom.mockClear();
+    lockedOut(mod);
 
-    // Rotation lands before the login answers, then the login answers.
+    clientMock.dispatchEvent(new Event('disconnected'));
+    clientMock.dispatchEvent(new Event('connected'));
+    clientMock.joinOrCreateRoom.mockClear();
+    // Fresh socket: config carries the settled season and arrives BEFORE
+    // the relogin answers.
     emit({ type: 'config', payload: { requiresConfiguration: false, season: 'FALL', year: 2026 } });
     emit({ type: 'loginSuccess', payload: { userName: 'user1' } });
 
@@ -205,7 +219,9 @@ describe('config frame routing', () => {
     setupDomGlobals({ name: 'user1', room: 'movie-night' });
     const mod = await loadCreateStore();
     mod.createStore();
+    clientMock.dispatchEvent(new Event('connected'));
     emit({ type: 'config', payload: { requiresConfiguration: false, season: 'SUMMER', year: 2026 } });
+    emit({ type: 'loginSuccess', payload: { userName: 'user1' } });
     clientMock.joinOrCreateRoom.mockClear();
 
     emit({ type: 'config', payload: { requiresConfiguration: false, season: 'FALL', year: 2026 } });

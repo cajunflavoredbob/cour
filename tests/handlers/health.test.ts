@@ -20,6 +20,9 @@ const providerStub = (provisional: boolean, season: boolean): any => ({
   isSeasonProvisional: () => provisional,
 });
 
+// A configured server with no season surface at all.
+const emptyCtx: RouteContext = { providers: [] as never };
+
 const ctxWith = (provisional: boolean, season = true): RouteContext => ({
   providers: [providerStub(provisional, season)],
 });
@@ -28,7 +31,7 @@ describe('handler (/health)', () => {
   it('responds with HTTP 200', () => {
     const req = makeReq();
     const res = makeRes();
-    handler()(req, res);
+    handler(emptyCtx)(req, res);
     expect(res.statusCode).toBe(200);
     expect(res.status).toHaveBeenCalledWith(200);
   });
@@ -36,14 +39,14 @@ describe('handler (/health)', () => {
   it('sends the "cour is alive" body (used by the Docker HEALTHCHECK)', () => {
     const req = makeReq();
     const res = makeRes();
-    handler()(req, res);
+    handler(emptyCtx)(req, res);
     expect(res.send).toHaveBeenCalledWith('cour is alive');
   });
 
   it('returns void (no Promise; the docker healthcheck calls it synchronously)', () => {
     const req = makeReq();
     const res = makeRes();
-    const result = handler()(req, res);
+    const result = handler(emptyCtx)(req, res);
     expect(result).toBeUndefined();
   });
 
@@ -63,6 +66,12 @@ describe('handler (/health)', () => {
     const res = makeRes();
     handler(ctxWith(true))(makeReq(), res);
     expect(res.status).toHaveBeenCalledWith(503);
+    // Exactly one send: without the early return the handler falls
+    // through to the 200 branch and sends twice, which under real Express
+    // raises ERR_HTTP_HEADERS_SENT on every 30s probe for the whole
+    // lockout. Asserting only the first call could not see that.
+    expect(res.send).toHaveBeenCalledTimes(1);
+    expect(res.status).not.toHaveBeenCalledWith(200);
     const body = String(res.send.mock.calls[0][0]);
     expect(body).toContain('not ready');
     expect(body).toContain('SUMMER 2026');
