@@ -3,7 +3,9 @@ import {
   detectSeason,
   formatSeason,
   listFreezeAt,
+  nextSeason,
   previousSeason,
+  seasonLockAt,
   seasonStart,
   servedSeason,
 } from '../../internal/app/anilist/season';
@@ -42,47 +44,67 @@ describe('formatSeason', () => {
   });
 });
 
-// The rotation spec: the served season is the one containing NEXT month,
-// so the deck flips one month ahead of each calendar changeover
-// (Dec 1 / Mar 1 / Jun 1 / Sep 1).
+// The rotation spec: the deck flips to the upcoming season at that
+// season's lock instant -- two weeks before it airs, the same moment its
+// list freezes (Sep 17 / Dec 18 / Mar 18 / Jun 17).
 describe('servedSeason', () => {
   it.each([
     // [date, season, year]
-    [new Date(2026, 7, 31), 'SUMMER', 2026], // Aug 31: last summer-deck day
-    [new Date(2026, 8, 1), 'FALL', 2026], // Sep 1: rotation to FALL
+    [new Date(2026, 8, 10), 'SUMMER', 2026], // Sep 10: summer is still airing
+    [new Date(2026, 8, 16), 'SUMMER', 2026], // Sep 16: last summer-deck day
+    [new Date(2026, 8, 17), 'FALL', 2026], // Sep 17: rotation to FALL
     [new Date(2026, 9, 15), 'FALL', 2026], // mid-season stays put
-    [new Date(2026, 10, 30), 'FALL', 2026], // Nov 30: last fall-deck day
-    [new Date(2026, 11, 1), 'WINTER', 2027], // Dec 1: WINTER of NEXT year
+    [new Date(2026, 11, 17), 'FALL', 2026], // Dec 17: last fall-deck day
+    [new Date(2026, 11, 18), 'WINTER', 2027], // Dec 18: WINTER of NEXT year
     [new Date(2027, 0, 15), 'WINTER', 2027],
-    [new Date(2027, 1, 28), 'WINTER', 2027], // Feb: rotation to SPRING is Mar 1
-    [new Date(2027, 2, 1), 'SPRING', 2027],
-    [new Date(2027, 4, 31), 'SPRING', 2027],
-    [new Date(2027, 5, 1), 'SUMMER', 2027], // Jun 1: rotation to SUMMER
+    [new Date(2027, 2, 17), 'WINTER', 2027], // Mar 17: rotation is Mar 18
+    [new Date(2027, 2, 18), 'SPRING', 2027],
+    [new Date(2027, 5, 16), 'SPRING', 2027],
+    [new Date(2027, 5, 17), 'SUMMER', 2027], // Jun 17: rotation to SUMMER
   ])('%s serves %s %d', (date, season, year) => {
     expect(servedSeason(date as Date)).toEqual({ season, year });
   });
 
-  it('does not overflow on long month ends (the setMonth trap)', () => {
-    // Jan 31 + 1 month under setMonth semantics lands in March, which
-    // would misfile late January as SPRING. Month arithmetic keeps it
-    // WINTER until Mar 1.
-    expect(servedSeason(new Date(2027, 0, 31))).toEqual({ season: 'WINTER', year: 2027 });
+  it('rolls the year with the season at the December lock', () => {
     expect(servedSeason(new Date(2026, 11, 31))).toEqual({ season: 'WINTER', year: 2027 });
+    expect(servedSeason(new Date(2027, 0, 31))).toEqual({ season: 'WINTER', year: 2027 });
+  });
+
+  it('never serves a season whose list is still unfrozen', () => {
+    // The whole point of locking the two dates together: whatever is
+    // being served has already passed its own freeze instant.
+    for (let day = 0; day < 400; day++) {
+      const date = new Date(2026, 6, 1 + day);
+      const { season, year } = servedSeason(date);
+      expect(date.getTime()).toBeGreaterThanOrEqual(listFreezeAt(season, year).getTime());
+    }
   });
 });
 
-describe('previousSeason', () => {
-  it('steps back one quarter, across the year boundary', () => {
+describe('nextSeason / previousSeason', () => {
+  it('steps a quarter in each direction, across the year boundary', () => {
+    expect(nextSeason('SUMMER', 2026)).toEqual({ season: 'FALL', year: 2026 });
+    expect(nextSeason('FALL', 2026)).toEqual({ season: 'WINTER', year: 2027 });
     expect(previousSeason('FALL', 2026)).toEqual({ season: 'SUMMER', year: 2026 });
     expect(previousSeason('WINTER', 2027)).toEqual({ season: 'FALL', year: 2026 });
   });
 });
 
-describe('seasonStart / listFreezeAt', () => {
-  it('starts on the quarter boundary and freezes two weeks before it', () => {
+describe('seasonStart / seasonLockAt / listFreezeAt', () => {
+  it('starts on the quarter boundary and locks two weeks before it', () => {
     expect(seasonStart('FALL', 2026)).toEqual(new Date(2026, 9, 1));
-    expect(listFreezeAt('FALL', 2026)).toEqual(new Date(2026, 8, 17));
+    expect(seasonLockAt('FALL', 2026)).toEqual(new Date(2026, 8, 17));
     expect(seasonStart('WINTER', 2027)).toEqual(new Date(2027, 0, 1));
-    expect(listFreezeAt('WINTER', 2027)).toEqual(new Date(2026, 11, 18));
+    expect(seasonLockAt('WINTER', 2027)).toEqual(new Date(2026, 11, 18));
+  });
+
+  it('rotation and list freeze are the same instant, by construction', () => {
+    for (const season of ['WINTER', 'SPRING', 'SUMMER', 'FALL'] as const) {
+      expect(listFreezeAt(season, 2027)).toEqual(seasonLockAt(season, 2027));
+      // And that instant is exactly when the deck rotates to it.
+      const lock = seasonLockAt(season, 2027);
+      expect(servedSeason(lock)).toEqual({ season, year: 2027 });
+      expect(servedSeason(new Date(lock.getTime() - 1))).not.toEqual({ season, year: 2027 });
+    }
   });
 });

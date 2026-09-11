@@ -69,16 +69,19 @@ describe('applySeasonTheme', () => {
 
 describe('servedSeason', () => {
   // Mirrors the server's servedSeason (internal/app/anilist/season.ts):
-  // the season containing NEXT month, so the UI's pre-config fallback
-  // agrees with the server's one-month-ahead rotation. Must not drift.
+  // the calendar season until the upcoming season's lock instant (two
+  // weeks before it airs, the same moment its list freezes), so the UI's
+  // pre-config fallback agrees with the served deck. Must not drift.
   it.each([
-    ['2026-08-31', 'SUMMER', 2026],
-    ['2026-09-01', 'FALL', 2026], // rotation, one month before Oct 1
-    ['2026-11-30', 'FALL', 2026],
-    ['2026-12-01', 'WINTER', 2027], // year rolls with the season
-    ['2027-01-31', 'WINTER', 2027], // long-month end: no setMonth overflow
-    ['2027-03-01', 'SPRING', 2027],
-    ['2027-06-01', 'SUMMER', 2027],
+    ['2026-09-10', 'SUMMER', 2026], // summer is still airing
+    ['2026-09-16', 'SUMMER', 2026],
+    ['2026-09-17', 'FALL', 2026], // rotation, two weeks before Oct 1
+    ['2026-12-17', 'FALL', 2026],
+    ['2026-12-18', 'WINTER', 2027], // year rolls with the season
+    ['2026-12-31', 'WINTER', 2027],
+    ['2027-01-31', 'WINTER', 2027],
+    ['2027-03-18', 'SPRING', 2027],
+    ['2027-06-17', 'SUMMER', 2027],
   ])('%s serves %s %d', (iso, season, year) => {
     expect(servedSeason(new Date(`${iso}T12:00:00`))).toEqual({ season, year });
   });

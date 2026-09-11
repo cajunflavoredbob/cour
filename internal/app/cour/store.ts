@@ -200,7 +200,7 @@ export const createCourStore = (db: DatabaseSync) => {
 
     /** Cascades to members/verdicts/rankings. Rooms never expire on
      * their own mid-season; the season-rotation sweep (the owner's spec:
-     * rooms and their members are deleted at the one-month rotation
+     * rooms and their members are deleted at the two-week rotation
      * mark) and a future explicit admin delete are the only callers. A
      * reused room name simply auto-creates fresh next season. */
     delete: (roomId: number): boolean => {

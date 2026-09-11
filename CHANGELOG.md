@@ -13,6 +13,28 @@ repository; this changelog starts fresh at 0.1.0.
 
 ---
 
+## [1.3.6] - 2026-09-10
+
+Fixes the deck rotating a month before a season airs, which served a
+list AniList had not finished filling in and retired the season still
+on air.
+
+### Fixed
+- The served season rotates at the same instant its show list freezes,
+  two weeks before the season airs (Sep 17 / Dec 18 / Mar 18 / Jun 17),
+  rather than a month ahead of the calendar changeover (Sep 1 / Dec 1 /
+  Mar 1 / Jun 1). The deck used to flip while the incoming season's
+  titles were still being announced, so entries shifted under rooms
+  that were already picking against them.
+- The rotation reaper no longer deletes rooms a month before the season
+  they were picked for finishes airing. It fires at the new mark, so
+  rooms survive two weeks longer.
+
+### Changed
+- The daily pre-season list refresh no longer runs on an auto-rotating
+  server: the deck now arrives already frozen. It still runs for a
+  pinned season, which can be served before its lock instant.
+
 ## [1.3.5] - 2026-08-21
 
 Dev dependency majors. No runtime or user-facing changes.

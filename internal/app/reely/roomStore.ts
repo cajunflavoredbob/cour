@@ -47,7 +47,8 @@ export const resolveRoomSeason = (
 
 /**
  * Season rollover sweep (the owner's spec): rooms and their members are
- * DELETED at the one-month rotation mark -- until then everything stays
+ * DELETED at the rotation mark (two weeks before the incoming season
+ * airs) -- until then everything stays
  * saved. Deletion cascades members/verdicts/rankings; a reused room name
  * auto-creates fresh on the next join, and a client connected across the
  * rotation resurrects its room row on its next verdict-flow message

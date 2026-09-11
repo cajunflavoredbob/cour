@@ -62,18 +62,38 @@ export const detectSeason = (date: Date): { season: CourSeason; year: number } =
   return { season, year: date.getFullYear() };
 };
 
+const SEASON_ORDER: readonly CourSeason[] = ["WINTER", "SPRING", "SUMMER", "FALL"];
+
+/** First instant of a broadcast season (local time): Jan/Apr/Jul/Oct 1. */
+const seasonStart = (season: CourSeason, year: number): Date => {
+  const startMonth =
+    season === "WINTER" ? 0 : season === "SPRING" ? 3 : season === "SUMMER" ? 6 : 9;
+  return new Date(year, startMonth, 1);
+};
+
 /**
- * Local mirror of the server's served-season rotation: the season
- * containing NEXT month, so the deck flips one month ahead of the
- * calendar changeover (Dec/Mar/Jun/Sep 1). Month arithmetic only --
- * Date.setMonth on Jan 31 would overflow past February. Fallback for
- * before the config frame lands; the server value wins after.
+ * Mirror of the server's seasonLockAt: rotation and list freeze are one
+ * instant, two weeks before the season airs.
+ */
+const seasonLockAt = (season: CourSeason, year: number): Date =>
+  new Date(seasonStart(season, year).getTime() - 14 * 24 * 60 * 60 * 1000);
+
+/**
+ * Local mirror of the server's served-season rotation: the calendar
+ * season until the upcoming season's lock instant passes, then that one.
+ * Must not drift from internal/app/anilist/season.ts. Fallback for before
+ * the config frame lands; the server value wins after.
  */
 export const servedSeason = (date: Date): { season: CourSeason; year: number } => {
-  const month = date.getMonth() + 1; // one month ahead, 1-12
-  const season: CourSeason =
-    month % 12 < 3 ? "WINTER" : month < 6 ? "SPRING" : month < 9 ? "SUMMER" : "FALL";
-  return { season, year: date.getFullYear() + (month > 11 ? 1 : 0) };
+  const calendar = detectSeason(date);
+  const i = SEASON_ORDER.indexOf(calendar.season);
+  const upcoming =
+    i === SEASON_ORDER.length - 1
+      ? { season: "WINTER" as CourSeason, year: calendar.year + 1 }
+      : { season: SEASON_ORDER[i + 1], year: calendar.year };
+  return date.getTime() >= seasonLockAt(upcoming.season, upcoming.year).getTime()
+    ? upcoming
+    : calendar;
 };
 
 export const seasonTheme = (season: CourSeason): SeasonTheme => ({

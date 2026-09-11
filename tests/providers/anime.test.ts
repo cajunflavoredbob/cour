@@ -375,10 +375,12 @@ describe('TMDB stills (0.9.0)', () => {
   });
 });
 
-// The owner's rotation spec: unpinned providers serve the season
-// containing NEXT month (the deck flips one month ahead of the calendar
-// changeover), refresh daily until the list freeze two weeks before the
-// season starts, and reset room data only after a rotation fetch lands.
+// The owner's rotation spec: unpinned providers serve the calendar
+// season until the upcoming season's lock instant -- two weeks before it
+// airs, the same moment its list freezes -- then rotate to it, and reset
+// room data only after a rotation fetch lands. Because rotation and
+// freeze are one event, an unpinned deck is frozen from the moment it is
+// served; the daily pre-season refresh only applies to pinned providers.
 describe('season rotation (unpinned)', () => {
   const HOUR = 60 * 60 * 1000;
 
@@ -391,22 +393,30 @@ describe('season rotation (unpinned)', () => {
     vi.useFakeTimers({ toFake: ['Date', 'setInterval'] });
   });
 
-  it('serves the season containing next month', async () => {
-    vi.setSystemTime(new Date(2026, 8, 10)); // Sep 10: FALL starts Oct 1
+  it('keeps serving the airing season until the upcoming one locks', async () => {
+    vi.setSystemTime(new Date(2026, 8, 10)); // Sep 10: FALL locks Sep 17
+    const provider = unpinned();
+    await provider.getMedia();
+    expect(mockApi.fetchSeason).toHaveBeenCalledWith('SUMMER', 2026);
+    expect(provider.getSeason?.()).toEqual({ season: 'SUMMER', year: 2026 });
+  });
+
+  it('serves the upcoming season once its lock instant passes', async () => {
+    vi.setSystemTime(new Date(2026, 8, 20)); // Sep 20: past FALL's Sep 17 lock
     const provider = unpinned();
     await provider.getMedia();
     expect(mockApi.fetchSeason).toHaveBeenCalledWith('FALL', 2026);
     expect(provider.getSeason?.()).toEqual({ season: 'FALL', year: 2026 });
   });
 
-  it('rotates at the one-month mark and fires onSeasonRotated', async () => {
-    vi.setSystemTime(new Date(2026, 7, 31, 12)); // Aug 31 noon: still SUMMER
+  it('rotates at the lock instant and fires onSeasonRotated', async () => {
+    vi.setSystemTime(new Date(2026, 8, 16, 12)); // Sep 16 noon: still SUMMER
     const onSeasonRotated = vi.fn();
     const provider = unpinned({ onSeasonRotated });
     await provider.getMedia();
     expect(provider.getSeason?.()).toEqual({ season: 'SUMMER', year: 2026 });
 
-    // Cross Sep 1 midnight; the next hourly tick fetches FALL and swaps.
+    // Cross Sep 17 midnight; the next hourly tick fetches FALL and swaps.
     await vi.advanceTimersByTimeAsync(12 * HOUR);
     await flush();
     expect(provider.getSeason?.()).toEqual({ season: 'FALL', year: 2026 });
@@ -420,7 +430,7 @@ describe('season rotation (unpinned)', () => {
   });
 
   it('keeps serving the old season when the rotation fetch fails, then retries', async () => {
-    vi.setSystemTime(new Date(2026, 7, 31, 12));
+    vi.setSystemTime(new Date(2026, 8, 16, 12));
     const onSeasonRotated = vi.fn();
     const provider = unpinned({ onSeasonRotated });
     await provider.getMedia();
@@ -439,7 +449,7 @@ describe('season rotation (unpinned)', () => {
   });
 
   it('boot after rotation with AniList down falls back to the previous season cache', async () => {
-    vi.setSystemTime(new Date(2026, 8, 10)); // target FALL 2026
+    vi.setSystemTime(new Date(2026, 8, 20)); // target FALL 2026 (locked Sep 17)
     loadCacheMock.mockImplementation((_dir: string, season: string) =>
       season === 'SUMMER'
         ? Promise.resolve({
@@ -458,14 +468,16 @@ describe('season rotation (unpinned)', () => {
     expect((await provider.getMedia()).map((m) => m.title)).toEqual(['Old Season']);
   });
 
-  it('refreshes daily during the pre-season window and freezes two weeks before start', async () => {
-    // Sep 5: inside FALL 2026's window (rotation Sep 1, freeze Sep 17).
-    vi.setSystemTime(new Date(2026, 8, 5));
+  it('never runs the daily refresh: a served deck is frozen on arrival', async () => {
+    // Rotation and freeze are the same instant, so an unpinned provider
+    // only ever serves a season whose list is already locked. The deck
+    // the rotation fetch pulled is final -- nothing re-fetches it.
+    vi.setSystemTime(new Date(2026, 8, 20)); // FALL 2026, locked Sep 17
     loadCacheMock.mockImplementation((_dir: string, season: string) =>
       season === 'FALL'
         ? Promise.resolve({
           version: 1,
-          fetchedAt: Date.now() - 3 * 24 * HOUR,
+          fetchedAt: Date.now() - 3 * 24 * HOUR, // stale enough to tempt a refresh
           season: 'FALL',
           year: 2026,
           media: [entry({ id: 9, title: 'Cached Fall' })],
@@ -473,17 +485,38 @@ describe('season rotation (unpinned)', () => {
         : Promise.resolve(undefined));
 
     const provider = unpinned();
+    expect((await provider.getMedia()).map((m) => m.title)).toEqual(['Cached Fall']);
+    await flush();
+    await vi.advanceTimersByTimeAsync(72 * HOUR); // three days of ticks
+    await flush();
+    expect(mockApi.fetchSeason).not.toHaveBeenCalled();
+  });
+
+  it('still refreshes daily for a PINNED season before its lock instant', async () => {
+    // Pinning is the one way to serve a season early, so it is the only
+    // path where an unfrozen window still exists. SUMMER 2026 locks
+    // Jun 17; Jun 5 sits inside its window.
+    vi.setSystemTime(new Date(2026, 5, 5));
+    loadCacheMock.mockResolvedValue({
+      version: 1,
+      fetchedAt: Date.now() - 3 * 24 * HOUR,
+      season: 'SUMMER',
+      year: 2026,
+      media: [entry({ id: 9, title: 'Cached Summer' })],
+    });
+
+    const provider = makeProvider(); // pinned SUMMER 2026
     await provider.getMedia();
     await flush();
-    // Startup self-refresh fired (stale cache, pre-freeze).
+    // Startup self-refresh fired (stale cache, pre-lock).
     expect(mockApi.fetchSeason).toHaveBeenCalledTimes(1);
 
-    await vi.advanceTimersByTimeAsync(25 * HOUR); // Sep 6: daily refresh
+    await vi.advanceTimersByTimeAsync(25 * HOUR); // Jun 6: daily refresh
     await flush();
     expect(mockApi.fetchSeason).toHaveBeenCalledTimes(2);
 
-    // Jump past the freeze (Sep 17): no more refreshes, ever.
-    vi.setSystemTime(new Date(2026, 8, 18));
+    // Past the lock (Jun 17): the list never changes again.
+    vi.setSystemTime(new Date(2026, 5, 18));
     await vi.advanceTimersByTimeAsync(48 * HOUR);
     await flush();
     expect(mockApi.fetchSeason).toHaveBeenCalledTimes(2);
@@ -530,7 +563,7 @@ describe('refresh + rotation callbacks', () => {
 
   it('retries a throwing onSeasonRotated on the next tick (#14)', async () => {
     vi.useFakeTimers({ toFake: ['Date', 'setInterval'] });
-    vi.setSystemTime(new Date(2026, 7, 31, 12)); // SUMMER; rotates Sep 1
+    vi.setSystemTime(new Date(2026, 8, 16, 12)); // SUMMER; FALL locks Sep 17
     const onSeasonRotated = vi.fn()
       .mockImplementationOnce(() => { throw new Error('reaper hiccup'); });
     const provider = makeProvider({ season: undefined, year: undefined, onSeasonRotated });

@@ -90,7 +90,7 @@ describe('reconcileRoomSeasons', () => {
     reconcileRoomSeasons(cour, { season: 'SUMMER', year: 2026 });
 
     // The rotation reaper (the owner's spec): rooms and their members
-    // are deleted outright at the one-month mark.
+    // are deleted outright at the rotation mark.
     expect(cour.rooms.byId(stale.id)).toBeUndefined();
     expect(cour.members.list(stale.id)).toEqual([]);
     // The current-season room keeps everything, and users survive.

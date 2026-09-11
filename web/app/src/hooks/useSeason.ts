@@ -4,7 +4,7 @@ import { type CourSeason, servedSeason } from "../utils/season";
 /**
  * The season every screen should label and theme by: the SERVER's served
  * season from the config frame (the single source of truth -- it rotates
- * one month ahead of the calendar changeover and can lag a failed
+ * two weeks before the incoming season airs and can lag a failed
  * rotation fetch). The local servedSeason mirror only covers the beat
  * before the config frame arrives.
  */

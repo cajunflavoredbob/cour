@@ -19,7 +19,7 @@ import { DatabaseSync } from 'node:sqlite';
  *   dropped in v4 when the credential layer died. A
  *   database exfiltration must not yield valid logins.
  * - Rooms have NO expiry column by design -- a cour room lives until the
- *   season-rotation reaper deletes it one month before the next season
+ *   season-rotation reaper deletes it two weeks before the next season
  *   airs (the owner's spec; audit 17).
  * - verdicts carries one row per (user, room, title); verdict changes are
  *   UPSERTs (the review screen's tap-to-change contract).

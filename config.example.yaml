@@ -8,8 +8,9 @@ servers:
 
 # anime:
 #   # Pinning EITHER season or year disables the automatic season
-#   # rotation (the deck normally flips to the next season one month
-#   # before it airs). Pins are for testing, not normal operation.
+#   # rotation (the deck normally flips to the next season two weeks
+#   # before it airs, when that season's list freezes). Pins are for
+#   # testing, not normal operation.
 #   season: SUMMER        # WINTER | SPRING | SUMMER | FALL (default: auto)
 #   year: 2026            # default: auto
 #   showSequels: false    # default false -- sequels hidden from the deck

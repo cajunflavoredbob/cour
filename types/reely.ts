@@ -25,8 +25,8 @@ export interface Config {
   anime?: {
     // Broadcast season + year to serve. Setting EITHER pins the snapshot
     // and disables the automatic rotation; when both are absent the
-    // served season auto-rotates one month ahead of the calendar
-    // changeover (servedSeason's contract).
+    // served season auto-rotates at the incoming season's lock instant,
+    // two weeks before it airs (servedSeason's contract).
     // Env: ANIME_SEASON / ANIME_YEAR.
     season?: "WINTER" | "SPRING" | "SUMMER" | "FALL";
     year?: number;
@@ -130,7 +130,7 @@ export interface AppConfig {
   requiresConfiguration: boolean;
   serverName?: string;
   providerType?: ProviderType;
-  // The broadcast season the server is SERVING (rotates one month ahead
+  // The broadcast season the server is SERVING (rotates two weeks ahead
   // of the calendar changeover). The UI prefers this over its own clock
   // for theming and labels; absent only when no server is configured.
   season?: "WINTER" | "SPRING" | "SUMMER" | "FALL";

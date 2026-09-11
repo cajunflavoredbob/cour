@@ -30,12 +30,14 @@ Names are 1-32 characters, unique case-insensitively.
   (the filter vocabulary was removed entirely: cour deals the whole
   season).
 - The server serves ONE season at a time and rotates to the next season
-  one month before it airs (Dec 1 / Mar 1 / Jun 1 / Sep 1, evaluated in
-  the server's clock -- UTC as shipped, and precision-to-the-hour is all
-  the mechanism needs; accepted as-is). The show
-  list refreshes daily during the pre-season window and freezes two
-  weeks before the season starts, so nobody's deck shifts under them
-  while they lock in.
+  two weeks before it airs (Sep 17 / Dec 18 / Mar 18 / Jun 17, evaluated
+  in the server's clock -- UTC as shipped, and precision-to-the-hour is
+  all the mechanism needs; accepted as-is). Rotation and the show list's
+  freeze are the SAME instant: a deck is never served before it is
+  stable, so nobody's deck shifts under them while they lock in, and the
+  season still airing is not retired early. Pinning a season is the only
+  way to serve one before its lock, and it is the only case where the
+  daily pre-season list refresh still runs.
 - **Rooms and their members are deleted at rotation** (the rotation
   reaper). Until then everything stays saved. A reused room name simply
   creates fresh next season; user identities are global and survive.

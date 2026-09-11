@@ -67,8 +67,9 @@ export const createProvider = (
   // A configured season or year pins the snapshot: no rotation, resolved
   // once (partial overrides compose with plain calendar detection, as
   // before -- season without year pins the season in the current year).
-  // Unpinned is the production mode: the served season auto-rotates one
-  // month ahead of the calendar changeover (servedSeason's contract).
+  // Unpinned is the production mode: the served season auto-rotates at
+  // the incoming season's lock instant, two weeks before it airs
+  // (servedSeason's contract).
   const pinned = options.season != null || options.year != null;
   const resolveTarget = (): { season: AnimeSeason; year: number } =>
     pinned
@@ -118,12 +119,16 @@ export const createProvider = (
 
   // Season lifecycle scheduler (the owner's rotation spec, replacing the
   // 0.12.0 end-of-season refresh). Hourly tick, two jobs:
-  //   1. Rotation: when the served target moves past the snapshot
-  //      (Dec/Mar/Jun/Sep 1), fetch the incoming season and swap.
-  //   2. Pre-season refresh: from rotation until the list freeze (two
-  //      weeks before the season starts), re-fetch daily so late title
-  //      announcements land. Past the freeze the list never changes --
-  //      people are locking in against it.
+  //   1. Rotation: when the served target moves past the snapshot (the
+  //      incoming season's lock instant, two weeks before it airs),
+  //      fetch the incoming season and swap.
+  //   2. Pre-season refresh: re-fetch daily while the served season's
+  //      list is still unfrozen, so late title announcements land.
+  //      UNPINNED providers never hit this: rotation and freeze are the
+  //      same instant now, so a served season is frozen from the moment
+  //      it is served, and the deck the rotation fetch pulls is final.
+  //      It stays live for PINNED providers, where a season can be
+  //      served well before its lock instant.
   // Keyed off the cache timestamp so restarts don't re-trigger; `busy`
   // serializes the jobs so a slow fetch can't stack.
   let lastFetchedAt = 0;
