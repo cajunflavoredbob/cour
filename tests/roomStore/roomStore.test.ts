@@ -60,7 +60,9 @@ beforeEach(() => {
 
 describe('resolveRoomSeason', () => {
   it('prefers the config anime block over date detection', () => {
-    expect(resolveRoomSeason()).toEqual({ season: 'SUMMER', year: 2026 });
+    // A config-pinned season is never provisional: only the provider's
+    // boot fallback produces a season it knows is behind.
+    expect(resolveRoomSeason()).toEqual({ season: 'SUMMER', year: 2026, provisional: false });
   });
 
   it('prefers the live provider season over everything', () => {
@@ -69,7 +71,65 @@ describe('resolveRoomSeason', () => {
       season: 'FALL',
       year: 2026,
     });
-    expect(resolveRoomSeason(ctx.providers)).toEqual({ season: 'FALL', year: 2026 });
+    expect(resolveRoomSeason(ctx.providers)).toEqual({
+      season: 'FALL',
+      year: 2026,
+      provisional: false,
+    });
+  });
+
+  it('loadRoom still deletes a mismatched room even while provisional (BENCH-NEEDED)', async () => {
+    // Pins the CURRENT, deliberate behaviour so the reverted fix is not
+    // silently reintroduced. Keeping the row instead of deleting it was
+    // tried in the 1.3.7 audit and reverted: the surviving row gets
+    // adopted by the create path, which permanently burns a locked
+    // member's one-shot ranking and contaminates the next season's
+    // standings. Deletion here is a known, recoverable data loss; the
+    // alternative was an unrecoverable one. See the note at
+    // roomStore.ts:167. Closing this properly is the owner's call.
+    const ctx = makeCtx();
+    const p = ctx.providers[0] as {
+      getSeason?: () => unknown;
+      isSeasonProvisional?: () => boolean;
+    };
+    // Provider fell back to SUMMER; the room belongs to the season we are
+    // actually rotating into.
+    p.getSeason = () => ({ season: 'SUMMER', year: 2026 });
+    p.isSeasonProvisional = () => true;
+    const created = cour.rooms.create({
+      name: 'fall-room',
+      displayName: 'Fall-Room',
+      season: 'FALL',
+      year: 2026,
+      showSequels: false,
+    });
+    const user = cour.users.create('user1').id;
+    cour.members.ensure(created.id, user);
+    cour.verdicts.upsert(user, created.id, 101, 'like');
+
+    expect(await loadRoom('fall-room', ctx)).toBeNull();
+    // Deleted, not kept. If this ever starts passing with the row alive,
+    // the reverted fix is back and the adoption path is reachable again.
+    expect(cour.rooms.byName('fall-room')).toBeUndefined();
+    expect(cour.members.list(created.id)).toHaveLength(0);
+  });
+
+  it('carries the provider provisional flag through to the delete paths', () => {
+    // The destructive consumers (the boot sweep and loadRoom's stale
+    // guard) must be able to see that the provider's season is a fallback
+    // and is deliberately BEHIND the real one.
+    const ctx = makeCtx();
+    const p = ctx.providers[0] as {
+      getSeason?: () => unknown;
+      isSeasonProvisional?: () => boolean;
+    };
+    p.getSeason = () => ({ season: 'SUMMER', year: 2026 });
+    p.isSeasonProvisional = () => true;
+    expect(resolveRoomSeason(ctx.providers)).toEqual({
+      season: 'SUMMER',
+      year: 2026,
+      provisional: true,
+    });
   });
 });
 

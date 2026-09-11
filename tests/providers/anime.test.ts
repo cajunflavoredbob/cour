@@ -23,10 +23,20 @@ const { mockApi, AniListApiMock, loadCacheMock, saveCacheMock } = vi.hoisted(() 
   };
 });
 
-vi.mock('../../internal/app/anilist/api', () => ({
-  AniListApi: AniListApiMock,
-  ANILIST_API_URL: 'https://graphql.anilist.co',
-}));
+vi.mock('../../internal/app/anilist/api', async () => {
+  // DegradedUpstreamError must be the REAL class: ensureLoaded branches on
+  // `err instanceof DegradedUpstreamError` to decide whether the
+  // previous-season fallback is allowed, and a stubbed-out (undefined)
+  // export makes that expression throw rather than evaluate false.
+  const actual = await vi.importActual<typeof import('../../internal/app/anilist/api')>(
+    '../../internal/app/anilist/api',
+  );
+  return {
+    AniListApi: AniListApiMock,
+    ANILIST_API_URL: 'https://graphql.anilist.co',
+    DegradedUpstreamError: actual.DegradedUpstreamError,
+  };
+});
 vi.mock('../../internal/app/anilist/cache', () => ({
   SEASON_CACHE_VERSION: 1,
   loadSeasonCache: loadCacheMock,
@@ -39,6 +49,7 @@ vi.mock('../../internal/app/tmdb/api', () => ({
   enrichStills: tmdbEnrichMock,
 }));
 
+import { DegradedUpstreamError } from '../../internal/app/anilist/api';
 import { type AnimeProviderConfig, createProvider } from '../../internal/app/reely/providers/anime';
 
 const entry = (over: Partial<SeasonalAnime> = {}): SeasonalAnime => ({
@@ -472,24 +483,229 @@ describe('season rotation (unpinned)', () => {
     // Rotation and freeze are the same instant, so an unpinned provider
     // only ever serves a season whose list is already locked. The deck
     // the rotation fetch pulled is final -- nothing re-fetches it.
-    vi.setSystemTime(new Date(2026, 8, 20)); // FALL 2026, locked Sep 17
+    //
+    // Sep 5 is chosen because it DISCRIMINATES against the old behaviour:
+    // the one-month rotation served FALL here with its freeze (Sep 17)
+    // still ahead, so it refreshed daily. Under the unified lock the
+    // served season is SUMMER, frozen since Jun 17. A date past Sep 17
+    // would pass under both implementations and prove nothing.
+    vi.setSystemTime(new Date(2026, 8, 5));
     loadCacheMock.mockImplementation((_dir: string, season: string) =>
-      season === 'FALL'
+      season === 'SUMMER'
         ? Promise.resolve({
           version: 1,
           fetchedAt: Date.now() - 3 * 24 * HOUR, // stale enough to tempt a refresh
-          season: 'FALL',
+          season: 'SUMMER',
           year: 2026,
-          media: [entry({ id: 9, title: 'Cached Fall' })],
+          media: [entry({ id: 9, title: 'Cached Summer' })],
         })
         : Promise.resolve(undefined));
 
     const provider = unpinned();
-    expect((await provider.getMedia()).map((m) => m.title)).toEqual(['Cached Fall']);
+    expect(provider.getSeason?.()).toEqual({ season: 'SUMMER', year: 2026 });
+    expect((await provider.getMedia()).map((m) => m.title)).toEqual(['Cached Summer']);
     await flush();
     await vi.advanceTimersByTimeAsync(72 * HOUR); // three days of ticks
     await flush();
     expect(mockApi.fetchSeason).not.toHaveBeenCalled();
+  });
+
+  it('refuses an empty deck on a cold boot rather than serving it all season', async () => {
+    // The guard in refresh() used to require a non-empty deck already
+    // serving, so a cache-miss boot against a degraded AniList accepted
+    // zero entries, persisted them, and served them until the next
+    // rotation -- with nothing left to repair it, and the boot sweep
+    // reaping the outgoing season's rooms on the way past. Boot must
+    // fail loudly instead.
+    vi.setSystemTime(new Date(2026, 8, 20));
+    loadCacheMock.mockResolvedValue(undefined); // cache miss
+    mockApi.fetchSeason.mockResolvedValue([]); // degraded upstream
+
+    const provider = unpinned();
+    expect(await provider.isAvailable()).toBe(false);
+    expect(saveCacheMock).not.toHaveBeenCalled();
+  });
+
+  it('a DEGRADED upstream does not fall back: the season must not move backward', async () => {
+    // The fallback exists for an UNREACHABLE upstream, so a boot can ride
+    // out an outage. It must NOT engage for an upstream that answered with
+    // garbage, because falling back moves the served season BACKWARD and
+    // puts every room stamped with the real incoming season in front of
+    // the reaper and loadRoom's delete. Before the truncation and
+    // empty-deck guards existed, this case served a short deck with the
+    // season still correct and the data intact, which was recoverable.
+    vi.setSystemTime(new Date(2026, 8, 20)); // served season FALL 2026
+    loadCacheMock.mockImplementation((_dir: string, season: string) =>
+      season === 'SUMMER'
+        ? Promise.resolve({
+          version: 1,
+          fetchedAt: 5,
+          season: 'SUMMER',
+          year: 2026,
+          media: [entry({ id: 9, title: 'Old Season' })],
+        })
+        : Promise.resolve(undefined));
+    mockApi.fetchSeason.mockRejectedValue(
+      new DegradedUpstreamError('page 2 returned no entries mid-pagination'),
+    );
+
+    const provider = unpinned();
+    expect(await provider.isAvailable()).toBe(false);
+    // Season stayed correct, and nothing was marked provisional, so the
+    // boot sweep and loadRoom never act against a stale value.
+    expect(provider.getSeason?.()).toEqual({ season: 'FALL', year: 2026 });
+    expect(provider.isSeasonProvisional?.()).toBe(false);
+  });
+
+  it('an UNREACHABLE upstream still falls back (the outage path is unchanged)', async () => {
+    vi.setSystemTime(new Date(2026, 8, 20));
+    loadCacheMock.mockImplementation((_dir: string, season: string) =>
+      season === 'SUMMER'
+        ? Promise.resolve({
+          version: 1,
+          fetchedAt: 5,
+          season: 'SUMMER',
+          year: 2026,
+          media: [entry({ id: 9, title: 'Old Season' })],
+        })
+        : Promise.resolve(undefined));
+    mockApi.fetchSeason.mockRejectedValue(new Error('fetch failed: ECONNREFUSED'));
+
+    const provider = unpinned();
+    expect(await provider.isAvailable()).toBe(true);
+    expect(provider.getSeason?.()).toEqual({ season: 'SUMMER', year: 2026 });
+    expect(provider.isSeasonProvisional?.()).toBe(true);
+  });
+
+  it('a discarded EMPTY served-season cache does not fall back either', async () => {
+    // The empty-is-a-miss rule opened a second route into the backward
+    // fallback: discard the served season's zero-entry file, fail the live
+    // fetch with an unreachable-upstream error (a plain Error, so the
+    // DegradedUpstreamError rethrow does not catch it), and the provider
+    // would drop to the PREVIOUS season and set provisional, putting every
+    // room stamped with the real served season in front of the reaper.
+    // Before the rule existed this case served the empty file and kept the
+    // season CORRECT, so falling back here is a regression against 1.3.6.
+    vi.setSystemTime(new Date(2026, 8, 20)); // served season FALL 2026
+    loadCacheMock.mockImplementation((_dir: string, season: string) =>
+      season === 'FALL'
+        ? Promise.resolve({ version: 1, fetchedAt: 5, season: 'FALL', year: 2026, media: [] })
+        : Promise.resolve({
+          version: 1,
+          fetchedAt: 5,
+          season: 'SUMMER',
+          year: 2026,
+          media: [entry({ id: 9, title: 'Old Season' })],
+        }));
+    mockApi.fetchSeason.mockRejectedValue(new Error('fetch failed: ECONNREFUSED'));
+
+    const provider = unpinned();
+    expect(await provider.isAvailable()).toBe(false);
+    // Season stayed correct; nothing became provisional; no room is at risk.
+    expect(provider.getSeason?.()).toEqual({ season: 'FALL', year: 2026 });
+    expect(provider.isSeasonProvisional?.()).toBe(false);
+  });
+
+  it('an EMPTY previous-season cache is not served as a fallback', async () => {
+    // A zero-entry fallback file would boot the app "healthy" on a dead
+    // deck (every join dies with NoMediaError) AND set the provisional
+    // flag that suppresses the boot reaper. A poisoned season file becomes
+    // `prev` within one rotation, so this branch sees the same population
+    // the primary cache read does.
+    vi.setSystemTime(new Date(2026, 8, 20));
+    loadCacheMock.mockImplementation((_dir: string, season: string) =>
+      season === 'SUMMER'
+        ? Promise.resolve({ version: 1, fetchedAt: 5, season: 'SUMMER', year: 2026, media: [] })
+        : Promise.resolve(undefined));
+    mockApi.fetchSeason.mockRejectedValue(new Error('fetch failed: ECONNREFUSED'));
+
+    const provider = unpinned();
+    expect(await provider.isAvailable()).toBe(false);
+    expect(provider.isSeasonProvisional?.()).toBe(false);
+  });
+
+  it('a PARTIAL pin does not rotate at the calendar boundary', async () => {
+    // A pin is documented as disabling rotation, but the target used to
+    // be recomposed from the clock on every tick, so the unset half
+    // tracked the calendar. A season-only pin flipped its YEAR at New
+    // Year; a year-only pin flipped its SEASON each quarter and could
+    // rotate twelve months backward. Every such rotation fires the
+    // reaper over every room.
+    vi.setSystemTime(new Date(2026, 11, 31, 23, 30)); // New Year's Eve
+    const provider = makeProvider({ season: 'SUMMER', year: undefined });
+    await provider.getMedia();
+    expect(provider.getSeason?.()).toEqual({ season: 'SUMMER', year: 2026 });
+
+    // Cross into the new year; a pinned provider must not move.
+    await vi.advanceTimersByTimeAsync(3 * HOUR);
+    await flush();
+    expect(provider.getSeason?.()).toEqual({ season: 'SUMMER', year: 2026 });
+  });
+
+  it('a YEAR-only pin does not rotate at a quarter boundary', async () => {
+    vi.setSystemTime(new Date(2026, 8, 30, 23, 30)); // Sep 30, SUMMER ends
+    const provider = makeProvider({ season: undefined, year: 2026 });
+    await provider.getMedia();
+    const before = provider.getSeason?.();
+    expect(before).toEqual({ season: 'SUMMER', year: 2026 });
+
+    await vi.advanceTimersByTimeAsync(3 * HOUR); // into Oct 1, FALL
+    await flush();
+    expect(provider.getSeason?.()).toEqual(before);
+  });
+
+  it('treats an EMPTY cache file as a miss rather than serving zero entries', async () => {
+    // The population this protects: a data dir written by the pre-fix
+    // cold-boot path, which persisted media: [] against a degraded
+    // AniList. Upgrading alone would not repair it, because the refresh
+    // gate is permanently shut for an unpinned provider, so the empty
+    // file must not be accepted as a snapshot in the first place.
+    vi.setSystemTime(new Date(2026, 8, 20));
+    loadCacheMock.mockResolvedValue({
+      version: 1,
+      fetchedAt: Date.now(),
+      season: 'FALL',
+      year: 2026,
+      media: [],
+    });
+
+    const provider = unpinned();
+    await provider.getMedia();
+    // Fell through to the live fetch instead of serving the empty file.
+    expect(mockApi.fetchSeason).toHaveBeenCalledWith('FALL', 2026);
+    expect((await provider.getMedia()).length).toBeGreaterThan(0);
+  });
+
+  it('flags a fallback season as provisional, and clears it once a rotation lands', async () => {
+    // ensureLoaded falls back to the PREVIOUS season when the incoming
+    // fetch fails, which moves the served season BACKWARDS. The reaper
+    // deletes on any mismatch in either direction, so the boot sweep
+    // would wipe the incoming season's rooms. The provisional flag is
+    // what lets app.ts defer the sweep until the season settles.
+    vi.setSystemTime(new Date(2026, 8, 20)); // targets FALL 2026
+    loadCacheMock.mockImplementation((_dir: string, season: string) =>
+      season === 'SUMMER'
+        ? Promise.resolve({
+          version: 1,
+          fetchedAt: 5,
+          season: 'SUMMER',
+          year: 2026,
+          media: [entry({ id: 9, title: 'Old Season' })],
+        })
+        : Promise.resolve(undefined));
+    mockApi.fetchSeason.mockRejectedValueOnce(new Error('AniList down'));
+
+    const provider = unpinned();
+    await provider.getMedia();
+    expect(provider.getSeason?.()).toEqual({ season: 'SUMMER', year: 2026 });
+    expect(provider.isSeasonProvisional?.()).toBe(true);
+
+    // The hourly tick completes the rotation; the season is settled now.
+    mockApi.fetchSeason.mockResolvedValue(SEASON);
+    await vi.advanceTimersByTimeAsync(2 * HOUR);
+    await flush();
+    expect(provider.getSeason?.()).toEqual({ season: 'FALL', year: 2026 });
+    expect(provider.isSeasonProvisional?.()).toBe(false);
   });
 
   it('still refreshes daily for a PINNED season before its lock instant', async () => {

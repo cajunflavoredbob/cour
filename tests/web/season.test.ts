@@ -1,6 +1,10 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from 'vitest';
 import {
+  detectSeason as serverDetectSeason,
+  servedSeason as serverServedSeason,
+} from '../../internal/app/anilist/season';
+import {
   applySeasonTheme,
   detectSeason,
   SEASON_THEMES,
@@ -64,6 +68,52 @@ describe('applySeasonTheme', () => {
   it('defaults to the current date season', () => {
     const applied = applySeasonTheme();
     expect(applied.season).toBe(detectSeason(new Date()).season);
+  });
+});
+
+// NOTE on the server import above: web/app/tsconfig.json includes
+// ../../tests/web, so importing internal/app/anilist/season pulls server
+// source into the UI TypeScript project. That is acceptable here and only
+// here: the server season module is deliberately pure, its sole import is
+// a type-only AnimeSeason, and both tsconfigs share a compatible target.
+// Keep it that way -- if that module ever grows a node: import, this
+// import breaks `typecheck:ui` with a failure reported against a path
+// outside web/app, which is a confusing place to land.
+//
+// The one test that mechanically ties the two implementations together.
+// Everything else on both sides is a hand-maintained expectation table, so
+// a one-sided edit to the lead time or the boundary rule would leave both
+// files green while the UI themed and labelled a season the server was not
+// serving. This imports BOTH and compares them directly.
+describe('client mirror parity with the server', () => {
+  it('agrees with internal/app/anilist/season.ts on every day for a decade', () => {
+    const mismatches: string[] = [];
+    const cursor = new Date(2024, 0, 1);
+    const end = new Date(2034, 0, 1);
+    while (cursor.getTime() < end.getTime()) {
+      // Sample the hours AROUND local midnight, not just midday. The lock
+      // instants are local midnight, so midday-only sampling cannot see a
+      // client that computes the lock an hour early. That is exactly the
+      // DST defect the calendar-arithmetic form fixes, and reverting the
+      // client alone used to leave this suite green in every timezone.
+      for (const hour of [0, 1, 12, 23]) {
+        const at = new Date(cursor.getFullYear(), cursor.getMonth(), cursor.getDate(), hour);
+        const mine = servedSeason(at);
+        const theirs = serverServedSeason(at);
+        if (mine.season !== theirs.season || mine.year !== theirs.year) {
+          mismatches.push(
+            `${at.toString().slice(0, 24)}: client ${mine.season} ${mine.year} vs server ${theirs.season} ${theirs.year}`,
+          );
+        }
+        const mineCal = detectSeason(at);
+        const theirsCal = serverDetectSeason(at);
+        if (mineCal.season !== theirsCal.season || mineCal.year !== theirsCal.year) {
+          mismatches.push(`${at.toString().slice(0, 24)}: detectSeason disagrees`);
+        }
+      }
+      cursor.setDate(cursor.getDate() + 1);
+    }
+    expect(mismatches.slice(0, 5)).toEqual([]);
   });
 });
 

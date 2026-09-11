@@ -99,10 +99,31 @@ describe('seasonStart / seasonLockAt / listFreezeAt', () => {
   });
 
   it('rotation and list freeze are the same instant, by construction', () => {
+    // listFreezeAt is a plain alias of seasonLockAt, so asserting the two
+    // are equal is a tautology. Pin the instants as LITERAL dates instead.
+    // An earlier version computed the expectation with the same expression
+    // the implementation uses, which only caught the lead constant
+    // drifting and would have passed a wrong month or a sign error. The
+    // 400-day invariant below cannot catch either, since it reads the same
+    // lead from both sides and holds for any value.
+    const EXPECTED: Record<string, [Date, Date]> = {
+      // season -> [lock instant, season start]
+      WINTER: [new Date(2026, 11, 18), new Date(2027, 0, 1)],
+      SPRING: [new Date(2027, 2, 18), new Date(2027, 3, 1)],
+      SUMMER: [new Date(2027, 5, 17), new Date(2027, 6, 1)],
+      FALL: [new Date(2027, 8, 17), new Date(2027, 9, 1)],
+    };
     for (const season of ['WINTER', 'SPRING', 'SUMMER', 'FALL'] as const) {
-      expect(listFreezeAt(season, 2027)).toEqual(seasonLockAt(season, 2027));
-      // And that instant is exactly when the deck rotates to it.
+      const [expectedLock, expectedStart] = EXPECTED[season];
       const lock = seasonLockAt(season, 2027);
+      expect(lock).toEqual(expectedLock);
+      expect(seasonStart(season, 2027)).toEqual(expectedStart);
+      expect(listFreezeAt(season, 2027)).toEqual(expectedLock);
+      // Local midnight in EVERY timezone: the lead is calendar days, not
+      // 14*24h of milliseconds, so a DST changeover inside the window
+      // cannot shift the rotation (and the reaper) off the documented day.
+      expect([lock.getHours(), lock.getMinutes(), lock.getSeconds()]).toEqual([0, 0, 0]);
+      // And that instant is exactly when the deck rotates to it.
       expect(servedSeason(lock)).toEqual({ season, year: 2027 });
       expect(servedSeason(new Date(lock.getTime() - 1))).not.toEqual({ season, year: 2027 });
     }

@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises';
+import type { DatabaseSync } from 'node:sqlite';
 import { createServer as createHttpServer } from 'node:http';
 import { createServer as createHttpsServer } from 'node:https';
 import express from 'express';
@@ -35,6 +36,39 @@ export const Application = (config: Config, signal?: AbortSignal): ApplicationIn
   // statusCode rejects with ProviderUnavailableError so main.ts can log that
   // case specifically.
   const statusCode = new Promise<number | undefined>((resolveStatus, rejectStatus) => {
+    // Hoisted out of the async body so the FAILED-boot path can close it
+    // too. openDb() runs early (before the provider probe), so a boot that
+    // throws ProviderUnavailableError used to leave the handle open with
+    // an undrained WAL sidecar and exit -- which is precisely the state
+    // that makes a backup of cour.db alone incomplete.
+    let db: DatabaseSync | undefined;
+    // Assigned once the WebSocket server exists, so callbacks constructed
+    // earlier (season rotation) can reach every connected socket without
+    // naming a binding that has not been initialised yet.
+    let wssRef: WebSocketServer | undefined;
+    // Idempotent: called from both the graceful shutdown and the startup
+    // catch, and either may run alone.
+    const closeDb = () => {
+      const handle = db;
+      if (!handle) return;
+      db = undefined;
+      try {
+        // Checkpoint first so the sidecar is drained, but never let a
+        // failing checkpoint skip the close: `db` is already cleared, so a
+        // retry would no-op on the null check above and the handle would
+        // leak for the process lifetime with its WAL still undrained.
+        try {
+          handle.exec('PRAGMA wal_checkpoint(TRUNCATE)');
+        } finally {
+          handle.close();
+        }
+        logger.info('Database checkpointed and closed.');
+      } catch (err) {
+        // Never let a close failure hang shutdown or mask a boot error:
+        // the data is committed, and the next open recovers from the WAL.
+        logger.error(`Database checkpoint/close failed: ${String(err)}`);
+      }
+    };
     (async () => {
       // Read TLS cert + key FIRST when TLS is configured (audit 13 #293).
       // The prior ordering read these only when constructing the https
@@ -58,7 +92,8 @@ export const Application = (config: Config, signal?: AbortSignal): ApplicationIn
 
       // The cour database (0.5.0): users, rooms, verdicts, results. One
       // handle per process; node:sqlite is synchronous, so no pool.
-      const cour = createCourStore(openDb());
+      db = openDb();
+      const cour = createCourStore(db);
 
       // Re-fetch each open in-memory room's deck and push it to connected
       // clients. Shared by stills enrichment, the daily pre-freeze
@@ -121,7 +156,8 @@ export const Application = (config: Config, signal?: AbortSignal): ApplicationIn
             onStillsEnriched: pushMediaToOpenRooms,
             // Same push for the startup self-refresh and the daily
             // pre-freeze refresh (audit v1.2.0 #13): the snapshot must
-            // never drift ahead of open rooms until a restart.
+            // never drift ahead of open rooms until a restart. Both are
+            // pinned-season-only in practice; see the provider's note.
             onRefreshed: pushMediaToOpenRooms,
             // Season rotation landed (new snapshot already serving):
             // delete last season's rooms (the rotation reaper -- rows
@@ -150,8 +186,40 @@ export const Application = (config: Config, signal?: AbortSignal): ApplicationIn
                     season: season.season,
                     year: season.year,
                   };
-                  for (const room of getAllRooms()) {
-                    room.broadcastMessage({ type: 'config', payload });
+                  // EVERY connected socket, not just room members. This
+                  // used to iterate getAllRooms() and call
+                  // room.broadcastMessage, which only reaches users
+                  // inside a room, and sendConfig() runs exactly once per
+                  // connection (in the Client constructor). So a client
+                  // sitting on the join form, or one that had left a
+                  // room, kept the OUTGOING season's label, kanji and
+                  // accent for the life of its socket -- and the 30s ping
+                  // keeps healthy idle sockets alive rather than cycling
+                  // them, so no reconnect repaired it. Joining afterwards
+                  // dealt them the new season's deck under the old
+                  // season's chip.
+                  //
+                  // Stringify once, same reasoning as
+                  // Room.broadcastMessage with multi-KB payloads.
+                  //
+                  // wssRef, not wss: this closure is built while the
+                  // provider is constructed, ~150 lines before `const wss`
+                  // executes, so naming wss directly is a latent TDZ
+                  // ReferenceError if anything ever invokes the callback
+                  // earlier than the first scheduler tick.
+                  //
+                  // Per-socket try/catch: a single bad socket must not
+                  // abort the loop and leave the remaining clients on the
+                  // outgoing season, which is the exact failure this
+                  // broadcast exists to prevent.
+                  const frame = JSON.stringify({ type: 'config', payload });
+                  for (const ws of wssRef?.clients ?? []) {
+                    if (ws.readyState !== ws.OPEN) continue;
+                    try {
+                      ws.send(frame);
+                    } catch (err) {
+                      logger.warn(`config broadcast to a client failed: ${String(err)}`);
+                    }
                   }
                 })
                 .catch((err) => {
@@ -180,8 +248,29 @@ export const Application = (config: Config, signal?: AbortSignal): ApplicationIn
         // isAvailable so the provider's season is settled (it may be the
         // previous season if the incoming fetch had to fall back), and
         // before listen() so no client can load a stale room first.
-        const bootSeason = providers[0]?.getSeason?.();
-        if (bootSeason) reconcileRoomSeasons(cour, bootSeason);
+        const bootProvider = providers[0];
+        const bootSeason = bootProvider?.getSeason?.();
+        if (bootSeason && bootProvider?.isSeasonProvisional?.()) {
+          // Deferred, not skipped: the provider is serving the PREVIOUS
+          // season because the incoming fetch failed. Sweeping against a
+          // value we know is behind would delete the rooms of the season
+          // we are rotating INTO. The hourly tick completes the rotation
+          // and onSeasonRotated runs the sweep with the settled season.
+          //
+          // Deliberately ALL-or-nothing. Rooms older than even the
+          // provisional season are dead under any reading and could in
+          // principle be reaped now, but adding a second deletion path
+          // that runs specifically while the season is known-wrong trades
+          // a harmless delay (those rows survive until the rotation
+          // lands) for risk on the most destructive path in the app.
+          // Not worth it.
+          logger.warn(
+            `Boot season sweep deferred: provider is serving a provisional ` +
+              `${bootSeason.season} ${bootSeason.year} until a rotation attempt succeeds.`,
+          );
+        } else if (bootSeason) {
+          reconcileRoomSeasons(cour, bootSeason);
+        }
       }
 
       const app = express();
@@ -281,6 +370,11 @@ export const Application = (config: Config, signal?: AbortSignal): ApplicationIn
         : createHttpServer(app);
 
       const wss = new WebSocketServer({ noServer: true, maxPayload: 65536 });
+      // Published for callbacks built earlier in this IIFE (the season
+      // rotation config broadcast). Reading `wss` from one of those
+      // directly would be a TDZ hazard: the binding does not exist until
+      // this line runs.
+      wssRef = wss;
 
       // Track liveness per-socket. We tag the WS via (ws as unknown as ...) to
       // avoid extending the ws type globally; the property is private to this
@@ -358,6 +452,14 @@ export const Application = (config: Config, signal?: AbortSignal): ApplicationIn
         wss.close();
         httpServer.close(() => {
           logger.info('Server closed.');
+          // Checkpoint and close the database LAST, once the server is
+          // down and no handler can still touch it. Nothing did this
+          // before, so the -wal sidecar accumulated everything written
+          // since SQLite's last automatic checkpoint and the main file
+          // lagged badly: a backup, `docker cp` or volume snapshot that
+          // copied cour.db without its sidecar silently lost the
+          // difference, which in practice was most of the data.
+          closeDb();
           resolveStatus(undefined);
         });
         httpServer.closeAllConnections();
@@ -381,6 +483,10 @@ export const Application = (config: Config, signal?: AbortSignal): ApplicationIn
     })().catch((err) => {
       // ProviderUnavailableError flows up to main.ts so it can log it
       // specifically; everything else becomes a generic startup-error exit.
+      // The handle is opened before the provider probe, so a boot that
+      // fails past that point owns an open database with an undrained
+      // WAL. Close it on the way out or the next backup is incomplete.
+      closeDb();
       if (err instanceof ProviderUnavailableError) {
         rejectStatus(err);
         return;

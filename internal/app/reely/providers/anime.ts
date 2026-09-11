@@ -1,6 +1,6 @@
 import { join } from 'node:path';
 import type { Media } from '../../../../types/reely';
-import { AniListApi } from '../../anilist/api';
+import { AniListApi, DegradedUpstreamError } from '../../anilist/api';
 import { loadSeasonCache, saveSeasonCache, SEASON_CACHE_VERSION } from '../../anilist/cache';
 import {
   detectSeason,
@@ -27,8 +27,11 @@ export interface AnimeProviderConfig {
   // Fired after enrichment adds stills, so the app layer can push the
   // refreshed media to rooms that are already open (0.9.1).
   onStillsEnriched?: () => void;
-  // Fired after a same-season snapshot refresh lands (the startup
-  // self-refresh and the daily pre-freeze refresh). Without it, open
+  // Fired after a same-season snapshot refresh lands. Both producers
+  // (the startup self-refresh and the daily pre-freeze refresh) are gated
+  // on the season's list still being unfrozen, which for an UNPINNED
+  // provider is never -- rotation and the freeze are one instant -- so in
+  // production this fires only for a PINNED season. Without it, open
   // rooms served their creation-day deck until a restart while the
   // provider snapshot moved on (audit v1.2.0 #13).
   onRefreshed?: () => void;
@@ -47,8 +50,11 @@ const COVER_FETCH_TIMEOUT_MS = 30_000;
  *
  * Data flow: one seasonal snapshot (SeasonalAnime[]) held in memory, loaded
  * once per process via `ensureLoaded`:
- *   - disk cache hit  -> serve it immediately, refresh from AniList in the
- *     background (startup self-refresh), persist the refreshed snapshot.
+ *   - disk cache hit  -> serve it immediately. A startup self-refresh
+ *     follows ONLY while the season's list is still unfrozen, which for
+ *     an UNPINNED provider is never: rotation and the freeze are the same
+ *     instant, so a served season is always already locked. In practice
+ *     this path fires for pinned seasons only.
  *   - disk cache miss -> block on the live fetch (first boot). If that also
  *     fails (first boot offline), isAvailable() reports false and app boot
  *     fails with ProviderUnavailableError -- there is nothing to serve.
@@ -71,13 +77,24 @@ export const createProvider = (
   // the incoming season's lock instant, two weeks before it airs
   // (servedSeason's contract).
   const pinned = options.season != null || options.year != null;
+  // A pin is resolved exactly ONCE, here at construction. This used to
+  // compose the pinned half with a live detectSeason() on every hourly
+  // tick, which meant a "pinned" provider still rotated, contradicting
+  // every doc that says a pin disables rotation: ANIME_YEAR alone flipped
+  // the season at each calendar quarter, and ANIME_SEASON alone flipped
+  // the year at New Year -- rotating a full twelve months BACKWARD into a
+  // season that finished airing a year earlier, and firing the rotation
+  // reaper over every room on the way. Config validation accepts both
+  // partial forms (validate.ts checks the two fields independently), so
+  // this was reachable from plain config with no clock tampering.
+  const pinnedTarget = pinned
+    ? {
+      season: options.season ?? detectSeason(new Date()).season,
+      year: options.year ?? detectSeason(new Date()).year,
+    }
+    : undefined;
   const resolveTarget = (): { season: AnimeSeason; year: number } =>
-    pinned
-      ? {
-        season: options.season ?? detectSeason(new Date()).season,
-        year: options.year ?? detectSeason(new Date()).year,
-      }
-      : servedSeason(new Date());
+    pinnedTarget ?? servedSeason(new Date());
   // The season the in-memory snapshot actually holds. Tracks the target,
   // with two exceptions: ensureLoaded may fall back one season when a
   // post-rotation boot can't fetch (rotation-pending), and a mid-flight
@@ -133,6 +150,11 @@ export const createProvider = (
   // serializes the jobs so a slow fetch can't stack.
   let lastFetchedAt = 0;
   let rotationCallbackPending = false;
+  // True while ensureLoaded's fallback is serving the PREVIOUS season
+  // because the incoming-season fetch failed. The served season is then
+  // deliberately behind the real one, so the reaper must not act on it.
+  // Cleared the moment a rotation lands.
+  let seasonProvisional = false;
   const REFRESH_EVERY_MS = 24 * 60 * 60 * 1000;
   const SEASON_CHECK_MS = 60 * 60 * 1000;
   let busy = false;
@@ -231,13 +253,27 @@ export const createProvider = (
     // partial success by fetchPage). Swapping the serving snapshot for
     // an empty one AND persisting it would brick the season: past the
     // list freeze nothing ever refreshes again, so every join would
-    // fail with NoMediaError until the next rotation. Treat empty as a
-    // failed refresh whenever a non-empty deck is already serving; the
-    // caller's catch keeps the current snapshot, and the scheduler
-    // retries on its normal cadence.
-    if (media.length === 0 && (list?.length ?? 0) > 0) {
-      throw new Error(
-        `refresh for ${target.season} ${target.year} returned 0 entries; keeping the serving snapshot`,
+    // fail with NoMediaError until the next rotation.
+    //
+    // The guard used to require a non-empty deck already serving, which
+    // left the cold-boot case accepting zero entries, persisting them,
+    // and serving them for the whole season: with rotation and freeze now
+    // the same instant, no later fetch repairs it.
+    //
+    // The condition is "would this empty deck be PERMANENT", not simply
+    // "is it empty". A frozen season gets no further fetch, so an empty
+    // one must be refused even on a cold boot. A season still inside its
+    // pre-freeze window refreshes daily and self-heals, so refusing there
+    // would turn a legitimately-empty pinned season (validate.ts accepts
+    // any year from 1940 to 2100, explicitly for next-season configs)
+    // into a boot crash loop under `restart: unless-stopped`.
+    const frozen = Date.now() >= listFreezeAt(target.season, target.year).getTime();
+    if (media.length === 0 && (frozen || (list?.length ?? 0) > 0)) {
+      throw new DegradedUpstreamError(
+        `refresh for ${target.season} ${target.year} returned 0 entries; ` +
+          ((list?.length ?? 0) > 0
+            ? 'keeping the serving snapshot'
+            : 'refusing to serve an empty frozen season'),
       );
     }
     // Carry existing enrichment across refreshes: AniList is the source
@@ -297,6 +333,7 @@ export const createProvider = (
       );
     }
     current = target;
+    seasonProvisional = false;
     setList(media);
     lastFetchedAt = Date.now();
     logger.info(`AniList ${label()}: season rotated in, ${media.length} entries`);
@@ -315,12 +352,35 @@ export const createProvider = (
   const ensureLoaded = (): Promise<void> => {
     if (!loadPromise) {
       loadPromise = (async () => {
-        const cached = await loadSeasonCache(cacheDir, current.season, current.year);
+        // Set when a zero-entry cache file for the SERVED season is thrown
+        // away below. It gates the previous-season fallback: see the catch.
+        let discardedEmptyCache = false;
+        const cachedFile = await loadSeasonCache(cacheDir, current.season, current.year);
+        // An EMPTY cache file is treated as a miss, not as a snapshot.
+        // loadSeasonCache validates only that `media` is an array, and a
+        // zero-entry file is exactly what the pre-1.3.7 cold-boot path
+        // persisted against a degraded AniList. Serving it would mean zero
+        // titles for the whole season with no refresh left to repair it,
+        // so fall through to the live fetch below and let the (now
+        // unconditional) empty guard decide.
+        if (cachedFile && cachedFile.media.length === 0) {
+          discardedEmptyCache = true;
+          logger.warn(
+            `AniList ${label()}: cached snapshot has 0 entries; ignoring it and fetching live`,
+          );
+        }
+        const cached = cachedFile?.media.length ? cachedFile : undefined;
         if (cached) {
           setList(cached.media);
           lastFetchedAt = cached.fetchedAt;
+          // Do NOT promise a background refresh unconditionally: the gate
+          // below is permanently closed for an unpinned provider, and an
+          // operator diagnosing a short deck would read the old wording as
+          // proof the refresh path was working when nothing was scheduled.
+          const willRefresh = Date.now() < listFreezeAt(current.season, current.year).getTime();
           logger.info(
-            `AniList ${label()}: serving ${cached.media.length} cached entries; refreshing in background`,
+            `AniList ${label()}: serving ${cached.media.length} cached entries` +
+              (willRefresh ? '; refreshing in background' : ' (list frozen; no refresh)'),
           );
           // Stills for a cached snapshot too -- refresh() may fail (API
           // down) and enrichment shouldn't die with it.
@@ -333,6 +393,12 @@ export const createProvider = (
           // titles under members who verdicted against the frozen set.
           // A failure keeps the cached snapshot serving -- exactly what
           // the cache is for.
+          //
+          // For an UNPINNED provider this gate is permanently CLOSED:
+          // servedSeason only ever returns a season whose own lock has
+          // passed, and the boot fallback returns an even earlier one. It
+          // stays live for a PINNED season, which can be served before its
+          // lock instant.
           if (Date.now() < listFreezeAt(current.season, current.year).getTime()) {
             refresh().catch((err) => {
               logger.warn(
@@ -352,10 +418,41 @@ export const createProvider = (
           // first boot (no prior season either) still fails: there is
           // nothing to serve.
           if (pinned) throw err;
+          // A DEGRADED upstream must not take the fallback. Falling back
+          // moves the served season BACKWARD, and every room stamped with
+          // the real incoming season is then in front of the reaper and
+          // loadRoom's delete -- measured worse than 1.3.6, which served a
+          // short deck here with the season still correct and the data
+          // intact. The fallback exists for an UNREACHABLE upstream (ride
+          // out an outage), not for one that answered with garbage. Fail
+          // the boot loudly instead; a restart recovers once AniList is
+          // healthy, and nothing is destroyed in the meantime.
+          if (err instanceof DegradedUpstreamError) throw err;
+          // Same reasoning, different route in: we just threw away a
+          // zero-entry cache file for the SERVED season. Falling back now
+          // would move the served season BACKWARD while rooms stamped with
+          // the real served season exist, putting them in front of the
+          // reaper and loadRoom's delete. Before the empty-is-a-miss rule
+          // this case served the empty file and kept the season CORRECT,
+          // so falling back here would be a regression against 1.3.6.
+          // Fail the boot instead: nothing is destroyed, and a restart
+          // repairs the file once upstream is healthy.
+          if (discardedEmptyCache) throw err;
           const prev = previousSeason(current.season, current.year);
           const fallback = await loadSeasonCache(cacheDir, prev.season, prev.year);
-          if (!fallback) throw err;
+          // Same empty-is-a-miss rule as the primary cache read above: a
+          // zero-entry file would boot the app "healthy" with a dead deck
+          // (every join dies at room.ts:55 with NoMediaError) AND set
+          // seasonProvisional, which suppresses the boot reaper. A
+          // poisoned season file becomes `prev` within one rotation, so
+          // this branch sees the same population the primary read does.
+          if (!fallback || fallback.media.length === 0) throw err;
           current = prev;
+          // The served season is now BEHIND the real one. Flag it so the
+          // boot sweep does not reap the incoming season's rooms against
+          // this deliberately-stale value (the reaper deletes on any
+          // mismatch, in either direction).
+          seasonProvisional = true;
           setList(fallback.media);
           lastFetchedAt = fallback.fetchedAt;
           logger.warn(
@@ -432,6 +529,8 @@ export const createProvider = (
     // Copy, not the live object: `current` swaps on rotation and callers
     // must not hold a reference that mutates under them.
     getSeason: () => ({ ...current }),
+
+    isSeasonProvisional: () => seasonProvisional,
 
     getMedia: async (): Promise<Media[]> => {
       await ensureLoaded();

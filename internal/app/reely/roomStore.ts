@@ -28,21 +28,38 @@ const ROOMS_DIR = join(process.cwd(), 'data', 'rooms');
  */
 export const resolveRoomSeason = (
   providers?: RouteContext['providers'],
-): { season: CourRoom['season']; year: number } => {
+): { season: CourRoom['season']; year: number; provisional: boolean } => {
   const live = providers?.[0]?.getSeason?.();
-  if (live) return live;
+  // `provisional` rides along because the DESTRUCTIVE consumers of this
+  // value must distrust it: a provider that fell back to the previous
+  // season at boot is deliberately reporting a season BEHIND the real
+  // one, and deleting rooms against it destroys the incoming season's
+  // data (the boot sweep in app.ts defers for exactly this reason).
+  if (live) {
+    return { ...live, provisional: providers?.[0]?.isSeasonProvisional?.() ?? false };
+  }
   const config = getConfig();
-  // Mirror the provider's resolution exactly: a configured season/year
-  // pins (composing with plain calendar detection), otherwise the
-  // rotated served season.
+  // Everything below is the NO-PROVIDER fallback only: test harnesses
+  // construct Rooms without one, and in production the provider above is
+  // the single source of truth for what season it is.
+  //
+  // It no longer mirrors the provider exactly, and deliberately so. The
+  // provider resolves a pin ONCE at construction (see the note at
+  // providers/anime.ts), because recomposing the unset half of a partial
+  // pin from a live clock made a "pinned" provider rotate at calendar
+  // boundaries. This branch still composes, since it has no construction
+  // point to freeze at. That drift is unreachable in production for the
+  // reason above; if this ever becomes a production path, freeze it the
+  // same way rather than leaving the two resolutions disagreeing.
   if (config.anime?.season != null || config.anime?.year != null) {
     const detected = detectSeason(new Date());
     return {
       season: config.anime?.season ?? detected.season,
       year: config.anime?.year ?? detected.year,
+      provisional: false,
     };
   }
-  return servedSeason(new Date());
+  return { ...servedSeason(new Date()), provisional: false };
 };
 
 /**
@@ -149,6 +166,23 @@ export const loadRoom = async (roomName: string, ctx: RouteContext): Promise<Roo
     // room fresh under the served season.
     const served = resolveRoomSeason(ctx.providers);
     if (courRoom.season !== served.season || courRoom.year !== served.year) {
+      // NOTE (1.3.7 audit, BENCH-NEEDED): deleting here is a real data
+      // loss when `served` is PROVISIONAL, because the provider is then
+      // reporting a season it knows is behind. The obvious fix -- refuse
+      // to restore but keep the row -- was tried and REVERTED: it is
+      // worse. loadRoom returning null sends the join to the create path,
+      // saveRoom no-ops because byName still finds the surviving row, and
+      // verdictContext rebinds to it, so the session ends up bound to the
+      // other season's row while being served the provisional deck. A
+      // member who locked in before the restart then reads zero verdicts,
+      // is routed to the rank screen, and submits an empty ranking that
+      // the store stamps permanently; foreign title ids also land in the
+      // row and survive the reaper once the season settles, because the
+      // row matches by then. Deletion is recoverable by re-picking; that
+      // is not. Closing this properly means teaching the CREATE/adopt
+      // path about the provisional season too (saveRoom at :133 and
+      // verdictContext in client.ts), which needs the owner's call on what
+      // a join should do while the season is settling.
       ctx.cour.rooms.delete(courRoom.id);
       logger.info(
         `Room "${roomName}": stale season ${courRoom.season} ${courRoom.year} deleted on load.`,

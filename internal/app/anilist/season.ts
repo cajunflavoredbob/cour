@@ -24,15 +24,16 @@ export const detectSeason = (
   year: date.getFullYear(),
 });
 
+/** Month index a broadcast season starts in: Jan/Apr/Jul/Oct. */
+const seasonStartMonth = (season: AnimeSeason): number =>
+  season === 'WINTER' ? 0 : season === 'SPRING' ? 3 : season === 'SUMMER' ? 6 : 9;
+
 /** The first instant of a broadcast season (local time): Jan/Apr/Jul/Oct 1. */
-export const seasonStart = (season: AnimeSeason, year: number): Date => {
-  const startMonth =
-    season === 'WINTER' ? 0 : season === 'SPRING' ? 3 : season === 'SUMMER' ? 6 : 9;
-  return new Date(year, startMonth, 1);
-};
+export const seasonStart = (season: AnimeSeason, year: number): Date =>
+  new Date(year, seasonStartMonth(season), 1);
 
 /** Lead time on a season's lock instant: two weeks before it airs. */
-const LOCK_LEAD_MS = 14 * 24 * 60 * 60 * 1000;
+const LOCK_LEAD_DAYS = 14;
 
 /**
  * The ONE instant that governs a season: the deck rotates to it and its
@@ -47,9 +48,19 @@ const LOCK_LEAD_MS = 14 * 24 * 60 * 60 * 1000;
  * season you are still watching survives until two weeks out.
  *
  * The two concepts share one function so they cannot drift apart again.
+ *
+ * CALENDAR arithmetic, never a raw millisecond subtraction: the Date
+ * constructor normalizes a negative day-of-month back into the previous
+ * month and always yields LOCAL midnight, whereas subtracting 14*24h of
+ * milliseconds from a local midnight lands an hour off whenever a DST
+ * changeover falls inside the window. That case is real and permanent,
+ * not a leap-second curiosity: the EU changeover always sits between
+ * Mar 18 and Apr 1, so every EU-clocked server would rotate (and reap
+ * rooms) at Mar 17 23:00, a calendar day before every doc here says.
+ * New Zealand gets the same on FALL, Morocco an hour the other way.
  */
 export const seasonLockAt = (season: AnimeSeason, year: number): Date =>
-  new Date(seasonStart(season, year).getTime() - LOCK_LEAD_MS);
+  new Date(year, seasonStartMonth(season), 1 - LOCK_LEAD_DAYS);
 
 /**
  * The same instant as seasonLockAt, under the name call sites asking

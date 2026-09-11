@@ -213,6 +213,74 @@ describe('AniListApi.fetchSeason', () => {
     });
   });
 
+  it('refuses a truncated season when a mid-pagination page comes back empty', async () => {
+    // The degraded-upstream shape: page 1 promises more, page 2 is a
+    // 200-with-errors that fetchPage treats as a partial success, so it
+    // yields media: [] and hasNextPage: false. Accepting that would end
+    // pagination early and cache a season missing most of its titles --
+    // permanently, now that a rotation fetch is the only fetch a season
+    // gets. The fetch must fail instead so the deck is never swapped.
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(pageResponse([rawMedia({ id: 1 }), rawMedia({ id: 2 })], true)))
+      .mockResolvedValueOnce(jsonResponse(pageResponse([], true)));
+
+    await expect(api().fetchSeason('SUMMER', 2026)).rejects.toThrow(/truncated season/);
+  });
+
+  it('refuses a mid-pagination page of null entries', async () => {
+    // A degraded page can carry a healthy-looking array of nulls, which has
+    // a non-zero length and contributes nothing. Counting raw length would
+    // wave it through and cache a truncated season permanently.
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(pageResponse([rawMedia({ id: 1 })], true)))
+      .mockResolvedValueOnce(
+        jsonResponse({ data: { Page: { pageInfo: { hasNextPage: false }, media: [null, null] } } }),
+      );
+
+    await expect(api().fetchSeason('SUMMER', 2026)).rejects.toThrow(/truncated season/);
+  });
+
+  it('refuses a page whose pageInfo was nulled by a degraded upstream', async () => {
+    // The other silent-truncation shape: entries arrive intact but pageInfo
+    // is null, so `hasNextPage ?? false` ends pagination early and the
+    // season is short by however many pages remained.
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(pageResponse([rawMedia({ id: 1 })], true)))
+      .mockResolvedValueOnce(
+        jsonResponse({
+          data: { Page: { pageInfo: null, media: [rawMedia({ id: 2 })] } },
+          errors: [{ message: 'Internal Server Error' }],
+        }),
+      );
+
+    await expect(api().fetchSeason('SUMMER', 2026)).rejects.toThrow(/no usable pageInfo/);
+  });
+
+  it('refuses a page whose hasNextPage was nulled but whose pageInfo survived', async () => {
+    // GraphQL nulls the erroring FIELD and leaves the parent intact, and
+    // hasNextPage is a nullable Boolean, so this is the likelier degraded
+    // shape. Checking only for a missing parent let it reach the
+    // `?? false` default, which ends pagination and caches a truncated
+    // season permanently.
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(pageResponse([rawMedia({ id: 1 })], true)))
+      .mockResolvedValueOnce(
+        jsonResponse({
+          data: { Page: { pageInfo: { currentPage: 2, hasNextPage: null }, media: [rawMedia({ id: 2 })] } },
+          errors: [{ message: 'Internal Server Error' }],
+        }),
+      );
+
+    await expect(api().fetchSeason('SUMMER', 2026)).rejects.toThrow(/no usable pageInfo/);
+  });
+
+  it('still accepts a clean single-page season (the guard is mid-pagination only)', async () => {
+    // Guard must not fire on page 1: a season that legitimately fits in
+    // one page, or a genuinely empty result, is the caller's call to make.
+    fetchMock.mockResolvedValueOnce(jsonResponse(pageResponse([], false)));
+    await expect(api().fetchSeason('SUMMER', 2026)).resolves.toEqual([]);
+  });
+
   it('drops adult and untitled entries during pagination', async () => {
     fetchMock.mockResolvedValueOnce(
       jsonResponse(

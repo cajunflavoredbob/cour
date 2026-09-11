@@ -96,7 +96,8 @@ export type ClientMessage =
   | { type: "config"; payload: AppConfig }
   | { type: "userJoinedRoom"; payload: User }
   | { type: "userLeftRoom"; payload: User }
-  // PUSHED when the deck swaps under an open room (daily pre-freeze
+  // PUSHED when the deck swaps under an open room (the pinned-season
+  // daily pre-freeze
   // refresh, stills enrichment, season rotation re-deck).
   | { type: "mediaChanged"; payload: { media: Media[] } }
   | { type: "loginSuccess"; payload: { userName: string } }

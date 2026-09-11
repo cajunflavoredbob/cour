@@ -13,6 +13,47 @@ repository; this changelog starts fresh at 0.1.0.
 
 ---
 
+## [1.3.7] - 2026-09-11
+
+Hardening around the 1.3.6 rotation change. Several ways a bad day at
+AniList, an unlucky timezone, or a restart could cost a room its picks.
+
+### Fixed
+- Rotation and the list freeze now land at local midnight in every
+  timezone. The instant was computed by subtracting 14 days of raw
+  milliseconds from midnight, so wherever a daylight-saving changeover
+  fell inside that window the deck rotated, and the rotation reaper
+  deleted rooms, an hour early and a calendar day before the documented
+  date. European clocks hit this every spring, New Zealand every autumn.
+- A degraded AniList response can no longer poison a whole season. A
+  page that arrives truncated mid-pagination, one whose paging
+  information is unusable, or an empty result is now refused outright
+  instead of being accepted and cached. Because a season's list is
+  frozen the moment it is served, a bad snapshot used to last until the
+  next rotation and survive restarts.
+- A degraded response no longer drops the server back to the previous
+  season. That moved the served season backwards, and every room
+  belonging to the season being rotated into was then deleted as stale.
+  An unreachable AniList still falls back, which is what that path is
+  for; one that answers with garbage now fails loudly instead.
+- Rooms are no longer swept at boot while the server is knowingly
+  serving a stale season, and a zero-entry cache file is never served as
+  though it were a season.
+- The database is checkpointed and closed on shutdown, and on a failed
+  boot. Nothing closed it before, so the write-ahead log kept everything
+  written since its last automatic checkpoint: a backup or volume
+  snapshot that copied the database file without its sidecar silently
+  lost the difference.
+- Pinning only `ANIME_SEASON` or only `ANIME_YEAR` no longer rotates.
+  The unset half tracked the calendar, so a year-only pin rotated a full
+  twelve months backwards at New Year and reaped every room, despite the
+  docs promising that a pin disables rotation.
+- The season change now reaches every connected client. It was only sent
+  to people already inside a room, so anyone sitting on the join screen
+  kept the old season's name, colour and kanji until they reloaded, then
+  got dealt the new season's titles under the old season's label.
+- The Unraid template still described the old one-month rotation.
+
 ## [1.3.6] - 2026-09-10
 
 Fixes the deck rotating a month before a season airs, which served a

@@ -19,6 +19,7 @@ const {
   createHttpServerMock,
   createHttpsServerMock,
   WebSocketServerMock,
+  wsClients,
   readFileMock,
   createProviderMock,
   createWsUpgradeHandlerMock,
@@ -33,6 +34,9 @@ const {
     createHttpServerMock: vi.fn(),
     createHttpsServerMock: vi.fn(),
     WebSocketServerMock,
+    // Exposed so a test can stand up a socket that is connected but in NO
+    // room, which is the case the rotation config broadcast exists for.
+    wsClients,
     readFileMock: vi.fn(),
     createProviderMock: vi.fn(),
     createWsUpgradeHandlerMock: vi.fn(() => () => {}),
@@ -55,11 +59,46 @@ vi.mock('../../internal/app/reely/providers/anime', () => ({
 }));
 // The cour database must not land on disk from a unit test: keep the
 // real schema/logic but point every open at :memory:.
+// Tracks the real close() on the in-memory handle so a test can assert
+// the database is actually shut down, not merely that a log line claims
+// it was. Reset per test in beforeEach.
+const dbLifecycle = { closed: false, checkpointed: false };
+
+// The boot season sweep is the most destructive call in startup: it
+// deletes every room whose season differs from the provider's, cascading
+// members, verdicts and rankings. Spying on the real function is the only
+// way to assert it ran or did not; asserting on the log line alone is
+// decorative, and an earlier version of these tests passed with the
+// destructive call reinstated inside the deferral branch.
+const { reconcileSpy } = vi.hoisted(() => ({ reconcileSpy: vi.fn() }));
+vi.mock('../../internal/app/reely/roomStore', async () => {
+  const actual = await vi.importActual<typeof import('../../internal/app/reely/roomStore')>(
+    '../../internal/app/reely/roomStore',
+  );
+  return { ...actual, reconcileRoomSeasons: reconcileSpy };
+});
+
 vi.mock('../../internal/app/cour/db', async () => {
   const actual = await vi.importActual<typeof import('../../internal/app/cour/db')>(
     '../../internal/app/cour/db',
   );
-  return { ...actual, openDb: () => actual.openDb(':memory:') };
+  return {
+    ...actual,
+    openDb: () => {
+      const db = actual.openDb(':memory:');
+      const realExec = db.exec.bind(db);
+      const realClose = db.close.bind(db);
+      db.exec = (sql: string) => {
+        if (sql.includes('wal_checkpoint')) dbLifecycle.checkpointed = true;
+        return realExec(sql);
+      };
+      db.close = () => {
+        dbLifecycle.closed = true;
+        return realClose();
+      };
+      return db;
+    },
+  };
 });
 vi.mock('../../internal/app/reely/handlers/api', () => ({
   createWsUpgradeHandler: createWsUpgradeHandlerMock,
@@ -112,11 +151,25 @@ const baseConfig = (): Config =>
 // Only `isAvailable` + `options.url` actually matter for startup; the rest
 // satisfy the type. Tests override isAvailable per case to drive the
 // availability branches.
+interface ProviderStubOpts {
+  isAvailable?: boolean;
+  url?: string;
+  // Season surface, omitted by default: most orchestration tests do not
+  // drive the boot sweep, and a stub that always reported a season would
+  // make every one of them exercise it.
+  season?: unknown;
+  provisional?: boolean;
+}
+
 // biome-ignore lint/suspicious/noExplicitAny: provider stub for orchestration tests; full ReelyProvider surface not exercised.
-const makeProviderStub = (opts: { isAvailable?: boolean; url?: string } = {}): any => ({
+const makeProviderStub = (opts: ProviderStubOpts = {}): any => ({
   type: 'anilist',
   options: { url: opts.url ?? 'https://graphql.anilist.co' },
   isAvailable: vi.fn().mockResolvedValue(opts.isAvailable ?? true),
+  ...(opts.season === undefined ? {} : { getSeason: vi.fn().mockReturnValue(opts.season) }),
+  ...(opts.provisional === undefined
+    ? {}
+    : { isSeasonProvisional: vi.fn().mockReturnValue(opts.provisional) }),
   isUserAuthorized: vi.fn().mockResolvedValue(true),
   getName: vi.fn().mockResolvedValue('AniList Summer 2026'),
   getServerId: vi.fn().mockResolvedValue('SERVER1'),
@@ -128,6 +181,10 @@ const makeProviderStub = (opts: { isAvailable?: boolean; url?: string } = {}): a
 });
 
 beforeEach(() => {
+  dbLifecycle.closed = false;
+  dbLifecycle.checkpointed = false;
+  reconcileSpy.mockClear();
+  wsClients.clear();
   fakeHttpServer = makeFakeServer();
   fakeHttpsServer = makeFakeServer();
   createHttpServerMock.mockReset().mockReturnValue(fakeHttpServer);
@@ -185,6 +242,94 @@ describe('Application: provider config branches', () => {
     expect(logger.error).toHaveBeenCalledWith(
       expect.stringContaining('server type emby unhandled'),
     );
+  });
+
+  // The boot season sweep is the destructive path: it deletes every room
+  // whose season differs from the provider's, cascading members, verdicts
+  // and rankings. Both branches of its guard had zero coverage, because
+  // the shared provider stub defined neither getSeason nor
+  // isSeasonProvisional, so `bootSeason` was always undefined and neither
+  // branch was ever entered.
+  it('defers the boot season sweep while the provider season is provisional', async () => {
+    const config = baseConfig();
+    config.servers = [{ type: 'anilist', url: 'https://graphql.anilist.co' }];
+    createProviderMock.mockReturnValueOnce(
+      makeProviderStub({ season: { season: 'SUMMER', year: 2026 }, provisional: true }),
+    );
+    Application(config);
+    await new Promise((r) => setImmediate(r));
+    // The assertion that matters: the destructive call did NOT happen.
+    expect(reconcileSpy).not.toHaveBeenCalled();
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('Boot season sweep deferred'),
+    );
+  });
+
+  it('runs the boot season sweep when the provider season is settled', async () => {
+    const config = baseConfig();
+    config.servers = [{ type: 'anilist', url: 'https://graphql.anilist.co' }];
+    createProviderMock.mockReturnValueOnce(
+      makeProviderStub({ season: { season: 'SUMMER', year: 2026 }, provisional: false }),
+    );
+    Application(config);
+    await new Promise((r) => setImmediate(r));
+    // The sweep actually ran, and ran with the settled season.
+    expect(reconcileSpy).toHaveBeenCalledTimes(1);
+    expect(reconcileSpy).toHaveBeenCalledWith(
+      expect.anything(),
+      { season: 'SUMMER', year: 2026 },
+    );
+    expect(logger.warn).not.toHaveBeenCalledWith(
+      expect.stringContaining('Boot season sweep deferred'),
+    );
+  });
+
+  it('broadcasts the rotation config frame to EVERY socket, not just room members', async () => {
+    // The bug: this used to iterate getAllRooms() and call
+    // room.broadcastMessage, which only reaches users INSIDE a room, while
+    // sendConfig() runs exactly once per connection in the Client
+    // constructor. A client sitting on the join form kept the outgoing
+    // season's label, kanji and accent for the life of its socket, and the
+    // 30s ping keeps idle sockets alive rather than cycling them.
+    const config = baseConfig();
+    config.servers = [{ type: 'anilist', url: 'https://graphql.anilist.co' }];
+    createProviderMock.mockReturnValueOnce(
+      makeProviderStub({ season: { season: 'SUMMER', year: 2026 }, provisional: false }),
+    );
+    Application(config);
+    await new Promise((r) => setImmediate(r));
+
+    // A connected socket in NO room: unreachable via the old path.
+    const sent: string[] = [];
+    wsClients.add({ readyState: 1, OPEN: 1, send: (frame: string) => sent.push(frame) });
+    // And one that is closing, which must be skipped.
+    wsClients.add({ readyState: 2, OPEN: 1, send: () => sent.push('SHOULD-NOT-SEND') });
+
+    const providerOpts = createProviderMock.mock.calls[0][1] as {
+      onSeasonRotated?: (s: { season: string; year: number }) => void;
+    };
+    providerOpts.onSeasonRotated?.({ season: 'FALL', year: 2026 });
+    // getName() is async, so the payload is assembled a few ticks later.
+    for (let i = 0; i < 20; i++) await new Promise((r) => setImmediate(r));
+
+    expect(sent).toHaveLength(1);
+    const frame = JSON.parse(sent[0]);
+    expect(frame.type).toBe('config');
+    expect(frame.payload).toMatchObject({ season: 'FALL', year: 2026 });
+  });
+
+  it('closes the database even when boot fails past openDb', async () => {
+    // openDb runs before the provider probe, so a boot that throws
+    // ProviderUnavailableError owns an open handle with an undrained WAL.
+    // Exiting without closing it is what makes a later backup of
+    // cour.db alone incomplete.
+    const config = baseConfig();
+    config.servers = [{ type: 'anilist', url: 'https://graphql.anilist.co' }];
+    createProviderMock.mockReturnValueOnce(makeProviderStub({ isAvailable: false }));
+    const { statusCode } = Application(config);
+    await expect(statusCode).rejects.toBeInstanceOf(ProviderUnavailableError);
+    expect(dbLifecycle.checkpointed).toBe(true);
+    expect(dbLifecycle.closed).toBe(true);
   });
 
   it('rejects with ProviderUnavailableError when the provider isAvailable returns false', async () => {
@@ -317,6 +462,20 @@ describe('Application: shutdown via abort signal', () => {
     await expect(statusCode).resolves.toBeUndefined();
     expect(fakeHttpServer.close).toHaveBeenCalledTimes(1);
     expect(fakeHttpServer.closeAllConnections).toHaveBeenCalledTimes(1);
+    // The database must be checkpointed and closed on the way out, or the
+    // -wal sidecar keeps everything written since SQLite's last automatic
+    // checkpoint and any backup taking cour.db alone loses it. Nothing
+    // closed the handle before 1.3.7.
+    //
+    // Assert the real calls, not the log line: an earlier version of this
+    // test checked only for 'Database checkpointed and closed.', and
+    // deleting the exec + close while leaving the log in place still
+    // passed it.
+    expect(dbLifecycle.checkpointed).toBe(true);
+    expect(dbLifecycle.closed).toBe(true);
+    expect(logger.error).not.toHaveBeenCalledWith(
+      expect.stringContaining('Database checkpoint/close failed'),
+    );
   });
 
   it('is idempotent: the shuttingDown guard short-circuits a second call path', async () => {

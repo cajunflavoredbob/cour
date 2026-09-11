@@ -25,6 +25,24 @@ const ANILIST_FETCH_TIMEOUT_MS = 30_000;
 const ANILIST_RETRY_ATTEMPTS = 2;
 const ANILIST_RETRY_BACKOFF_MS = 500;
 
+/**
+ * The upstream ANSWERED, but the answer was unusable: a page truncated
+ * mid-pagination, an unusable pageInfo, or a zero-entry season.
+ *
+ * Distinct from an UNREACHABLE upstream, and the distinction is
+ * load-bearing. `ensureLoaded` may fall back to the PREVIOUS season's
+ * cache when AniList cannot be reached, which moves the served season
+ * BACKWARD; every room stamped with the real incoming season is then in
+ * front of the rotation reaper and loadRoom's delete. A degraded answer
+ * must never take that path. Before these guards existed a degraded
+ * response produced a short deck with the season still CORRECT, which
+ * was recoverable; falling back is not. Failing the boot loudly leaves
+ * the data intact and a restart recovers once upstream is healthy.
+ */
+export class DegradedUpstreamError extends Error {
+  name = 'DegradedUpstreamError';
+}
+
 const isRetryableStatus = (status: number): boolean =>
   status === 429 || (status >= 500 && status < 600);
 
@@ -182,6 +200,29 @@ export class AniListApi {
     const all: SeasonalAnime[] = [];
     for (let page = 1; page <= PAGE_CAP; page++) {
       const result = await this.fetchPage(season, year, page, PER_PAGE);
+      // A mid-pagination page carrying no USABLE entries is a degraded
+      // upstream, not the end of the season. fetchPage deliberately treats
+      // a 200-with-errors as a partial success and yields `media: []` with
+      // `hasNextPage: false` (see its note), which would end this loop
+      // early and hand back a silently truncated season. We only reach
+      // page N because page N-1 promised more, so nothing usable here
+      // means the promise was broken. Refuse it: since rotation and the
+      // list freeze became one instant, the deck a rotation pulls is the
+      // deck that season keeps, so a truncated fetch would be permanent.
+      //
+      // Plain length: fetchPage already strips null elements at the source
+      // (a degraded page can come back as `media: [null, null, ...]`,
+      // which has a healthy length and contributes nothing), so anything
+      // reaching here is non-null. Deliberately NOT counting what actually
+      // appends: that would also reject a page whose entries are all
+      // legitimately filtered out by normalizeMedia (every entry adult or
+      // untitled), which is a real if unlikely shape.
+      if (page > 1 && result.media.length === 0) {
+        throw new DegradedUpstreamError(
+          `AniList ${season} ${year}: page ${page} returned no entries mid-pagination; ` +
+            `refusing a truncated season (${all.length} entries so far)`,
+        );
+      }
       for (const raw of result.media) {
         const normalized = normalizeMedia(raw, season, year);
         if (normalized) all.push(normalized);
@@ -273,9 +314,32 @@ export class AniListApi {
       throw new Error(`AniList GraphQL error: ${message.slice(0, 200)}`);
     }
 
+    // A missing pageInfo is a degraded page, not "this is the last page".
+    // The query always requests pageInfo, so absent means the upstream
+    // nulled it, and defaulting hasNextPage to false there ends pagination
+    // silently and caches a truncated season permanently (rotation and the
+    // list freeze are the same instant now, so nothing re-fetches).
+    // Check the FIELD, not just the parent. GraphQL nulls the erroring
+    // field and leaves the enclosing object intact, and hasNextPage is a
+    // nullable Boolean, so `pageInfo: { currentPage: 2, hasNextPage: null }`
+    // is the likelier degraded shape. Testing only for a missing parent
+    // let that one through to the `?? false` below, which ends pagination
+    // and caches a truncated season permanently.
+    const pageInfo = parsed.data.Page.pageInfo;
+    if (!pageInfo || typeof pageInfo.hasNextPage !== 'boolean') {
+      const message = parsed.errors?.map((e) => e.message).join('; ') ?? 'pageInfo missing';
+      throw new DegradedUpstreamError(
+        `AniList ${season} ${year} page ${page}: response carried no usable pageInfo ` +
+          `(${message.slice(0, 200)})`,
+      );
+    }
+
     return {
-      pageInfo: { hasNextPage: parsed.data.Page.pageInfo?.hasNextPage ?? false },
-      media: parsed.data.Page.media ?? [],
+      pageInfo: { hasNextPage: pageInfo.hasNextPage },
+      // Drop null elements at the source: a degraded page can come back as
+      // `media: [null, null, ...]`, and normalizeMedia should never be
+      // handed one.
+      media: (parsed.data.Page.media ?? []).filter(Boolean),
     };
   }
 }

@@ -39,6 +39,14 @@ export interface ReelyProvider {
   // truth for "what season is it"; nothing else should consult the clock.
   getSeason?(): { season: 'WINTER' | 'SPRING' | 'SUMMER' | 'FALL'; year: number };
 
+  // True when getSeason() is a PROVISIONAL fallback rather than the season
+  // the provider means to serve: the incoming-season fetch failed at boot
+  // and it is serving the previous season's cache until a rotation attempt
+  // succeeds. Destructive season-keyed work (the rotation reaper) must not
+  // run against a provisional season, because it is deliberately BEHIND
+  // the real one. Absent or false means the season is settled.
+  isSeasonProvisional?(): boolean;
+
   // Returns the Web-stream form of the artwork bytes. The poster handler
   // bridges this to a Node `Readable` via `Readable.fromWeb(stream as any)`
   // -- the `any` cast is intentional and documented at that call site

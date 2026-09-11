@@ -9,7 +9,7 @@
   <Privileged>false</Privileged>
   <Support>https://github.com/cajunflavoredbob/cour/issues</Support>
   <Project>https://github.com/cajunflavoredbob/cour</Project>
-  <Overview>Pick a season of anime together. cour deals the current broadcast season as a deck -- everyone verdicts each title Keep, Pass, or Unsure at their own pace, locks in, then ranks their keeps; the room's combined standings decide what you watch. Seasonal data comes from AniList with no account or API key needed, rooms are simple shared names with no sign-up, and the deck rotates to the next season automatically one month before it airs. Optional: a TMDB API key adds screenshots to the details drawer, and HTTP Basic Auth gates the whole app if you expose it beyond your LAN.</Overview>
+  <Overview>Pick a season of anime together. cour deals the current broadcast season as a deck -- everyone verdicts each title Keep, Pass, or Unsure at their own pace, locks in, then ranks their keeps; the room's combined standings decide what you watch. Seasonal data comes from AniList with no account or API key needed, rooms are simple shared names with no sign-up, and the deck rotates to the next season automatically two weeks before it airs. Optional: a TMDB API key adds screenshots to the details drawer, and HTTP Basic Auth gates the whole app if you expose it beyond your LAN.</Overview>
   <Category>MediaApp:Video</Category>
   <WebUI>http://[IP]:[PORT:8000]/</WebUI>
   <TemplateURL>https://raw.githubusercontent.com/cajunflavoredbob/cour/main/deploy/unraid-template.xml</TemplateURL>

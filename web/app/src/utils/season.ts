@@ -64,19 +64,19 @@ export const detectSeason = (date: Date): { season: CourSeason; year: number } =
 
 const SEASON_ORDER: readonly CourSeason[] = ["WINTER", "SPRING", "SUMMER", "FALL"];
 
-/** First instant of a broadcast season (local time): Jan/Apr/Jul/Oct 1. */
-const seasonStart = (season: CourSeason, year: number): Date => {
-  const startMonth =
-    season === "WINTER" ? 0 : season === "SPRING" ? 3 : season === "SUMMER" ? 6 : 9;
-  return new Date(year, startMonth, 1);
-};
+/** Month index a broadcast season starts in: Jan/Apr/Jul/Oct. */
+const seasonStartMonth = (season: CourSeason): number =>
+  season === "WINTER" ? 0 : season === "SPRING" ? 3 : season === "SUMMER" ? 6 : 9;
 
 /**
  * Mirror of the server's seasonLockAt: rotation and list freeze are one
- * instant, two weeks before the season airs.
+ * instant, two weeks before the season airs. Calendar arithmetic, not a
+ * raw millisecond subtraction, so the instant is local midnight in every
+ * timezone (see the server's note: a DST changeover inside the window
+ * otherwise shifts it an hour and across a calendar day).
  */
 const seasonLockAt = (season: CourSeason, year: number): Date =>
-  new Date(seasonStart(season, year).getTime() - 14 * 24 * 60 * 60 * 1000);
+  new Date(year, seasonStartMonth(season), 1 - 14);
 
 /**
  * Local mirror of the server's served-season rotation: the calendar

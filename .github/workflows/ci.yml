@@ -37,18 +37,40 @@ jobs:
   # cheap -- but the YAML is no longer three near-identical copies. The
   # docker build stays separate because it doesn't need Node setup.
   ci:
-    name: CI / ${{ matrix.task }} (node ${{ matrix.node }})
+    name: CI / ${{ matrix.task }} (node ${{ matrix.node }}, ${{ matrix.tz }})
     runs-on: ubuntu-latest
+    env:
+      TZ: ${{ matrix.tz }}
     strategy:
       fail-fast: false
       matrix:
         task: [typecheck, build, test]
+        # TZ is pinned per cell because several season assertions are
+        # no-ops in UTC: the rotation/freeze lock instant is built with
+        # calendar arithmetic precisely so a DST changeover inside the
+        # 14-day window cannot shift it off the documented day, and that
+        # only fails in a zone whose changeover lands there. Pacific/
+        # Auckland (FALL) and Europe/London (SPRING) are the two shapes.
+        # Without these the DST regression could be reintroduced and CI
+        # would stay green.
+        tz: ["UTC", "Pacific/Auckland", "Europe/London"]
         # Two majors, deliberately: 24 is the `engines.node` floor that
         # self-hosters running from source are promised; 26 is what the
         # production image runs (Dockerfile pin). A compat break on
         # either line surfaces here before it ships. Bump this list in
         # lockstep with the Dockerfile pin and engines.node.
         node: ["24", "26"]
+        # Only `test` reads the clock, so typecheck and build stay on the
+        # single UTC cell rather than tripling for no signal.
+        exclude:
+          - task: typecheck
+            tz: "Pacific/Auckland"
+          - task: typecheck
+            tz: "Europe/London"
+          - task: build
+            tz: "Pacific/Auckland"
+          - task: build
+            tz: "Europe/London"
     steps:
       - uses: actions/checkout@v7
       # pnpm version is read from `packageManager` in package.json -- keep
