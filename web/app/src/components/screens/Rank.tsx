@@ -8,6 +8,7 @@ import { Loading } from "./Loading";
 import { DESKTOP_QUERY, useMediaQuery } from "../../hooks/useMediaQuery";
 import { useStore } from "../../store";
 import { posterSrc } from "../../utils/poster";
+import { reconcileOrder } from "../../utils/rankOrder";
 import { useSeason } from "../../hooks/useSeason";
 import { SEASON_THEMES } from "../../utils/season";
 import styles from "./Rank.module.css";
@@ -89,10 +90,15 @@ export const RankScreen = () => {
     return () => clearInterval(timer);
   }, [dispatch, results]);
 
-  // The ledger can arrive after mount (review fetch on join); adopt it
-  // once as the starting order if the user hasn't submitted.
+  // The ledger can arrive after mount (review fetch on join), and it can
+  // CHANGE while this screen is open: the season refreshes daily for its
+  // first four weeks, and a refresh that drops or adds a title re-pulls the
+  // ledger (createStore, on mediaChanged). Seeding the order once would keep
+  // a removed title in it, and the server rejects any submit that is not
+  // exactly the member's likes in the current deck. reconcileOrder keeps
+  // the member's own ordering and follows the change.
   useEffect(() => {
-    setOrder((current) => (current.length === 0 ? likedIds : current));
+    setOrder((current) => reconcileOrder(current, likedIds));
   }, [likedIds]);
 
   // Hook: must run before the early return below.

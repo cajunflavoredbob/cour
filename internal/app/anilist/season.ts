@@ -68,6 +68,49 @@ export const seasonLockAt = (season: AnimeSeason, year: number): Date =>
  */
 export const listFreezeAt = seasonLockAt;
 
+/**
+ * How long into a season its list keeps being refreshed: four weeks from
+ * the day it starts airing.
+ *
+ * AniList keeps filling a season in well after it premieres: late entries,
+ * corrected titles and studios, new posters, and shows delayed out of the
+ * quarter. A single fetch at the lock instant would miss all of it until
+ * the next rotation.
+ *
+ * Measured from the season START, not from the lock: the lock is two weeks
+ * earlier, so the refresh window runs about six weeks end to end and
+ * covers the pre-air fill-in, premiere week, and the month after it, which
+ * is where essentially all of the churn happens.
+ */
+const SETTLE_DAYS = 28;
+
+/**
+ * The instant a season's list stops being refreshed: Jan/Apr/Jul/Oct 29.
+ *
+ * CALENDAR arithmetic for the same reason seasonLockAt uses it: the Date
+ * constructor normalizes the day-of-month and always yields LOCAL
+ * midnight, whereas adding 28*24h of milliseconds to a local midnight
+ * lands an hour off whenever a DST changeover falls inside the window.
+ * The EU changeover sits inside the SPRING and FALL windows every year.
+ */
+export const listSettlesAt = (season: AnimeSeason, year: number): Date =>
+  new Date(year, seasonStartMonth(season), 1 + SETTLE_DAYS);
+
+/**
+ * True while this season's list should still be refreshed: from whenever
+ * it is first served (its lock instant, or earlier if pinned) until four
+ * weeks after it airs.
+ *
+ * Refresh sites must use this, not the list freeze: an unpinned provider
+ * only serves a season whose freeze has already passed, so a freeze test
+ * is always false there and nothing would ever refresh.
+ */
+export const listIsSettling = (
+  season: AnimeSeason,
+  year: number,
+  now: Date = new Date(),
+): boolean => now.getTime() < listSettlesAt(season, year).getTime();
+
 /** The season immediately after the given one. */
 export const nextSeason = (
   season: AnimeSeason,

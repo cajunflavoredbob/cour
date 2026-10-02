@@ -128,9 +128,10 @@ describe('load orchestration', () => {
   });
 
   it('cache hit: serves the cached snapshot and refreshes in the background', async () => {
-    // The startup self-refresh only fires before the list freeze (two
-    // weeks ahead of the season start) -- pin the clock inside SUMMER
-    // 2026's pre-season window.
+    // The startup self-refresh fires while the served season is settling
+    // (through four weeks after it airs). Pin the clock inside SUMMER
+    // 2026's window; this provider is pinned, so May 15 also sits before
+    // SUMMER's lock, which is the only way to serve it that early.
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(new Date(2026, 4, 15));
     const cachedOnly = [entry({ id: 99, title: 'Cached', popularity: 1 })];
@@ -391,11 +392,13 @@ describe('TMDB stills (0.9.0)', () => {
 });
 
 // The owner's rotation spec: unpinned providers serve the calendar
-// season until the upcoming season's lock instant -- two weeks before it
-// airs, the same moment its list freezes -- then rotate to it, and reset
-// room data only after a rotation fetch lands. Because rotation and
-// freeze are one event, an unpinned deck is frozen from the moment it is
-// served; the daily pre-season refresh only applies to pinned providers.
+// season until the upcoming season's lock instant (two weeks before it
+// airs), then rotate to it, and reset room data only after a rotation
+// fetch lands. From that moment until four weeks after the season airs
+// its list is SETTLING and refreshes daily; after that it is final until
+// the next rotation. (Before the settle window, the only refresh gate was
+// the list freeze, which an unpinned deck has always already passed, so a
+// season was a single fetch per quarter.)
 describe('season rotation (unpinned)', () => {
   const HOUR = 60 * 60 * 1000;
 
@@ -487,16 +490,11 @@ describe('season rotation (unpinned)', () => {
     expect((await provider.getMedia()).map((m) => m.title)).toEqual(['Old Season']);
   });
 
-  it('never runs the daily refresh: a served deck is frozen on arrival', async () => {
-    // Rotation and freeze are the same instant, so an unpinned provider
-    // only ever serves a season whose list is already locked. The deck
-    // the rotation fetch pulled is final -- nothing re-fetches it.
-    //
-    // Sep 5 is chosen because it DISCRIMINATES against the old behaviour:
-    // the one-month rotation served FALL here with its freeze (Sep 17)
-    // still ahead, so it refreshed daily. Under the unified lock the
-    // served season is SUMMER, frozen since Jun 17. A date past Sep 17
-    // would pass under both implementations and prove nothing.
+  it('does not refresh a season that has already settled', async () => {
+    // Sep 5 serves SUMMER, which aired Jul 1 and settled Jul 29, so its
+    // list is final and nothing re-fetches it however stale the cache is.
+    // The date also sits before FALL's Sep 17 lock, so FALL must not be
+    // served or refreshed here either.
     vi.setSystemTime(new Date(2026, 8, 5));
     loadCacheMock.mockImplementation((_dir: string, season: string) =>
       season === 'SUMMER'
@@ -516,6 +514,70 @@ describe('season rotation (unpinned)', () => {
     await vi.advanceTimersByTimeAsync(72 * HOUR); // three days of ticks
     await flush();
     expect(mockApi.fetchSeason).not.toHaveBeenCalled();
+  });
+
+  it('refreshes a freshly rotated deck daily while it settles, then stops', async () => {
+    // FALL 2026 rotated in on Sep 17 and airs Oct 1, so on Oct 5 it is
+    // settling until Oct 29. Guards against gating the refresh on the list
+    // freeze, which is already past for any served unpinned season: every
+    // assertion below that expects a call fails against such a gate.
+    vi.setSystemTime(new Date(2026, 9, 5));
+    loadCacheMock.mockImplementation((_dir: string, season: string) =>
+      season === 'FALL'
+        ? Promise.resolve({
+          version: 1,
+          fetchedAt: Date.now() - 3 * 24 * HOUR,
+          season: 'FALL',
+          year: 2026,
+          media: [entry({ id: 9, title: 'Cached Fall' })],
+        })
+        : Promise.resolve(undefined));
+
+    const provider = unpinned();
+    expect(provider.getSeason?.()).toEqual({ season: 'FALL', year: 2026 });
+    await provider.getMedia();
+    await flush();
+    // Startup self-refresh: a restart inside the window picks up whatever
+    // AniList has corrected since the rotation fetch.
+    expect(mockApi.fetchSeason).toHaveBeenCalledTimes(1);
+    expect(mockApi.fetchSeason).toHaveBeenLastCalledWith('FALL', 2026);
+
+    await vi.advanceTimersByTimeAsync(23 * HOUR);
+    await flush();
+    expect(mockApi.fetchSeason).toHaveBeenCalledTimes(1); // not a day yet
+
+    await vi.advanceTimersByTimeAsync(2 * HOUR); // past 24h: daily refresh
+    await flush();
+    expect(mockApi.fetchSeason).toHaveBeenCalledTimes(2);
+
+    // Past the settle instant (Oct 29) the deck is final until rotation.
+    const atSettle = mockApi.fetchSeason.mock.calls.length;
+    vi.setSystemTime(new Date(2026, 9, 30));
+    await vi.advanceTimersByTimeAsync(72 * HOUR);
+    await flush();
+    expect(mockApi.fetchSeason).toHaveBeenCalledTimes(atSettle);
+  });
+
+  it('pushes a settling refresh to open rooms for an unpinned provider', async () => {
+    // onRefreshed is what re-decks rooms that are already open, and an
+    // unpinned provider is the production case.
+    vi.setSystemTime(new Date(2026, 9, 5));
+    const onRefreshed = vi.fn();
+    loadCacheMock.mockImplementation((_dir: string, season: string) =>
+      season === 'FALL'
+        ? Promise.resolve({
+          version: 1,
+          fetchedAt: Date.now() - 3 * 24 * HOUR,
+          season: 'FALL',
+          year: 2026,
+          media: [entry({ id: 9, title: 'Cached Fall' })],
+        })
+        : Promise.resolve(undefined));
+
+    const provider = unpinned({ onRefreshed });
+    await provider.getMedia();
+    await flush();
+    expect(onRefreshed).toHaveBeenCalledTimes(1);
   });
 
   it('refuses an empty deck on a cold boot rather than serving it all season', async () => {
@@ -862,10 +924,10 @@ describe('season rotation (unpinned)', () => {
     expect(provider.isSeasonProvisional?.()).toBe(false);
   });
 
-  it('still refreshes daily for a PINNED season before its lock instant', async () => {
-    // Pinning is the one way to serve a season early, so it is the only
-    // path where an unfrozen window still exists. SUMMER 2026 locks
-    // Jun 17; Jun 5 sits inside its window.
+  it('refreshes a PINNED season daily from before its lock until it settles', async () => {
+    // Pinning is the one way to serve a season before its lock, so this is
+    // the only path that refreshes pre-lock. SUMMER 2026 locks Jun 17, airs
+    // Jul 1, and settles Jul 29; Jun 5 sits before all three.
     vi.setSystemTime(new Date(2026, 5, 5));
     loadCacheMock.mockResolvedValue({
       version: 1,
@@ -885,15 +947,25 @@ describe('season rotation (unpinned)', () => {
     await flush();
     expect(mockApi.fetchSeason).toHaveBeenCalledTimes(2);
 
-    // Past the lock (Jun 17): the list never changes again.
+    // Past the lock (Jun 17) but still settling: it keeps refreshing.
     vi.setSystemTime(new Date(2026, 5, 18));
     await vi.advanceTimersByTimeAsync(48 * HOUR);
     await flush();
-    expect(mockApi.fetchSeason).toHaveBeenCalledTimes(2);
+    const afterLock = mockApi.fetchSeason.mock.calls.length;
+    expect(afterLock).toBeGreaterThan(2);
+
+    // Past the settle instant (Jul 29): now the list is final.
+    vi.setSystemTime(new Date(2026, 6, 30));
+    await vi.advanceTimersByTimeAsync(72 * HOUR);
+    await flush();
+    expect(mockApi.fetchSeason).toHaveBeenCalledTimes(afterLock);
   });
 
-  it('does not fire the startup self-refresh past the freeze', async () => {
-    vi.setSystemTime(new Date(2026, 8, 20)); // past FALL's Sep 17 freeze
+  it('fires the startup self-refresh while the served season is settling', async () => {
+    // Sep 20: FALL rotated in on Sep 17 and settles Oct 29. A restart in
+    // this window must pick up corrections rather than serve the rotation
+    // fetch for the rest of the quarter.
+    vi.setSystemTime(new Date(2026, 8, 20));
     loadCacheMock.mockImplementation((_dir: string, season: string) =>
       season === 'FALL'
         ? Promise.resolve({
@@ -901,12 +973,46 @@ describe('season rotation (unpinned)', () => {
           fetchedAt: 1,
           season: 'FALL',
           year: 2026,
-          media: [entry({ id: 9, title: 'Frozen List' })],
+          media: [entry({ id: 9, title: 'Cached Fall' })],
+        })
+        : Promise.resolve(undefined));
+
+    // Hold the live fetch open so the first read provably comes from the
+    // cache, then release it and prove the corrected list REPLACED it.
+    // Asserting only that fetchSeason was called would pass for a refresh
+    // that fired and was then thrown away.
+    let releaseRefresh: (v: SeasonalAnime[]) => void = () => {};
+    mockApi.fetchSeason.mockReturnValue(
+      new Promise<SeasonalAnime[]>((r) => {
+        releaseRefresh = r;
+      }),
+    );
+
+    const provider = unpinned();
+    expect((await provider.getMedia()).map((m) => m.title)).toEqual(['Cached Fall']);
+    expect(mockApi.fetchSeason).toHaveBeenCalledTimes(1);
+    expect(mockApi.fetchSeason).toHaveBeenCalledWith('FALL', 2026);
+
+    releaseRefresh(SEASON);
+    await flush();
+    expect((await provider.getMedia()).map((m) => m.title)).toEqual(['Alpha', 'Gamma', 'Delta']);
+  });
+
+  it('does not fire the startup self-refresh once the season has settled', async () => {
+    vi.setSystemTime(new Date(2026, 10, 5)); // Nov 5: FALL settled Oct 29
+    loadCacheMock.mockImplementation((_dir: string, season: string) =>
+      season === 'FALL'
+        ? Promise.resolve({
+          version: 1,
+          fetchedAt: 1,
+          season: 'FALL',
+          year: 2026,
+          media: [entry({ id: 9, title: 'Settled List' })],
         })
         : Promise.resolve(undefined));
 
     const provider = unpinned();
-    expect((await provider.getMedia()).map((m) => m.title)).toEqual(['Frozen List']);
+    expect((await provider.getMedia()).map((m) => m.title)).toEqual(['Settled List']);
     await flush();
     expect(mockApi.fetchSeason).not.toHaveBeenCalled();
   });

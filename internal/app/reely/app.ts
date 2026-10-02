@@ -95,9 +95,9 @@ export const Application = (config: Config, signal?: AbortSignal): ApplicationIn
       const cour = createCourStore(db);
 
       // Re-fetch each open in-memory room's deck and push it to connected
-      // clients. Shared by stills enrichment, the daily pre-freeze
-      // refresh, and season rotation -- all swap the provider snapshot
-      // under rooms that are already open.
+      // clients. Shared by stills enrichment, the daily settling refresh,
+      // and season rotation, all of which swap the provider snapshot under
+      // rooms that are already open.
       const pushMediaToOpenRooms = () => {
         for (const room of getAllRooms()) {
           void room
@@ -153,10 +153,10 @@ export const Application = (config: Config, signal?: AbortSignal): ApplicationIn
             // already open need the refreshed media pushed or their
             // clients keep the stale (still-less) payload until a rejoin.
             onStillsEnriched: pushMediaToOpenRooms,
-            // Same push for the startup self-refresh and the daily
-            // pre-freeze refresh (audit v1.2.0 #13): the snapshot must
-            // never drift ahead of open rooms until a restart. Both are
-            // pinned-season-only in practice; see the provider's note.
+            // Same push for the startup self-refresh and the daily settling
+            // refresh: the snapshot must never drift ahead of open rooms
+            // until a restart. Every season refreshes daily from rotation
+            // until four weeks after it airs.
             onRefreshed: pushMediaToOpenRooms,
             // Season rotation landed (new snapshot already serving):
             // delete last season's rooms (the rotation reaper -- rows

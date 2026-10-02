@@ -22,9 +22,10 @@ export const SEASON_CACHE_VERSION = 3;
 
 export interface SeasonCacheFile {
   version: number;
-  // Epoch ms of the fetch that produced this file. Not consumed by logic
-  // today (refresh is startup-driven, not age-driven); recorded so a future
-  // age-based refresh policy doesn't need a cache format change.
+  // Epoch ms of the fetch that produced this file. Drives the daily refresh
+  // cadence while a season is settling: the provider seeds lastFetchedAt
+  // from it, so a restart does not reset the clock and re-fetch early, and
+  // a cache already a day old refreshes on the first tick.
   fetchedAt: number;
   season: AnimeSeason;
   year: number;

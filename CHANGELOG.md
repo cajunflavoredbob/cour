@@ -13,6 +13,31 @@ repository; this changelog starts fresh at 0.1.0.
 
 ---
 
+## [1.3.11] - 2026-10-02
+
+A season's show list now keeps up with AniList through its first weeks
+instead of freezing the moment it rotates in.
+
+### Changed
+- The show list refreshes daily from the moment a season rotates in until
+  four weeks after it starts airing (Jan 29, Apr 29, Jul 29, Oct 29), and
+  a restart inside that window refreshes it too. Previously the list was
+  fetched once at rotation and never again, so titles AniList added late,
+  corrected names and posters, and shows delayed out of the quarter did
+  not reach the deck until the next season. Rooms that are already open
+  pick up each refresh, so during those weeks a title can appear in or
+  drop out of a deck while people are picking. A verdict on a title that
+  drops out is kept but no longer counts.
+
+### Fixed
+- The ranking screen keeps up when a title is added to or removed from
+  the deck while it is open. It used to hold on to the order it started
+  with, which the refresh above would have turned into a rejected submit.
+
+### Security
+- The libraries inside the image are updated to their current releases,
+  which clears moderate advisories in js-yaml and qs.
+
 ## [1.3.10] - 2026-09-11
 
 Follow-up to 1.3.9: the automatic rejoin did not survive a reconnect,

@@ -331,8 +331,9 @@ export const reducer = (state: Store = initialState, action: Actions): Store => 
       return state;
     }
     case "mediaChanged": {
-      // Server-initiated deck swap (the daily pre-freeze refresh, stills
-      // enrichment, or a season-rotation re-deck).
+      // Server-initiated deck swap (the daily settling refresh during a
+      // season's first four weeks, stills enrichment, or a season-rotation
+      // re-deck).
       if (!state.room) return state;
       return {
         ...state,

@@ -3,6 +3,8 @@ import {
   detectSeason,
   formatSeason,
   listFreezeAt,
+  listIsSettling,
+  listSettlesAt,
   nextSeason,
   previousSeason,
   seasonLockAt,
@@ -129,3 +131,94 @@ describe('seasonStart / seasonLockAt / listFreezeAt', () => {
     }
   });
 });
+
+// A season's list refreshes daily from when it is first served until four
+// weeks after it airs.
+describe('listSettlesAt / listIsSettling', () => {
+  it('settles four weeks after the season airs, at local midnight', () => {
+    // LITERAL instants, for the reason the lock test above gives: an
+    // expectation computed with the implementation's own expression only
+    // catches the constant drifting, and passes a wrong month or sign.
+    const EXPECTED: Record<string, Date> = {
+      WINTER: new Date(2027, 0, 29),
+      SPRING: new Date(2027, 3, 29),
+      SUMMER: new Date(2027, 6, 29),
+      FALL: new Date(2027, 9, 29),
+    };
+    for (const season of ['WINTER', 'SPRING', 'SUMMER', 'FALL'] as const) {
+      const settles = listSettlesAt(season, 2027);
+      expect(settles).toEqual(EXPECTED[season]);
+      // Calendar days, not 28*24h of milliseconds: the EU DST changeover
+      // falls inside the SPRING and FALL windows every year.
+      expect([settles.getHours(), settles.getMinutes(), settles.getSeconds()]).toEqual([0, 0, 0]);
+    }
+  });
+
+  it('is open at the rotation instant, so a freshly rotated deck refreshes', () => {
+    // Guards against gating the refresh on the list freeze: the rotation
+    // instant IS the freeze, so a freeze test is closed at the exact moment
+    // a deck is first served. Every assertion here fails against one.
+    for (const season of ['WINTER', 'SPRING', 'SUMMER', 'FALL'] as const) {
+      const lock = seasonLockAt(season, 2027);
+      expect(servedSeason(lock)).toEqual({ season, year: 2027 });
+      expect(listIsSettling(season, 2027, lock)).toBe(true);
+      // and it is still open on the day the season airs
+      expect(listIsSettling(season, 2027, seasonStart(season, 2027))).toBe(true);
+    }
+  });
+
+  it('closes exactly at the settle instant', () => {
+    const settles = listSettlesAt('FALL', 2026); // Oct 29 2026
+    expect(listIsSettling('FALL', 2026, new Date(settles.getTime() - 1))).toBe(true);
+    expect(listIsSettling('FALL', 2026, settles)).toBe(false);
+    expect(listIsSettling('FALL', 2026, new Date(2026, 10, 15))).toBe(false);
+  });
+
+  it('settles well before the next rotation, so every season has a quiet stretch', () => {
+    // Settling ends four weeks in; the next season locks about ten weeks in.
+    // If these ever crossed, a season would still be refreshing when it got
+    // rotated out, and the stretch where a member's deck is guaranteed not
+    // to move would vanish entirely.
+    for (const season of ['WINTER', 'SPRING', 'SUMMER', 'FALL'] as const) {
+      const next = nextSeason(season, 2027);
+      expect(listSettlesAt(season, 2027).getTime())
+        .toBeLessThan(seasonLockAt(next.season, next.year).getTime());
+    }
+  });
+
+  it('over a long span, the served season is settling for ~6 weeks a quarter', () => {
+    // Walk every day for 400 days. The served season must be settling for
+    // a contiguous run starting the day it is first served, then settled
+    // until it rotates out. A gap or a second run would mean the window and
+    // the rotation disagree about which season is current.
+    let prev: { season: string; year: number } | undefined;
+    let settlingRun = 0;
+    let sawSettledThisSeason = false;
+    const runs: number[] = [];
+    for (let d = 0; d < 400; d++) {
+      const day = new Date(2026, 0, 1 + d);
+      const served = servedSeason(day);
+      const key = `${served.season} ${served.year}`;
+      if (!prev || `${prev.season} ${prev.year}` !== key) {
+        if (prev) runs.push(settlingRun);
+        settlingRun = 0;
+        sawSettledThisSeason = false;
+        prev = served;
+      }
+      if (listIsSettling(served.season, served.year, day)) {
+        // Settling may never resume after the season has settled.
+        expect(sawSettledThisSeason).toBe(false);
+        settlingRun += 1;
+      } else {
+        sawSettledThisSeason = true;
+      }
+    }
+    // Every complete season observed settled for 42-43 days (two weeks
+    // pre-air plus four weeks), never zero.
+    for (const run of runs.slice(1)) {
+      expect(run).toBeGreaterThanOrEqual(42);
+      expect(run).toBeLessThanOrEqual(43);
+    }
+  });
+});
+

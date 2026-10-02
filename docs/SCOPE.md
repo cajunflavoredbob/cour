@@ -32,12 +32,20 @@ Names are 1-32 characters, unique case-insensitively.
 - The server serves ONE season at a time and rotates to the next season
   two weeks before it airs (Sep 17 / Dec 18 / Mar 18 / Jun 17, evaluated
   in the server's clock -- UTC as shipped, and precision-to-the-hour is
-  all the mechanism needs; accepted as-is). Rotation and the show list's
-  freeze are the SAME instant: a deck is never served before it is
-  stable, so nobody's deck shifts under them while they lock in, and the
-  season still airing is not retired early. Pinning a season is the only
-  way to serve one before its lock, and it is the only case where the
-  daily pre-season list refresh still runs.
+  all the mechanism needs; accepted as-is), so the season still airing is
+  not retired early. Pinning a season is the only way to serve one before
+  its lock.
+- **A season's list refreshes daily until four weeks after it airs**
+  (Jan 29 / Apr 29 / Jul 29 / Oct 29), then it is final until the next
+  rotation. AniList keeps filling a season in well past its premiere:
+  late additions, corrected titles and studios, posters, and shows
+  delayed out of the quarter. A restart inside the window refreshes too.
+  Open rooms are re-decked on each refresh, so **a deck CAN shift while
+  members are picking during those first ~six weeks**: a title can
+  appear, and one can disappear. Verdicts on a removed title are kept but
+  stop counting (the ledger and the ranking check both scope to the
+  current deck), and the rank editor follows the change rather than
+  holding a stale order. Past the settle instant nobody's deck moves.
 - **Rooms and their members are deleted at rotation** (the rotation
   reaper). Until then everything stays saved. A reused room name simply
   creates fresh next season; user identities are global and survive.

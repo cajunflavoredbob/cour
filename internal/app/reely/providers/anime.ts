@@ -6,6 +6,7 @@ import {
   detectSeason,
   formatSeason,
   listFreezeAt,
+  listIsSettling,
   previousSeason,
   servedSeason,
 } from '../../anilist/season';
@@ -28,12 +29,10 @@ export interface AnimeProviderConfig {
   // refreshed media to rooms that are already open (0.9.1).
   onStillsEnriched?: () => void;
   // Fired after a same-season snapshot refresh lands. Both producers
-  // (the startup self-refresh and the daily pre-freeze refresh) are gated
-  // on the season's list still being unfrozen, which for an UNPINNED
-  // provider is never -- rotation and the freeze are one instant -- so in
-  // production this fires only for a PINNED season. Without it, open
-  // rooms served their creation-day deck until a restart while the
-  // provider snapshot moved on (audit v1.2.0 #13).
+  // (the startup self-refresh and the daily refresh) run while the season
+  // is SETTLING: from when it is served through four weeks after it airs.
+  // Without it, open rooms would serve their creation-day deck until a
+  // restart while the provider snapshot moved on.
   onRefreshed?: () => void;
   // Fired after a season rotation LANDS (incoming-season fetch succeeded,
   // snapshot swapped). The app layer deletes last season's rooms and
@@ -51,10 +50,10 @@ const COVER_FETCH_TIMEOUT_MS = 30_000;
  * Data flow: one seasonal snapshot (SeasonalAnime[]) held in memory, loaded
  * once per process via `ensureLoaded`:
  *   - disk cache hit  -> serve it immediately. A startup self-refresh
- *     follows ONLY while the season's list is still unfrozen, which for
- *     an UNPINNED provider is never: rotation and the freeze are the same
- *     instant, so a served season is always already locked. In practice
- *     this path fires for pinned seasons only.
+ *     follows while the season is still SETTLING (through four weeks
+ *     after it airs), so a restart inside that window picks up whatever
+ *     AniList has corrected since the rotation fetch. Past the window the
+ *     list is final and the cached snapshot is served as-is.
  *   - disk cache miss -> block on the live fetch (first boot). If that also
  *     fails (first boot offline), isAvailable() reports false and app boot
  *     fails with ProviderUnavailableError -- there is nothing to serve.
@@ -135,13 +134,10 @@ export const createProvider = (
   //   1. Rotation: when the served target moves past the snapshot (the
   //      incoming season's lock instant, two weeks before it airs),
   //      fetch the incoming season and swap.
-  //   2. Pre-season refresh: re-fetch daily while the served season's
-  //      list is still unfrozen, so late title announcements land.
-  //      UNPINNED providers never hit this: rotation and freeze are the
-  //      same instant now, so a served season is frozen from the moment
-  //      it is served, and the deck the rotation fetch pulls is final.
-  //      It stays live for PINNED providers, where a season can be
-  //      served well before its lock instant.
+  //   2. Settling refresh: re-fetch daily while the served season is
+  //      still settling, i.e. until four weeks after it airs, so late
+  //      additions, corrected titles and posters, and shows delayed out
+  //      of the quarter all land instead of waiting a full rotation.
   // Keyed off the cache timestamp so restarts don't re-trigger; `busy`
   // serializes the jobs so a slow fetch can't stack.
   let lastFetchedAt = 0;
@@ -233,9 +229,13 @@ export const createProvider = (
       attemptRotation(target);
       return;
     }
-    const freeze = listFreezeAt(current.season, current.year).getTime();
-    if (Date.now() < freeze && Date.now() - lastFetchedAt >= REFRESH_EVERY_MS) {
-      logger.info(`AniList ${label()}: pre-season list refresh`);
+    // Refresh daily while the season is SETTLING: from the moment it is
+    // served through four weeks after it airs.
+    if (
+      listIsSettling(current.season, current.year) &&
+      Date.now() - lastFetchedAt >= REFRESH_EVERY_MS
+    ) {
+      logger.info(`AniList ${label()}: daily list refresh (season still settling)`);
       busy = true;
       void refresh()
         .catch((err) => {
@@ -362,13 +362,22 @@ export const createProvider = (
     // list freeze nothing ever refreshes again, so every join would
     // fail with NoMediaError until the next rotation.
     //
-    // The condition is "would this empty deck be PERMANENT", not simply
-    // "is it empty". A frozen season gets no further fetch, so an empty
-    // one must be refused even on a cold boot. A season still inside its
-    // pre-freeze window refreshes daily and self-heals, so refusing there
-    // would turn a legitimately-empty pinned season (validate.ts accepts
-    // any year from 1940 to 2100, explicitly for next-season configs)
-    // into a boot crash loop under `restart: unless-stopped`.
+    // The condition is "could an empty season be LEGITIMATE here", not
+    // simply "is it empty". Before its lock instant a season can genuinely
+    // have nothing listed yet (only reachable when pinned: validate.ts
+    // accepts any year from 1940 to 2100, explicitly for next-season
+    // configs), and refusing there would turn it into a boot crash loop
+    // under `restart: unless-stopped`. From the lock onwards AniList has had
+    // the season populated for weeks, so an empty answer means a degraded
+    // upstream and must be refused even on a cold boot.
+    //
+    // This is deliberately the FREEZE and not the settle window that gates
+    // the refresh scheduler. It is tempting to reason that a season still
+    // settling will be repaired by tomorrow's refresh, so an empty deck
+    // there is harmless. It is not: a cold boot would accept it, PERSIST it,
+    // and serve a deck on which every join fails with NoMediaError until
+    // the next refresh lands, up to a day later. The two gates answer
+    // different questions and must not be unified.
     const frozen = Date.now() >= listFreezeAt(target.season, target.year).getTime();
     if (media.length === 0 && (frozen || (list?.length ?? 0) > 0)) {
       throw new DegradedUpstreamError(
@@ -468,33 +477,28 @@ export const createProvider = (
         if (cached) {
           setList(cached.media);
           lastFetchedAt = cached.fetchedAt;
-          // Do NOT promise a background refresh unconditionally: the gate
-          // below is permanently closed for an unpinned provider, and an
-          // operator diagnosing a short deck would read the old wording as
-          // proof the refresh path was working when nothing was scheduled.
-          const willRefresh = Date.now() < listFreezeAt(current.season, current.year).getTime();
+          // Say which of the two states this is, and do not promise a
+          // refresh that is not scheduled: an operator diagnosing a short
+          // deck needs to know whether anything is still going to repair it.
+          const willRefresh = listIsSettling(current.season, current.year);
           logger.info(
             `AniList ${label()}: serving ${cached.media.length} cached entries` +
-              (willRefresh ? '; refreshing in background' : ' (list frozen; no refresh)'),
+              (willRefresh
+                ? '; refreshing in background (season still settling)'
+                : ' (list settled; no further refresh until rotation)'),
           );
           // Stills for a cached snapshot too -- refresh() may fail (API
           // down) and enrichment shouldn't die with it.
           void enrichFromTmdb().catch((err) => {
             logger.warn(`TMDB enrichment failed: ${String(err)}`);
           });
-          // Fire-and-forget startup self-refresh -- but only until the
-          // list freeze. Past it the season's list is locked while people
-          // finish picking (the owner's spec): a restart must not swap
-          // titles under members who verdicted against the frozen set.
-          // A failure keeps the cached snapshot serving -- exactly what
-          // the cache is for.
-          //
-          // For an UNPINNED provider this gate is permanently CLOSED:
-          // servedSeason only ever returns a season whose own lock has
-          // passed, and the boot fallback returns an even earlier one. It
-          // stays live for a PINNED season, which can be served before its
-          // lock instant.
-          if (Date.now() < listFreezeAt(current.season, current.year).getTime()) {
+          // Fire-and-forget startup self-refresh while the season is still
+          // settling, so a restart picks up whatever AniList has corrected
+          // since the rotation fetch. Past the window the list is final and
+          // a restart must not swap titles under members mid-pick. A
+          // failure keeps the cached snapshot serving: exactly what the
+          // cache is for.
+          if (listIsSettling(current.season, current.year)) {
             refresh().catch((err) => {
               logger.warn(
                 `AniList ${label()}: background refresh failed; serving cached snapshot: ${String(err)}`,

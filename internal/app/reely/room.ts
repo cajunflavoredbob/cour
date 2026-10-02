@@ -72,7 +72,7 @@ export class Room {
   }
 
   // Monotonic token for refreshMedia (the re-deck path: stills
-  // enrichment, the daily pre-freeze refresh, season rotation). Two
+  // enrichment, the daily settling refresh, season rotation). Two
   // refreshes racing used to be last-RESOLVED-wins; the token makes it
   // last-REQUESTED-wins. (This was applyFilters until the audit-v1.2.0
   // filter rip-out -- cour deals the whole season.)
