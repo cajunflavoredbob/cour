@@ -13,6 +13,15 @@ repository; this changelog starts fresh at 0.1.0.
 
 ---
 
+## [1.3.12] - 2026-10-02
+
+Maintenance release. cour's own code is unchanged.
+
+### Changed
+- The Docker image runs on Node 26.10.0 (was 26.7.0).
+- The service worker runs Workbox 7.4.0 (was 7.3.0). The files it
+  caches for offline use are unchanged.
+
 ## [1.3.11] - 2026-10-02
 
 A season's show list now keeps up with AniList through its first weeks
