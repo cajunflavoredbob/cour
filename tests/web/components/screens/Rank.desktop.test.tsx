@@ -121,51 +121,154 @@ describe('RankScreen desktop editor', () => {
     expect(titles[0]).toBe('Second Show');
   });
 
-  it('pointer drag reorders from the GRIP: drag row #1 past #2 (audit v1.2.0 #11)', () => {
-    stubRowGeometry();
-    const { container } = render(<RankScreen />);
-    const rows = () => Array.from(container.querySelectorAll('[data-rank-row]')) as HTMLElement[];
-    // Order starts [Iron Bloom, Second Show].
-    expect(rows()[0].textContent).toContain('Iron Bloom');
-    const grip = rows()[0].querySelector('[data-test-handle="rank-grip"]') as HTMLElement;
-    fireEvent.pointerDown(grip, { clientY: 10, button: 0 });
-    // Move below the second row's midpoint (row1 mid = 90).
-    fireEvent.pointerMove(grip, { clientY: 100 });
-    fireEvent.pointerUp(grip, { clientY: 100 });
-    expect(rows()[0].textContent).toContain('Second Show');
-  });
+  describe('drag to reorder', () => {
+    // Rows are 60px tall (stubRowGeometry): row 1 spans 60-120, midline 90.
+    // Moves and releases are dispatched on the window, not the pressed row.
+    const rows = (container: HTMLElement) =>
+      Array.from(container.querySelectorAll('[data-rank-row]')) as HTMLElement[];
+    const titles = (container: HTMLElement) =>
+      rows(container).map((r) => r.querySelector('[class*="rowTitle"]')?.textContent);
+    const press = (el: Element, clientY: number, pointerType = 'mouse') =>
+      fireEvent.pointerDown(el, { pointerId: 1, pointerType, button: 0, buttons: 1, clientX: 20, clientY });
+    const move = (clientY: number, buttons = 1, pointerType = 'mouse') =>
+      fireEvent.pointerMove(window, { pointerId: 1, pointerType, buttons, clientX: 20, clientY });
+    const lift = (clientY: number, pointerType = 'mouse') =>
+      fireEvent.pointerUp(document.body, { pointerId: 1, pointerType, button: 0, buttons: 0, clientX: 20, clientY });
+    const titleOf = (row: HTMLElement) => row.querySelector('[class*="rowTitle"]') as HTMLElement;
+    const gripOf = (row: HTMLElement) => row.querySelector('[data-drag-handle]') as HTMLElement;
 
-  it('the row body is NOT a drag surface -- the list stays scrollable (audit v1.2.0 #11)', () => {
-    stubRowGeometry();
-    const { container } = render(<RankScreen />);
-    const rows = () => Array.from(container.querySelectorAll('[data-rank-row]')) as HTMLElement[];
-    const first = rows()[0];
-    fireEvent.pointerDown(first, { clientY: 10, button: 0 });
-    fireEvent.pointerMove(first, { clientY: 100 });
-    fireEvent.pointerUp(first, { clientY: 100 });
-    // Order unchanged: only the grip drags.
-    expect(rows()[0].textContent).toContain('Iron Bloom');
-  });
+    beforeEach(() => {
+      stubRowGeometry();
+    });
 
-  it('a pointerdown on the move buttons does NOT start a drag', () => {
-    stubRowGeometry();
-    const { container } = render(<RankScreen />);
-    const moveBtn = screen.getByLabelText('Move Second Show up');
-    fireEvent.pointerDown(moveBtn, { clientY: 70, button: 0 });
-    fireEvent.pointerMove(moveBtn, { clientY: 0 });
-    fireEvent.pointerUp(moveBtn, { clientY: 0 });
-    // Order unchanged by the (ignored) drag.
-    const rows = Array.from(container.querySelectorAll('[data-rank-row]')) as HTMLElement[];
-    expect(rows[0].textContent).toContain('Iron Bloom');
+    it('a mouse drags a row from anywhere in it, not just the grip', () => {
+      const { container } = render(<RankScreen />);
+      press(titleOf(rows(container)[0]), 30);
+      move(100);
+      lift(100);
+      expect(titles(container)).toEqual(['Second Show', 'Iron Bloom']);
+    });
+
+    it('the grip still drags with a mouse', () => {
+      const { container } = render(<RankScreen />);
+      press(gripOf(rows(container)[0]), 30);
+      move(100);
+      lift(100);
+      expect(titles(container)).toEqual(['Second Show', 'Iron Bloom']);
+    });
+
+    it('marks the row and the list while dragging, and clears both on release anywhere', () => {
+      const { container } = render(<RankScreen />);
+      const list = container.querySelector('[data-reordering]') as HTMLElement;
+      press(titleOf(rows(container)[0]), 30);
+      move(100);
+      expect(rows(container)[1].getAttribute('data-dragging')).toBe('true');
+      expect(list.getAttribute('data-reordering')).toBe('true');
+      lift(100);
+      expect(rows(container).some((r) => r.getAttribute('data-dragging') === 'true')).toBe(false);
+      expect(list.getAttribute('data-reordering')).toBe('false');
+    });
+
+    it('a finished drag does not follow the pointer afterwards', () => {
+      const { container } = render(<RankScreen />);
+      press(titleOf(rows(container)[0]), 30);
+      move(100);
+      lift(100);
+      move(10, 0);
+      move(10, 1);
+      expect(titles(container)).toEqual(['Second Show', 'Iron Bloom']);
+    });
+
+    it('a move with no button down ends a drag whose release never arrived', () => {
+      const { container } = render(<RankScreen />);
+      press(titleOf(rows(container)[0]), 30);
+      move(100);
+      move(100, 0);
+      expect(rows(container).some((r) => r.getAttribute('data-dragging') === 'true')).toBe(false);
+      move(10, 1);
+      expect(titles(container)).toEqual(['Second Show', 'Iron Bloom']);
+    });
+
+    it('grabbing below a midline and nudging does not move the row', () => {
+      const { container } = render(<RankScreen />);
+      press(titleOf(rows(container)[0]), 50);
+      move(58);
+      lift(58);
+      expect(titles(container)).toEqual(['Iron Bloom', 'Second Show']);
+    });
+
+    it('a click without travel never marks a drag', () => {
+      const { container } = render(<RankScreen />);
+      press(titleOf(rows(container)[0]), 30);
+      move(32);
+      expect(rows(container).some((r) => r.getAttribute('data-dragging') === 'true')).toBe(false);
+      lift(32);
+      expect(titles(container)).toEqual(['Iron Bloom', 'Second Show']);
+    });
+
+    it('Escape cancels the drag and restores the order', () => {
+      const { container } = render(<RankScreen />);
+      press(titleOf(rows(container)[0]), 30);
+      move(100);
+      expect(titles(container)).toEqual(['Second Show', 'Iron Bloom']);
+      fireEvent.keyDown(window, { key: 'Escape' });
+      expect(titles(container)).toEqual(['Iron Bloom', 'Second Show']);
+      move(100);
+      lift(100);
+      expect(titles(container)).toEqual(['Iron Bloom', 'Second Show']);
+    });
+
+    it('touch on a row body does not drag, so the list can scroll', () => {
+      const { container } = render(<RankScreen />);
+      press(titleOf(rows(container)[0]), 30, 'touch');
+      move(100, 1, 'touch');
+      lift(100, 'touch');
+      expect(titles(container)).toEqual(['Iron Bloom', 'Second Show']);
+    });
+
+    it('touch drags from the grip', () => {
+      const { container } = render(<RankScreen />);
+      press(gripOf(rows(container)[0]), 30, 'touch');
+      move(100, 1, 'touch');
+      lift(100, 'touch');
+      expect(titles(container)).toEqual(['Second Show', 'Iron Bloom']);
+    });
+
+    it('a press on the move buttons does not start a drag', () => {
+      const { container } = render(<RankScreen />);
+      press(screen.getByLabelText('Move Second Show up'), 70);
+      move(0);
+      lift(0);
+      expect(titles(container)).toEqual(['Iron Bloom', 'Second Show']);
+    });
+
+    it('the editor is frozen during the submit ceremony', () => {
+      withState({ finalizing: { kind: 'submit', startedAt: Date.now() } });
+      const { container } = render(<RankScreen />);
+      press(titleOf(rows(container)[0]), 30);
+      move(100);
+      lift(100);
+      expect(titles(container)).toEqual(['Iron Bloom', 'Second Show']);
+    });
+
+    it('unmounting mid-drag detaches the window listeners', () => {
+      const removed = vi.spyOn(window, 'removeEventListener');
+      const { container, unmount } = render(<RankScreen />);
+      press(titleOf(rows(container)[0]), 30);
+      move(100);
+      unmount();
+      const types = removed.mock.calls.map(([type]) => type);
+      expect(types).toEqual(expect.arrayContaining(['pointermove', 'pointerup', 'pointercancel', 'keydown']));
+    });
   });
 
   it('submits the drag-produced order through the dialog', () => {
     stubRowGeometry();
     const { container } = render(<RankScreen />);
-    const grip = container.querySelector('[data-test-handle="rank-grip"]') as HTMLElement;
-    fireEvent.pointerDown(grip, { clientY: 10, button: 0 });
-    fireEvent.pointerMove(grip, { clientY: 100 });
-    fireEvent.pointerUp(grip, { clientY: 100 });
+    const title = container.querySelector('[data-rank-row] [class*="rowTitle"]') as HTMLElement;
+    fireEvent.pointerDown(title, { pointerId: 1, pointerType: 'mouse', button: 0, buttons: 1, clientY: 30 });
+    fireEvent.pointerMove(window, { pointerId: 1, pointerType: 'mouse', buttons: 1, clientY: 100 });
+    fireEvent.pointerUp(document.body, { pointerId: 1, pointerType: 'mouse', button: 0, clientY: 100 });
     fireEvent.click(screen.getByText('Submit rankings'));
     fireEvent.click(screen.getByText('This is my final ranking'));
     fireEvent.click(document.querySelector('[data-test-handle="confirm-submit"]') as HTMLElement);

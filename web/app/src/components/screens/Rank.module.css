@@ -402,13 +402,21 @@
   color: var(--cour-text-3);
 }
 
-/* Drag-to-reorder (desktop): the whole editor row is a grab surface;
-   the up/down buttons opt out via [data-move]. */
-.deskBody .main .row {
-  cursor: grab;
-  touch-action: none;
+/* Drag-to-reorder: a mouse grabs anywhere in an editor row, touch the grip. */
+.row[data-rank-row] {
   user-select: none;
   -webkit-user-select: none;
+}
+
+@media (pointer: fine) {
+  .row[data-rank-row] {
+    cursor: grab;
+  }
+}
+
+.rows[data-reordering="true"],
+.rows[data-reordering="true"] * {
+  cursor: grabbing;
 }
 
 .grip {
@@ -416,8 +424,7 @@
   align-items: center;
   color: var(--cour-text-3);
   flex-shrink: 0;
-  /* The grip is the ONLY drag surface: grabbing it must not scroll,
-     and it needs a real hit target on touch. */
+  /* The touch drag surface: grabbing it must not scroll the list. */
   cursor: grab;
   touch-action: none;
   user-select: none;

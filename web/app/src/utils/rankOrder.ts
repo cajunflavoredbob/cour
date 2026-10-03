@@ -28,3 +28,31 @@ export const reconcileOrder = (current: number[], liked: number[]): number[] => 
   if (kept.length === current.length && added.length === 0) return current;
   return [...kept, ...added];
 };
+
+interface RowSpan {
+  top: number;
+  bottom: number;
+}
+
+const midline = (row: RowSpan) => (row.top + row.bottom) / 2;
+
+/**
+ * The slot a dragged row belongs in for a pointer at `y`, given every row's
+ * vertical extent in current order. The row passes a neighbor once the
+ * pointer crosses that neighbor's midline.
+ */
+export const dragTargetIndex = (rows: readonly RowSpan[], from: number, y: number): number => {
+  let to = from;
+  while (to + 1 < rows.length && y > midline(rows[to + 1])) to++;
+  if (to !== from) return to;
+  while (to > 0 && y < midline(rows[to - 1])) to--;
+  return to;
+};
+
+/** `order` with the item at `from` moved to `to`. */
+export const moveItem = <T>(order: readonly T[], from: number, to: number): T[] => {
+  const next = [...order];
+  const [item] = next.splice(from, 1);
+  next.splice(to, 0, item);
+  return next;
+};

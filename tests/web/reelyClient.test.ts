@@ -58,7 +58,14 @@ class MockWebSocket extends EventTarget {
 const setupDomGlobals = (rootPath = '') => {
   vi.stubGlobal('location', { href: 'https://reely.example.com:8000/app/' });
   vi.stubGlobal('document', { body: { dataset: { rootPath } } });
+  // Page lifecycle events (pagehide / pageshow) arrive on the window.
+  vi.stubGlobal('window', new EventTarget());
 };
+
+// A pagehide / pageshow as the browser fires it: `persisted` is true when
+// the page is going into, or coming back from, the back/forward cache.
+const pageTransition = (type: 'pagehide' | 'pageshow', persisted: boolean) =>
+  window.dispatchEvent(Object.assign(new Event(type), { persisted }));
 
 // Lazy import the module AFTER globals are stubbed. Each test that wants a
 // different rootPath / location must call vi.resetModules() first.
@@ -266,6 +273,91 @@ describe('reconnect backoff', () => {
     // Crossing 30s: the capped reconnect fires.
     vi.advanceTimersByTime(2);
     expect(MockWebSocket.instances.length).toBe(beforeCount + 1);
+  });
+});
+
+describe('back/forward cache', () => {
+  it('closes the socket when the page is cached, and does not reconnect while cached', async () => {
+    vi.useFakeTimers();
+    const ReelyClient = await loadClient();
+    const client = new ReelyClient();
+    const disconnected = vi.fn();
+    client.addEventListener('disconnected', disconnected);
+    MockWebSocket.latest().simulateOpen();
+    pageTransition('pagehide', true);
+    expect(MockWebSocket.latest().readyState).toBe(MockWebSocket.CLOSED);
+    expect(disconnected).toHaveBeenCalledTimes(1);
+    vi.advanceTimersByTime(60_000);
+    expect(MockWebSocket.instances).toHaveLength(1);
+  });
+
+  it('reconnects at once when the page is restored', async () => {
+    vi.useFakeTimers();
+    const ReelyClient = await loadClient();
+    const client = new ReelyClient();
+    const connected = vi.fn();
+    client.addEventListener('connected', connected);
+    MockWebSocket.latest().simulateOpen();
+    pageTransition('pagehide', true);
+    pageTransition('pageshow', true);
+    expect(MockWebSocket.instances).toHaveLength(2);
+    MockWebSocket.latest().simulateOpen();
+    expect(connected).toHaveBeenCalledTimes(2);
+    expect(client.ws).toBe(MockWebSocket.latest());
+  });
+
+  it('leaves the socket alone on a pagehide that is not going into the cache', async () => {
+    const ReelyClient = await loadClient();
+    const client = new ReelyClient();
+    const disconnected = vi.fn();
+    client.addEventListener('disconnected', disconnected);
+    MockWebSocket.latest().simulateOpen();
+    pageTransition('pagehide', false);
+    expect(MockWebSocket.latest().readyState).toBe(MockWebSocket.OPEN);
+    expect(disconnected).not.toHaveBeenCalled();
+  });
+
+  it('does not open a second socket on a restore it did not close for', async () => {
+    const ReelyClient = await loadClient();
+    new ReelyClient();
+    MockWebSocket.latest().simulateOpen();
+    pageTransition('pageshow', true);
+    pageTransition('pageshow', false);
+    expect(MockWebSocket.instances).toHaveLength(1);
+  });
+
+  it('cancels a pending reconnect while cached, then reconnects on restore', async () => {
+    vi.useFakeTimers();
+    const ReelyClient = await loadClient();
+    new ReelyClient();
+    MockWebSocket.latest().simulateClose();
+    pageTransition('pagehide', true);
+    vi.advanceTimersByTime(60_000);
+    expect(MockWebSocket.instances).toHaveLength(1);
+    pageTransition('pageshow', true);
+    expect(MockWebSocket.instances).toHaveLength(2);
+  });
+
+  it('a late close from the cached socket does not schedule another reconnect', async () => {
+    vi.useFakeTimers();
+    const ReelyClient = await loadClient();
+    new ReelyClient();
+    const cached = MockWebSocket.latest();
+    cached.simulateOpen();
+    pageTransition('pagehide', true);
+    pageTransition('pageshow', true);
+    cached.simulateClose();
+    vi.advanceTimersByTime(60_000);
+    expect(MockWebSocket.instances).toHaveLength(2);
+  });
+
+  it('rejects a request in flight when the page is cached', async () => {
+    const ReelyClient = await loadClient();
+    const client = new ReelyClient();
+    MockWebSocket.latest().simulateOpen();
+    const pending = client.waitForAnyMessage(['reviewSuccess']);
+    pageTransition('pagehide', true);
+    await expect(pending).rejects.toThrow(/Socket closed/);
   });
 });
 

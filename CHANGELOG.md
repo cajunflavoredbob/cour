@@ -13,6 +13,29 @@ repository; this changelog starts fresh at 0.1.0.
 
 ---
 
+## [1.3.13] - 2026-10-02
+
+Dragging to reorder your ranking now works properly with a mouse, and
+coming back to cour in the same tab no longer locks your name out of the
+room.
+
+### Fixed
+- Dragging a show in the ranking no longer gets stuck. Letting go anywhere
+  ends the drag; before, letting go anywhere but the grip left it stuck on,
+  and the row kept moving when the pointer passed over a grip.
+- A mouse can grab a row anywhere on it, not only by the grip. The up and
+  down buttons still work as buttons, and touch still drags by the grip so
+  the list scrolls normally.
+- Grabbing a row below its middle no longer shifts it down a slot.
+- On wide touch screens, swiping on a row scrolls the list instead of
+  doing nothing.
+- Leaving cour for another site in the same tab, then opening it again, no
+  longer reports that your name is already in the room.
+
+### Added
+- Holding a dragged row near the top or bottom of the list scrolls it.
+- Escape cancels a drag and puts the order back.
+
 ## [1.3.12] - 2026-10-02
 
 Maintenance release. cour's own code is unchanged.

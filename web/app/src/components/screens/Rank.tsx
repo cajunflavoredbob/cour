@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Media } from "../../../../../types/reely";
 import { AccountMenu } from "../organisms/AccountMenu";
 import { AppHeader } from "../organisms/AppHeader";
 import { DialogScrim } from "../molecules/DialogScrim";
 import { DeckDetails } from "../organisms/DeckDetails";
 import { Loading } from "./Loading";
+import { useDragReorder } from "../../hooks/useDragReorder";
 import { DESKTOP_QUERY, useMediaQuery } from "../../hooks/useMediaQuery";
 import { useStore } from "../../store";
 import { posterSrc } from "../../utils/poster";
@@ -28,9 +29,8 @@ const STANDINGS_PREVIEW = 5;
  * updated the moment any member's ranking lands (server push).
  *
  * Desktop (docs/DESKTOP.md 0.15.0): the editor gets a rail (headline +
- * point legend + submit) beside the sortable list, with pointer
- * drag-to-reorder (up/down buttons retained for keyboard/touch); the
- * standings get the elevated-list treatment (#1 hero, medal ranks).
+ * point legend + submit) beside the sortable list; the standings get the
+ * elevated-list treatment (#1 hero, medal ranks).
  */
 export const RankScreen = () => {
   const [{ room, review, results, members, connectionStatus, finalizing }, dispatch] = useStore([
@@ -69,11 +69,8 @@ export const RankScreen = () => {
   // what to watch.
   const [detailTitleId, setDetailTitleId] = useState<number | null>(null);
 
-  // Pointer drag-to-reorder (desktop). Up/down buttons remain the
-  // keyboard + touch path.
-  const dragIdRef = useRef<number | null>(null);
-  const [draggingId, setDraggingId] = useState<number | null>(null);
-  const listRef = useRef<HTMLUListElement>(null);
+  // Up/down buttons are the keyboard path.
+  const { listRef, draggingId, onPointerDown: onRowPointerDown } = useDragReorder(order, setOrder);
 
   useEffect(() => {
     dispatch({ type: "results" });
@@ -153,43 +150,6 @@ export const RankScreen = () => {
     return url ? posterSrc(url) : undefined;
   };
 
-  // Drag starts ONLY from the grip handle (the owner's spec, audit
-  // v1.2.0 #11): the rest of the row is inert for dragging, so the list
-  // scrolls normally by touch on every platform. The grip captures the
-  // pointer, so the move/up handlers ride on it too.
-  const onDragStart = (e: React.PointerEvent, id: number) => {
-    if (e.button !== 0) return;
-    // Stop the browser's click-drag text selection during a reorder.
-    e.preventDefault();
-    dragIdRef.current = id;
-    setDraggingId(id);
-    (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
-  };
-
-  const onDragMove = (e: React.PointerEvent) => {
-    const id = dragIdRef.current;
-    if (id == null || !listRef.current) return;
-    const rows = Array.from(listRef.current.querySelectorAll<HTMLElement>("[data-rank-row]"));
-    let target = rows.findIndex((r) => {
-      const rect = r.getBoundingClientRect();
-      return e.clientY < rect.top + rect.height / 2;
-    });
-    if (target === -1) target = rows.length - 1;
-    setOrder((cur) => {
-      const from = cur.indexOf(id);
-      if (from === -1 || from === target) return cur;
-      const next = [...cur];
-      next.splice(from, 1);
-      next.splice(target, 0, id);
-      return next;
-    });
-  };
-
-  const onDragEnd = () => {
-    dragIdRef.current = null;
-    setDraggingId(null);
-  };
-
   // ── Editor pieces ──
 
   const editorHeadline = (
@@ -208,26 +168,22 @@ export const RankScreen = () => {
         you kept nothing this season. bold. submit to sit this one out.
       </p>
     ) : (
-      <ul className={styles.rows} ref={listRef}>
+      <ul className={styles.rows} ref={listRef} data-reordering={draggingId != null}>
         {order.map((titleId, i) => (
           <li
             key={titleId}
             className={styles.row}
             data-rank-row
+            data-reorder-id={titleId}
             data-dragging={draggingId === titleId}
+            // No dragging during the submit ceremony.
+            onPointerDown={submitting ? undefined : (e) => onRowPointerDown(e, titleId)}
           >
             <span
               className={styles.grip}
               aria-hidden="true"
               data-test-handle="rank-grip"
-              // The order already shipped with the submit; a reorder
-              // during the 3s ceremony would render, then silently
-              // vanish when the standings land. Freeze the editor for
-              // the ceremony's duration.
-              onPointerDown={(e) => { if (!submitting) onDragStart(e, titleId); }}
-              onPointerMove={onDragMove}
-              onPointerUp={onDragEnd}
-              onPointerCancel={onDragEnd}
+              data-drag-handle
             >
               <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
                 <path d="M3 5h10M3 8h10M3 11h10" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
@@ -241,11 +197,11 @@ export const RankScreen = () => {
             </span>
             <span className={styles.rowThumb}>
               {posterOf(titleId) && (
-                <img className={styles.rowThumbImg} src={posterOf(titleId)} alt="" />
+                <img className={styles.rowThumbImg} src={posterOf(titleId)} alt="" draggable={false} />
               )}
             </span>
             <span className={styles.rowTitle}>{titleOf(titleId)}</span>
-            <span className={styles.moveButtons} data-move>
+            <span className={styles.moveButtons} data-no-drag>
               <button
                 type="button"
                 className={styles.moveBtn}
@@ -309,9 +265,7 @@ export const RankScreen = () => {
 
   // ── Standings pieces ──
 
-  // FINAL vs live (audit 17 UX 11): the season's conclusion used to be
-  // the silent absence of "UPDATES LIVE". Waiting names ride the shared
-  // member-state payload.
+  // FINAL once every member has submitted; otherwise live, naming who is pending.
   const memberStates = members ?? results.members ?? [];
   const waitingOn = memberStates.filter((m) => !m.submitted).map((m) => m.userName);
   const isFinal = results.memberCount > 0 && results.submittedCount >= results.memberCount;

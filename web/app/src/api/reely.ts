@@ -34,19 +34,26 @@ export class ReelyClient extends EventTarget {
   ws!: WebSocket;
   reconnectionAttempts = 0;
   private stableConnectionTimer?: ReturnType<typeof setTimeout>;
+  private reconnectTimer?: ReturnType<typeof setTimeout>;
+  // Closed while the page sits in the back/forward cache.
+  private suspended = false;
   constructor() {
     super();
     this.connect();
+    window.addEventListener("pagehide", this.handlePageHide);
+    window.addEventListener("pageshow", this.handlePageShow);
+  }
+
+  private detach() {
+    if (!this.ws) return;
+    this.ws.removeEventListener("message", this.handleMessage);
+    this.ws.removeEventListener("open", this.handleOpen);
+    this.ws.removeEventListener("close", this.handleClose);
+    this.ws.removeEventListener("error", this.handleError);
   }
 
   private connect() {
-    if (this.ws) {
-      this.ws.removeEventListener("message", this.handleMessage);
-      this.ws.removeEventListener("open", this.handleOpen);
-      this.ws.removeEventListener("close", this.handleClose);
-      this.ws.removeEventListener("error", this.handleError);
-    }
-
+    this.detach();
     this.ws = new WebSocket(API_URL);
     this.ws.addEventListener("message", this.handleMessage);
     this.ws.addEventListener("close", this.handleClose, { once: true });
@@ -127,9 +134,28 @@ export class ReelyClient extends EventTarget {
     // client retry in lockstep (thundering herd) after a restart.
     const base = Math.min(30_000, 500 * 2 ** this.reconnectionAttempts);
     const delay = base + Math.random() * 1_000;
-    setTimeout(() => this.connect(), delay);
+    this.reconnectTimer = setTimeout(() => this.connect(), delay);
 
     this.reconnectionAttempts += 1;
+  };
+
+  // Closes the socket while the page sits in the back/forward cache and
+  // reconnects when it returns.
+  private handlePageHide = (e: PageTransitionEvent) => {
+    if (!e.persisted) return;
+    this.suspended = true;
+    clearTimeout(this.reconnectTimer);
+    clearTimeout(this.stableConnectionTimer);
+    this.detach();
+    this.ws.close();
+    this.dispatchEvent(new Event("disconnected"));
+  };
+
+  private handlePageShow = (e: PageTransitionEvent) => {
+    if (!e.persisted || !this.suspended) return;
+    this.suspended = false;
+    this.reconnectionAttempts = 0;
+    this.connect();
   };
 
   // Wait for any one of several message types, with shared cleanup. A naive
