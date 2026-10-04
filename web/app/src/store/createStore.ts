@@ -115,22 +115,28 @@ export const createStore = () => {
       // Fire-and-forget dispatches (`soundPref` and friends) return
       // undefined above, so this catch only ever sees real requests.
       if (result instanceof Promise) {
-        result.catch(() => {
-          set((state) =>
-            reducer(state, {
-              type: "addToast",
-              payload: {
-                id: `request-timeout-${++timeoutToastSeq}`,
-                message: "The server isn't responding. Please try again.",
-                appearance: "Failure",
-                showTimeMs: 5000,
-              },
-            }),
-          );
+        result.catch((err: unknown) => {
+          // A request dropped by a back/forward-cache suspension gets no toast,
+          // retry or loading escape: the reconnect on restore logs in and
+          // fetches again.
+          const suspended = (err as { suspended?: boolean } | null)?.suspended === true;
+          if (!suspended) {
+            set((state) =>
+              reducer(state, {
+                type: "addToast",
+                payload: {
+                  id: `request-timeout-${++timeoutToastSeq}`,
+                  message: "The server isn't responding. Please try again.",
+                  appearance: "Failure",
+                  showTimeMs: 5000,
+                },
+              }),
+            );
+          }
           // A review fetch can die CLIENT-side too (15s timeout, reply
           // lost mid-reconnect) -- the reviewError frame path never runs
           // then, and Home/Deck held the pulse forever (audit v1.2.0 #5).
-          if (action.type === "review") {
+          if (action.type === "review" && !suspended) {
             scheduleReviewRetry();
           }
           // A lock/submit that never got an answer must not stick on its
@@ -144,7 +150,7 @@ export const createStore = () => {
           // (audit 17 M8). Fall back to the join form so the user can act.
           // The cold-load auto-rejoin holds the loading route too (see
           // loginSuccess), so its lost reply needs the same escape.
-          if (action.type === "login" || action.type === "joinOrCreateRoom") {
+          if ((action.type === "login" || action.type === "joinOrCreateRoom") && !suspended) {
             set((state) =>
               state.route === "loading"
                 ? reducer(state, { type: "navigate", payload: { route: "home" } })
@@ -288,8 +294,13 @@ export const createStore = () => {
     }
   }, { signal });
 
-  client.addEventListener("disconnected", () => {
-    apply({ type: "updateConnectionStatus", payload: "disconnected" });
+  client.addEventListener("disconnected", (e) => {
+    // A disconnect while the page sits in the back/forward cache reads as
+    // connecting, with no failure toast, and drops a pending review retry:
+    // the reconnect on restore fetches the ledger again.
+    const { suspended } = (e as CustomEvent<{ suspended?: boolean } | null>).detail ?? {};
+    if (suspended) clearTimeout(reviewRetryTimer);
+    apply({ type: "updateConnectionStatus", payload: suspended ? "connecting" : "disconnected" });
   }, { signal });
 
   client.addEventListener("message", (e) => {
@@ -422,14 +433,16 @@ export const createStore = () => {
     // canonical roomName when present), then read post-update state for the URL.
     if (msg.type === "joinRoomSuccess" || msg.type === "createRoomSuccess") {
       // A reconnect rejoin (room already joined) keeps the current route;
-      // only a fresh join routes, and only once the ledger arrives.
-      routeOnNextReview = useZustandStore.getState().room?.joined !== true;
+      // only a fresh join routes, and only once the ledger arrives. A rejoin
+      // before that ledger arrives keeps the landing pending.
+      const freshJoin = useZustandStore.getState().room?.joined !== true;
+      routeOnNextReview = routeOnNextReview || freshJoin;
       // First-run tutorial: one page, once per browser, shown when the
       // user first lands IN a room. Not on loginSuccess -- that arrives
       // while the join form is still on screen and read as popping up
       // "before logging in" (the owner's 1.1.0 feedback). Fresh joins
       // only, so a mid-session reconnect can't interrupt with it.
-      if (routeOnNextReview && !getStoredTutorialSeen()) {
+      if (freshJoin && !getStoredTutorialSeen()) {
         apply({ type: "tutorial", payload: { open: true } });
       }
       apply(msg as Actions);
@@ -519,11 +532,18 @@ export const createStore = () => {
       // deliberately left, so neither a reconnect nor the next page
       // load should pull them back in.
       clearStoredRoom();
+      // A late ledger for the room just left must not navigate.
+      routeOnNextReview = false;
       apply(msg as Actions);
       const newUrl = new URL(location.href);
       newUrl.searchParams.delete("roomName");
       history.replaceState(null, document.title, newUrl.href);
       return;
+    }
+
+    if (msg.type === "joinRoomError" || msg.type === "createRoomError") {
+      // A refused join leaves no landing pending.
+      routeOnNextReview = false;
     }
 
     apply(msg as Actions);

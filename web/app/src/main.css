@@ -112,6 +112,14 @@ body:not(.show-focus-ring) *:focus {
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { scrollbar-width: none; }
 
+/* While a row is dragged (useDragReorder): the grabbing cursor, and no
+   scroll anchoring. */
+:root[data-reordering],
+:root[data-reordering] * {
+  cursor: grabbing;
+  overflow-anchor: none;
+}
+
 /* ────────────────────────────────────────────────────────────────────
  * IMPORTANT: Do NOT add @keyframes here if they're referenced from a
  * .module.css file. Vite's CSS Modules implementation hashes the

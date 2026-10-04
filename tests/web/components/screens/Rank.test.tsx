@@ -126,6 +126,129 @@ describe('RankScreen editor (before submitting)', () => {
   });
 });
 
+describe('RankScreen drag auto-scroll on a phone', () => {
+  // The page scrolls. Rows are 60px tall from y=500; the sticky submit bar
+  // covers y=640 to the bottom of the 768px window.
+  const BAR_TOP = 640;
+  let frames: FrameRequestCallback[];
+
+  const rect = (top: number, height: number) =>
+    ({ top, bottom: top + height, height, left: 0, right: 390, width: 390, x: 0, y: top, toJSON: () => ({}) }) as DOMRect;
+
+  beforeEach(() => {
+    frames = [];
+    vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => frames.push(cb));
+    vi.stubGlobal('cancelAnimationFrame', () => undefined);
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      if (this.tagName === 'FOOTER') return rect(BAR_TOP, 768 - BAR_TOP);
+      if (this.tagName === 'UL') return rect(500, 120);
+      if (this.dataset.reorderId) return rect(500 + Array.from(this.parentElement?.children ?? []).indexOf(this) * 60, 60);
+      return rect(0, 0);
+    });
+    document.documentElement.scrollTop = 0;
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const dragTo = (container: HTMLElement, clientY: number) => {
+    (container.querySelector('footer') as HTMLElement).style.position = 'sticky';
+    const grip = container.querySelector('[data-reorder-id] [data-drag-handle]') as HTMLElement;
+    fireEvent.pointerDown(grip, { pointerId: 1, pointerType: 'touch', button: 0, buttons: 1, clientX: 20, clientY: 530 });
+    fireEvent.pointerMove(window, { pointerId: 1, pointerType: 'touch', buttons: 1, clientX: 20, clientY });
+    frames.shift()?.(0);
+  };
+
+  it('scrolls while a row is held just above the submit bar', () => {
+    const { container } = render(<RankScreen />);
+    dragTo(container, BAR_TOP - 10);
+    expect(document.documentElement.scrollTop).toBeGreaterThan(0);
+  });
+
+  it('does not scroll while the row is held clear of the bar', () => {
+    const { container } = render(<RankScreen />);
+    dragTo(container, BAR_TOP - 60);
+    expect(document.documentElement.scrollTop).toBe(0);
+  });
+
+  it('starts the top zone below the safe-area inset', () => {
+    // jsdom cannot resolve env(), so the hook's hidden probe reads a 47px top inset.
+    const real = window.getComputedStyle;
+    vi.spyOn(window, 'getComputedStyle').mockImplementation((el: Element) =>
+      (el as HTMLElement).style.visibility === 'hidden'
+        ? ({ paddingTop: '47px', paddingBottom: '0px' } as unknown as CSSStyleDeclaration)
+        : real.call(window, el),
+    );
+    document.documentElement.scrollTop = 500;
+    const { container } = render(<RankScreen />);
+    dragTo(container, 70);
+    expect(document.documentElement.scrollTop).toBeLessThan(500);
+  });
+
+  it('marks the page while a row is dragged, and clears it on release', () => {
+    const { container } = render(<RankScreen />);
+    dragTo(container, BAR_TOP - 60);
+    expect(document.documentElement.hasAttribute('data-reordering')).toBe(true);
+    fireEvent.pointerUp(window, { pointerId: 1, pointerType: 'touch', button: 0, buttons: 0, clientX: 20, clientY: BAR_TOP - 60 });
+    expect(document.documentElement.hasAttribute('data-reordering')).toBe(false);
+  });
+
+  it('clears the page mark when unmounted mid-drag', () => {
+    const { container, unmount } = render(<RankScreen />);
+    dragTo(container, BAR_TOP - 60);
+    unmount();
+    expect(document.documentElement.hasAttribute('data-reordering')).toBe(false);
+  });
+
+  it('ends the drag when its list leaves the page', () => {
+    const { container } = render(<RankScreen />);
+    dragTo(container, BAR_TOP - 60);
+    const list = (container.querySelector('[data-reorder-id]') as HTMLElement).parentElement as HTMLElement;
+    const [parent, next] = [list.parentNode as Node, list.nextSibling];
+    list.remove();
+    fireEvent.pointerMove(window, { pointerId: 1, pointerType: 'touch', buttons: 1, clientX: 20, clientY: BAR_TOP - 30 });
+    expect(document.documentElement.hasAttribute('data-reordering')).toBe(false);
+    parent.insertBefore(list, next);
+  });
+
+  it('ends the drag on the next frame when its list leaves the page', () => {
+    const { container } = render(<RankScreen />);
+    dragTo(container, BAR_TOP - 60);
+    const list = (container.querySelector('[data-reorder-id]') as HTMLElement).parentElement as HTMLElement;
+    const [parent, next] = [list.parentNode as Node, list.nextSibling];
+    list.remove();
+    frames.shift()?.(0);
+    expect(document.documentElement.hasAttribute('data-reordering')).toBe(false);
+    parent.insertBefore(list, next);
+  });
+
+  it('ends the drag on a scroll when its list leaves the page', () => {
+    const { container } = render(<RankScreen />);
+    dragTo(container, BAR_TOP - 60);
+    const list = (container.querySelector('[data-reorder-id]') as HTMLElement).parentElement as HTMLElement;
+    const [parent, next] = [list.parentNode as Node, list.nextSibling];
+    list.remove();
+    fireEvent.scroll(window);
+    expect(document.documentElement.hasAttribute('data-reordering')).toBe(false);
+    parent.insertBefore(list, next);
+  });
+
+  it('unmounting mid-drag removes every window listener the drag added', () => {
+    const { container, unmount } = render(<RankScreen />);
+    const added = vi.spyOn(window, 'addEventListener');
+    const removed = vi.spyOn(window, 'removeEventListener');
+    dragTo(container, BAR_TOP - 60);
+    unmount();
+    const capture = (opts: unknown) =>
+      opts === true || (typeof opts === 'object' && opts !== null && (opts as AddEventListenerOptions).capture === true);
+    expect(added).toHaveBeenCalled();
+    for (const [type, fn, opts] of added.mock.calls) {
+      expect(removed.mock.calls.some(([t, f, o]) => t === type && f === fn && capture(o) === capture(opts))).toBe(true);
+    }
+  });
+});
+
 describe('RankScreen audit v1.2.0 additions', () => {
   it('Submit disables while disconnected (#8)', () => {
     withState({ connectionStatus: 'disconnected' });

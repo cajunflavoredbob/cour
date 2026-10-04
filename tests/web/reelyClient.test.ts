@@ -203,6 +203,7 @@ describe('waitForAnyMessage', () => {
     const promise = client.waitForAnyMessage(['loginSuccess', 'loginError']);
     MockWebSocket.latest().simulateClose();
     await expect(promise).rejects.toThrow(/Socket closed/);
+    await expect(promise).rejects.not.toHaveProperty('suspended');
   });
 
   it('rejects after REQUEST_TIMEOUT_MS without a reply', async () => {
@@ -287,6 +288,7 @@ describe('back/forward cache', () => {
     pageTransition('pagehide', true);
     expect(MockWebSocket.latest().readyState).toBe(MockWebSocket.CLOSED);
     expect(disconnected).toHaveBeenCalledTimes(1);
+    expect((disconnected.mock.calls[0][0] as CustomEvent).detail).toEqual({ suspended: true });
     vi.advanceTimersByTime(60_000);
     expect(MockWebSocket.instances).toHaveLength(1);
   });
@@ -344,6 +346,10 @@ describe('back/forward cache', () => {
     new ReelyClient();
     const cached = MockWebSocket.latest();
     cached.simulateOpen();
+    // A real socket reports its close later, once the page is restored.
+    cached.close = () => {
+      cached.readyState = MockWebSocket.CLOSING;
+    };
     pageTransition('pagehide', true);
     pageTransition('pageshow', true);
     cached.simulateClose();
@@ -358,6 +364,52 @@ describe('back/forward cache', () => {
     const pending = client.waitForAnyMessage(['reviewSuccess']);
     pageTransition('pagehide', true);
     await expect(pending).rejects.toThrow(/Socket closed/);
+    await expect(pending).rejects.toMatchObject({ suspended: true });
+  });
+
+  it('reports the outage when the restored socket has not opened after 3s', async () => {
+    vi.useFakeTimers();
+    const ReelyClient = await loadClient();
+    const client = new ReelyClient();
+    MockWebSocket.latest().simulateOpen();
+    pageTransition('pagehide', true);
+    const disconnected = vi.fn();
+    client.addEventListener('disconnected', disconnected);
+    pageTransition('pageshow', true);
+    vi.advanceTimersByTime(2_999);
+    expect(disconnected).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1);
+    expect(disconnected).toHaveBeenCalledTimes(1);
+    expect((disconnected.mock.calls[0][0] as CustomEvent).detail).toBeUndefined();
+  });
+
+  it('a second pagehide inside the grace window cancels its outage report', async () => {
+    vi.useFakeTimers();
+    const ReelyClient = await loadClient();
+    const client = new ReelyClient();
+    MockWebSocket.latest().simulateOpen();
+    pageTransition('pagehide', true);
+    const disconnected = vi.fn();
+    client.addEventListener('disconnected', disconnected);
+    pageTransition('pageshow', true);
+    vi.advanceTimersByTime(1_000);
+    pageTransition('pagehide', true);
+    vi.advanceTimersByTime(10_000);
+    expect(disconnected.mock.calls.map(([e]) => (e as CustomEvent).detail?.suspended === true)).toEqual([true]);
+  });
+
+  it('stays quiet when the restored socket opens in time', async () => {
+    vi.useFakeTimers();
+    const ReelyClient = await loadClient();
+    const client = new ReelyClient();
+    MockWebSocket.latest().simulateOpen();
+    pageTransition('pagehide', true);
+    const disconnected = vi.fn();
+    client.addEventListener('disconnected', disconnected);
+    pageTransition('pageshow', true);
+    MockWebSocket.latest().simulateOpen();
+    vi.advanceTimersByTime(60_000);
+    expect(disconnected).not.toHaveBeenCalled();
   });
 });
 

@@ -29,12 +29,16 @@ const STABLE_CONNECTION_MS = 10_000;
 // giving up. Without it a dropped reply hangs the request promise -- and the
 // UI -- permanently.
 const REQUEST_TIMEOUT_MS = 15_000;
+// How long a page restored from the back/forward cache waits on its new
+// socket before reporting the outage.
+const RESTORE_GRACE_MS = 3_000;
 
 export class ReelyClient extends EventTarget {
   ws!: WebSocket;
   reconnectionAttempts = 0;
   private stableConnectionTimer?: ReturnType<typeof setTimeout>;
   private reconnectTimer?: ReturnType<typeof setTimeout>;
+  private restoreTimer?: ReturnType<typeof setTimeout>;
   // Closed while the page sits in the back/forward cache.
   private suspended = false;
   constructor() {
@@ -104,6 +108,7 @@ export class ReelyClient extends EventTarget {
   };
 
   private handleOpen = () => {
+    clearTimeout(this.restoreTimer);
     this.dispatchEvent(new Event("connected"));
     // Reset the backoff counter only after the connection proves stable.
     // Resetting on every `open` let an accept-then-close crash loop reconnect
@@ -125,6 +130,7 @@ export class ReelyClient extends EventTarget {
     // The connection didn't survive to "stable"; keep the backoff counter so
     // a crash loop escalates the delay.
     clearTimeout(this.stableConnectionTimer);
+    clearTimeout(this.restoreTimer);
     this.dispatchEvent(new Event("disconnected"));
 
     // Capped exponential backoff with jitter. Base 500ms, doubling per attempt
@@ -146,9 +152,10 @@ export class ReelyClient extends EventTarget {
     this.suspended = true;
     clearTimeout(this.reconnectTimer);
     clearTimeout(this.stableConnectionTimer);
+    clearTimeout(this.restoreTimer);
     this.detach();
     this.ws.close();
-    this.dispatchEvent(new Event("disconnected"));
+    this.dispatchEvent(new CustomEvent("disconnected", { detail: { suspended: true } }));
   };
 
   private handlePageShow = (e: PageTransitionEvent) => {
@@ -156,6 +163,8 @@ export class ReelyClient extends EventTarget {
     this.suspended = false;
     this.reconnectionAttempts = 0;
     this.connect();
+    // Reports the outage if the new socket has not opened in time.
+    this.restoreTimer = setTimeout(() => this.dispatchEvent(new Event("disconnected")), RESTORE_GRACE_MS);
   };
 
   // Wait for any one of several message types, with shared cleanup. A naive
@@ -209,9 +218,14 @@ export class ReelyClient extends EventTarget {
       // REQUEST_TIMEOUT_MS (15s) on every reconnect-mid-request, freezing
       // the UI on a reply that the new socket will never get. The close
       // path's caller can decide whether to retry or surface a toast.
-      closeHandler = () => {
+      closeHandler = (e) => {
         cleanup();
-        reject(new Error(`Socket closed waiting for a server reply (${types.join(" / ")})`));
+        const err = new Error(`Socket closed waiting for a server reply (${types.join(" / ")})`);
+        // Marks a request dropped because the page went into the back/forward cache.
+        if ((e as CustomEvent<{ suspended?: boolean } | null>).detail?.suspended) {
+          Object.assign(err, { suspended: true });
+        }
+        reject(err);
       };
       this.addEventListener("disconnected", closeHandler);
       timer = setTimeout(() => {

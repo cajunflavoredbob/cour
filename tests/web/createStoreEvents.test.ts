@@ -119,6 +119,29 @@ describe('connected handler', () => {
   });
 });
 
+describe('disconnected handler', () => {
+  const failureToast = (mod: Awaited<ReturnType<typeof loadCreateStore>>) =>
+    mod.useZustandStore.getState().toasts.some((t) => t.id === 'connection-failure');
+
+  it('shows the Disconnected toast when the socket drops', async () => {
+    const mod = await loadCreateStore();
+    mod.createStore();
+    clientMock.dispatchEvent(new Event('connected'));
+    clientMock.dispatchEvent(new Event('disconnected'));
+    expect(mod.useZustandStore.getState().connectionStatus).toBe('disconnected');
+    expect(failureToast(mod)).toBe(true);
+  });
+
+  it('reads a page parked in the back/forward cache as connecting, with no toast', async () => {
+    const mod = await loadCreateStore();
+    mod.createStore();
+    clientMock.dispatchEvent(new Event('connected'));
+    clientMock.dispatchEvent(new CustomEvent('disconnected', { detail: { suspended: true } }));
+    expect(mod.useZustandStore.getState().connectionStatus).toBe('connecting');
+    expect(failureToast(mod)).toBe(false);
+  });
+});
+
 describe('config frame routing', () => {
   it('routes to home (the join form) when no name is stored', async () => {
     const mod = await loadCreateStore();
@@ -133,6 +156,16 @@ describe('config frame routing', () => {
     mod.createStore();
     clientMock.dispatchEvent(new Event('connected'));
     emit({ type: 'config', payload: { requiresConfiguration: false } });
+    expect(mod.useZustandStore.getState().route).toBe('loading');
+  });
+
+  it('stays on loading when a back/forward-cache suspension drops that login', async () => {
+    setupDomGlobals({ name: 'user1' });
+    clientMock.login = vi.fn().mockRejectedValue(Object.assign(new Error('Socket closed'), { suspended: true }));
+    const mod = await loadCreateStore();
+    mod.createStore();
+    clientMock.dispatchEvent(new Event('connected'));
+    await new Promise((resolve) => setTimeout(resolve, 0));
     expect(mod.useZustandStore.getState().route).toBe('loading');
   });
 
@@ -375,6 +408,39 @@ describe('post-join ledger routing', () => {
     expect(mod.useZustandStore.getState().route).toBe('room');
   });
 
+  it('a rejoin before the ledger arrives keeps the fresh join landing', async () => {
+    const mod = await loadCreateStore();
+    mod.createStore();
+    joinFresh(mod);
+    clientMock.dispatchEvent(new Event('disconnected'));
+    clientMock.dispatchEvent(new Event('connected'));
+    emit({ type: 'joinRoomSuccess', payload: { roomName: 'movie-night', media: [], users: [] } });
+    emit({ type: 'reviewSuccess', payload: ledger({ verdicts: [{ titleId: 1, verdict: 'like', updatedAt: 1 }] }) });
+    expect(mod.useZustandStore.getState().route).toBe('room');
+  });
+
+  it('leaving drops a landing still pending', async () => {
+    const mod = await loadCreateStore();
+    mod.createStore();
+    // biome-ignore lint/suspicious/noExplicitAny: test navigation shortcut.
+    mod.useZustandStore.getState().dispatch({ type: 'navigate', payload: { route: 'home' } } as any);
+    joinFresh(mod);
+    emit({ type: 'leaveRoomSuccess' });
+    emit({ type: 'reviewSuccess', payload: ledger({ verdicts: [{ titleId: 1, verdict: 'like', updatedAt: 1 }] }) });
+    expect(mod.useZustandStore.getState().route).toBe('home');
+  });
+
+  it('a refused rejoin drops a landing still pending', async () => {
+    const mod = await loadCreateStore();
+    mod.createStore();
+    joinFresh(mod);
+    clientMock.dispatchEvent(new Event('disconnected'));
+    clientMock.dispatchEvent(new Event('connected'));
+    emit({ type: 'joinRoomError', payload: { message: 'This room is locked.' } });
+    emit({ type: 'reviewSuccess', payload: ledger({ verdicts: [{ titleId: 1, verdict: 'like', updatedAt: 1 }] }) });
+    expect(mod.useZustandStore.getState().route).not.toBe('room');
+  });
+
   it('fresh join with the season finished lands on home (review + lock bar)', async () => {
     const mod = await loadCreateStore();
     mod.createStore();
@@ -509,6 +575,20 @@ describe('first-run tutorial trigger', () => {
     expect(mod.useZustandStore.getState().tutorialOpen).toBe(true);
   });
 
+  it('a rejoin does not reopen a dismissed tutorial', async () => {
+    const mod = await loadCreateStore();
+    mod.createStore();
+    // biome-ignore lint/suspicious/noExplicitAny: test setup shortcut.
+    mod.useZustandStore.getState().dispatch({ type: 'joinOrCreateRoom', payload: { roomName: 'movie-night' } } as any);
+    emit({ type: 'joinRoomSuccess', payload: { roomName: 'movie-night', media: [], users: [] } });
+    // biome-ignore lint/suspicious/noExplicitAny: test setup shortcut.
+    mod.useZustandStore.getState().dispatch({ type: 'tutorial', payload: { open: false } } as any);
+    clientMock.dispatchEvent(new Event('disconnected'));
+    clientMock.dispatchEvent(new Event('connected'));
+    emit({ type: 'joinRoomSuccess', payload: { roomName: 'movie-night', media: [], users: [] } });
+    expect(mod.useZustandStore.getState().tutorialOpen).toBe(false);
+  });
+
   it('stays closed once the seen-flag exists', async () => {
     localStore.set('courTutorialSeenV2', '1');
     const mod = await loadCreateStore();
@@ -567,6 +647,46 @@ describe('review rejection-path retry + stall affordance', () => {
     await vi.advanceTimersByTimeAsync(4100);
     expect(clientMock.review).toHaveBeenCalledTimes(1);
     vi.useRealTimers();
+  });
+
+  it('a review dropped by a back/forward-cache suspension raises no toast and no retry', async () => {
+    clientMock.review = vi.fn().mockRejectedValue(Object.assign(new Error('Socket closed'), { suspended: true }));
+    const mod = await loadCreateStore();
+    mod.createStore();
+    vi.useFakeTimers();
+    await join(mod);
+    await vi.advanceTimersByTimeAsync(0);
+    clientMock.review.mockClear();
+    await vi.advanceTimersByTimeAsync(4100);
+    expect(clientMock.review).not.toHaveBeenCalled();
+    expect(mod.useZustandStore.getState().toasts.some((t) => t.id.startsWith('request-timeout'))).toBe(false);
+    vi.useRealTimers();
+  });
+
+  it('a back/forward-cache suspension cancels a pending review retry', async () => {
+    clientMock.review = vi.fn().mockRejectedValue(new Error('timeout'));
+    const mod = await loadCreateStore();
+    mod.createStore();
+    vi.useFakeTimers();
+    await join(mod);
+    await vi.advanceTimersByTimeAsync(0);
+    clientMock.review.mockClear();
+    clientMock.dispatchEvent(new CustomEvent('disconnected', { detail: { suspended: true } }));
+    await vi.advanceTimersByTimeAsync(4100);
+    expect(clientMock.review).not.toHaveBeenCalled();
+    vi.useRealTimers();
+  });
+
+  it('a lock-in dropped by a back/forward-cache suspension still ends its ceremony', async () => {
+    clientMock.lockIn = vi.fn().mockRejectedValue(Object.assign(new Error('Socket closed'), { suspended: true }));
+    const mod = await loadCreateStore();
+    mod.createStore();
+    // biome-ignore lint/suspicious/noExplicitAny: test setup shortcut.
+    mod.useZustandStore.getState().dispatch({ type: 'finalizing', payload: { kind: 'lock' } } as any);
+    // biome-ignore lint/suspicious/noExplicitAny: test setup shortcut.
+    mod.useZustandStore.getState().dispatch({ type: 'lockIn' } as any);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(mod.useZustandStore.getState().finalizing).toBeUndefined();
   });
 
   it('exhausted retries set the stall flag; a manual retry resets it', async () => {
