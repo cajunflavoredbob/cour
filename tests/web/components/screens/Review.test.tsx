@@ -157,6 +157,9 @@ describe('ReviewScreen (design section 07)', () => {
     fireEvent.click(lock);
     expect(dispatch).not.toHaveBeenCalledWith({ type: 'lockIn' });
     expect(screen.getByText('no take-backsies.')).toBeDefined();
+    expect(document.body.textContent).toContain(
+      "Locking in is final. Next you'll rank your keeps: that's what scores the season. Passed and unsure picks are discarded.",
+    );
     const confirm = document.querySelector('[data-test-handle="confirm-lock"]') as HTMLButtonElement;
     expect(confirm.disabled).toBe(true);
     fireEvent.click(screen.getByText("I'm ready to lock in my season"));
@@ -183,6 +186,8 @@ describe('ReviewScreen (design section 07)', () => {
     render(<ReviewScreen />);
     const pill = document.querySelector('[class*="verdictPill"]') as HTMLButtonElement;
     expect(pill.disabled).toBe(true);
+    // Offline reads as unavailable; a locked ledger keeps its verdict colors.
+    expect(pill.getAttribute('data-offline')).toBe('true');
     const lock = document.querySelector('[data-test-handle="lock-in"]') as HTMLButtonElement;
     expect(lock.disabled).toBe(true);
   });
@@ -241,6 +246,7 @@ describe('ReviewScreen (design section 07)', () => {
     expect(screen.getByText('Back to standings')).toBeDefined();
     const pill = screen.getByText('KEPT') as HTMLButtonElement;
     expect(pill.disabled).toBe(true);
+    expect(pill.getAttribute('data-offline')).toBe('false');
   });
 
   it('collapses a long pile behind a +N MORE reveal', () => {

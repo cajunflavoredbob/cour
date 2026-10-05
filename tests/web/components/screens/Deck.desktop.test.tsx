@@ -129,6 +129,28 @@ describe('DeckScreen desktop stage', () => {
     input.remove();
   });
 
+  it.each([
+    ['a dialog', () => {
+      const el = document.createElement('div');
+      el.setAttribute('aria-modal', 'true');
+      return el;
+    }],
+    ['the account menu', () => {
+      const el = document.createElement('div');
+      el.setAttribute('role', 'menu');
+      return el;
+    }],
+  ])('ignores verdict keys while %s is open over the card', (_label, make) => {
+    render(<DeckScreen />);
+    const overlay = make();
+    document.body.appendChild(overlay);
+    fireEvent.keyDown(window, { key: 'k' });
+    expect(dispatch).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'verdict' }));
+    overlay.remove();
+    fireEvent.keyDown(window, { key: 'k' });
+    expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({ type: 'verdict' }));
+  });
+
   it('ignores verdict keys held with a modifier (browser shortcuts win)', () => {
     render(<DeckScreen />);
     fireEvent.keyDown(window, { key: 'k', metaKey: true });

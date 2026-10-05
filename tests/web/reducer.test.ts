@@ -492,7 +492,7 @@ describe('ranking results (0.13.0)', () => {
       type: 'lockInSuccess',
       payload: { lockedAt: 1, roomLocked: true },
     } as Actions);
-    expect(next.toasts[0].message).toContain('rank your keeps');
+    expect(next.toasts[0].message).toBe("Everyone's locked in. Rank your keeps.");
   });
 });
 
@@ -571,7 +571,7 @@ describe('reducer roomPulse', () => {
       },
     } as Actions);
     expect(next.toasts).toHaveLength(1);
-    expect(next.toasts[0].message).toContain("Everyone's locked in");
+    expect(next.toasts[0].message).toBe("Everyone's locked in. Rank your keeps.");
   });
 });
 

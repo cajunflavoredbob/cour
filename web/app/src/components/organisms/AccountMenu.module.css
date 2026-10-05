@@ -195,6 +195,17 @@
     transform: scale(1) translateY(0);
   }
 }
+@keyframes bubbleFade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bubble {
+    animation-name: bubbleFade;
+  }
+}
+
 
 /* The prominent "finish your deck" prompt, shown when the deck is
    unfinished. Accent-filled so it reads as the primary next action. */

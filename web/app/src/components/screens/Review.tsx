@@ -246,6 +246,7 @@ export const ReviewScreen = () => {
             type="button"
             className={styles.verdictPill}
             data-verdict={row.verdict}
+            data-offline={offline && !locked}
             disabled={locked || offline}
             onClick={() =>
               dispatch({
@@ -319,9 +320,8 @@ export const ReviewScreen = () => {
     >
         <h2 className={styles.confirmTitle}>no take-backsies.</h2>
         <p className={styles.confirmText}>
-          Locking in is final. Next you&apos;ll rank your keeps --
-          that&apos;s what scores the season. Passed and unsure picks are
-          discarded.
+          Locking in is final. Next you&apos;ll rank your keeps: that&apos;s
+          what scores the season. Passed and unsure picks are discarded.
         </p>
         <label className={styles.confirmCheckRow}>
           <input

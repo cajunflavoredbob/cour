@@ -90,6 +90,11 @@ input, button, textarea, select {
   font: inherit;
 }
 
+/* Dark native controls: scrollbars, checkboxes. */
+:root {
+  color-scheme: dark;
+}
+
 body {
   background: var(--cour-bg-0);
   color: var(--cour-text-0);

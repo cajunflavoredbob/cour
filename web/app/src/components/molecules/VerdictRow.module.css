@@ -6,11 +6,6 @@
   padding-top: 8px;
 }
 
-/* Offline: the buttons are disabled; dim them so they don't look live. */
-.row[data-offline="true"] button {
-  opacity: 0.5;
-  cursor: default;
-}
 
 /* Press feedback: a slight compress under the finger. */
 .dislikeBtn:active,
@@ -88,8 +83,8 @@
   box-shadow: 0 8px 24px -8px var(--cour-accent);
 }
 
-.likeBtn:hover,
-.dislikeBtn:hover {
+.likeBtn:hover:not(:disabled),
+.dislikeBtn:hover:not(:disabled) {
   filter: brightness(1.06);
 }
 
@@ -163,4 +158,29 @@
     animation: none;
     box-shadow: 0 0 20px 0 currentColor;
   }
+}
+
+/* Offline: the buttons are disabled, in the guide's recipe (bg-2 fill,
+   text-2, no glow) rather than faded. */
+.row[data-offline="true"] button {
+  cursor: default;
+}
+
+.row[data-offline="true"] .likeBtn,
+.row[data-offline="true"] .dislikeBtn {
+  background: var(--cour-bg-2);
+  border: 1px solid var(--cour-line-strong);
+  color: var(--cour-text-2);
+  box-shadow: none;
+}
+
+/* The re-review halo pauses offline too. */
+.row[data-offline="true"] button {
+  animation: none;
+  outline: none;
+}
+
+.row[data-offline="true"] .dislikeBtn svg,
+.row[data-offline="true"] .skipBtn {
+  color: var(--cour-text-3);
 }

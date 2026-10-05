@@ -196,13 +196,14 @@ export const AccountMenu = () => {
       {shareLink && (
         <DialogScrim
           label="Share this room"
+          alert={false}
           onDismiss={() => setShareLink(null)}
           backdropClassName={styles.shareBackdrop}
           dialogClassName={styles.shareDialog}
         >
           <h2 className={styles.shareTitle}>share this room</h2>
           <p className={styles.shareText}>
-            Copy the link below -- it pre-fills the room on the join form.
+            Copy the link below. It pre-fills the room on the join form.
           </p>
           <input
             className={styles.shareInput}

@@ -1,8 +1,10 @@
 import { type ReactNode, useEffect, useRef } from "react";
 
 interface DialogScrimProps {
-  /** Accessible name for the alertdialog. */
+  /** Accessible name for the dialog. */
   label: string;
+  /** A confirmation that needs an answer (the default), or plain content. */
+  alert?: boolean;
   /** Called on Escape and on backdrop click -- the "Not yet" path. */
   onDismiss: () => void;
   backdropClassName: string;
@@ -11,15 +13,14 @@ interface DialogScrimProps {
 }
 
 /**
- * Shared modal scrim for the lock-in and submit confirmations (audit
- * 17): both dialogs ignored Escape and backdrop clicks and never took
- * focus, so keyboard and AT users were stranded behind them. Focus
- * lands on the dialog when it opens and is pulled back if it escapes
- * (a light containment -- the dialogs are two controls, a full trap
- * ring adds nothing).
+ * Shared modal scrim: the one-shot confirmations (an alertdialog) and the
+ * content dialogs (details, sharing, the tutorial). Escape and a backdrop
+ * click dismiss it. Focus lands on the dialog when it opens and is pulled
+ * back if it escapes, a light containment rather than a full trap.
  */
 export const DialogScrim = ({
   label,
+  alert = true,
   onDismiss,
   backdropClassName,
   dialogClassName,
@@ -58,16 +59,29 @@ export const DialogScrim = ({
       }}
       data-test-handle="dialog-backdrop"
     >
-      <div
-        ref={dialogRef}
-        tabIndex={-1}
-        role="alertdialog"
-        aria-modal="true"
-        aria-label={label}
-        className={dialogClassName}
-      >
-        {children}
-      </div>
+      {alert ? (
+        <div
+          ref={dialogRef}
+          tabIndex={-1}
+          role="alertdialog"
+          aria-modal="true"
+          aria-label={label}
+          className={dialogClassName}
+        >
+          {children}
+        </div>
+      ) : (
+        <div
+          ref={dialogRef}
+          tabIndex={-1}
+          role="dialog"
+          aria-modal="true"
+          aria-label={label}
+          className={dialogClassName}
+        >
+          {children}
+        </div>
+      )}
     </div>
   );
 };

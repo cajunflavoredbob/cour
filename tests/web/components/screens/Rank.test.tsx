@@ -409,6 +409,21 @@ describe('RankScreen standings (after submitting)', () => {
     expect(screen.getByTestId('deck-details').getAttribute('data-title-id')).toBe('101');
   });
 
+  it('the details drawer is a plain dialog with a way out', () => {
+    withState({ results: standings });
+    render(<RankScreen />);
+    fireEvent.click(document.querySelector('[data-test-handle="standing-details"]') as HTMLElement);
+    expect(screen.getByRole('dialog').getAttribute('aria-label')).toBe('Iron Bloom');
+    fireEvent.click(screen.getByLabelText('Close'));
+    expect(screen.queryByTestId('deck-details')).toBeNull();
+  });
+
+  it('the submit confirm stays an alert dialog', () => {
+    render(<RankScreen />);
+    fireEvent.click(document.querySelector('[data-test-handle="submit-rankings"]') as HTMLElement);
+    expect(screen.getByRole('alertdialog').getAttribute('aria-label')).toBe('Submit your rankings');
+  });
+
   it('re-renders when a fresh push replaces the standings (live update)', () => {
     withState({ results: standings });
     const { rerender } = render(<RankScreen />);

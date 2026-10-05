@@ -14,29 +14,39 @@
 }
 
 .wordmark {
-  font-family: var(--cour-font-display);
-  font-weight: 400;
-  font-style: italic;
-  letter-spacing: -0.01em;
-  font-size: clamp(64px, 14vw, 144px);
-  line-height: 1;
-  background: var(--cour-accent);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  display: inline-flex;
+  align-items: baseline;
   animation: pulse 1.6s ease-in-out infinite;
-  /* Tells the browser the element will animate -- avoids paint thrash */
-  will-change: opacity, transform;
+  will-change: opacity;
+}
+
+.wordmark svg {
+  flex-shrink: 0;
+  align-self: center;
+  margin-top: 6px;
+}
+
+.word {
+  font-family: var(--cour-font-display);
+  font-weight: 600;
+  font-size: 64px;
+  line-height: 1;
+  color: var(--cour-text-0);
+  margin-left: 2px;
+}
+
+@media (min-width: 900px) {
+  .wordmark {
+    transform: scale(1.5);
+  }
 }
 
 @keyframes pulse {
   0%, 100% {
     opacity: 0.55;
-    transform: scale(0.97);
   }
   50% {
     opacity: 1;
-    transform: scale(1.0);
   }
 }
 

@@ -200,7 +200,7 @@ export const reducer = (state: Store = initialState, action: Actions): Store => 
           {
             id: mintToastId(base.toastCounter + 1),
             appearance: "Success" as const,
-            message: "Everyone's locked in -- rank your keeps!",
+            message: "Everyone's locked in. Rank your keeps.",
             showTimeMs: 6000,
           },
         ],
@@ -228,7 +228,7 @@ export const reducer = (state: Store = initialState, action: Actions): Store => 
           {
             id: mintToastId(base.toastCounter + 1),
             appearance: "Success" as const,
-            message: "Everyone's locked in -- rank your keeps!",
+            message: "Everyone's locked in. Rank your keeps.",
             showTimeMs: 6000,
           },
         ],
@@ -275,7 +275,7 @@ export const reducer = (state: Store = initialState, action: Actions): Store => 
           {
             id: mintToastId(state.toastCounter + 1),
             appearance: "Success" as const,
-            message: `The season rotated -- ${seasonName} is up. Fresh deck, everyone's picks reset.`,
+            message: `The season rotated: ${seasonName} is up. Fresh deck, everyone's picks reset.`,
             showTimeMs: 10000,
           },
         ],

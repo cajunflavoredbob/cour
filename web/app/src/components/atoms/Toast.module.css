@@ -1,61 +1,77 @@
+/* System messages sit under the header row: clear of every bottom action
+   bar (a toast over Lock in or Keep ate the tap meant for the button) and
+   of the header's avatar and back chip. */
 .toastList {
   position: fixed;
-  bottom: var(--s2);
+  top: max(100px, calc(env(safe-area-inset-top, 0px) + 12px));
   left: 0;
-  width: 100vw;
+  right: 0;
+  margin: 0;
+  padding: 0 20px;
   display: flex;
   flex-direction: column;
   align-items: center;
+  gap: 8px;
+  pointer-events: none;
   /* Above every overlay (scrims sit at 600-700): a Disconnected toast
      under the lock-in scrim was un-dismissable (audit v1.2.0 low). */
   z-index: 800;
 }
 
 .toast {
-  width: 80vw;
-  max-width: 19rem;
-  /* Direction B tokens (the reely-era hsl palette lingered here). */
-  background-color: var(--cour-bg-2);
+  width: 100%;
+  max-width: 22rem;
+  background-color: var(--cour-bg-1);
   color: var(--cour-text-0);
   border: 1px solid var(--cour-line-strong);
-  border-radius: 0.5rem;
-  padding: var(--s2);
+  border-radius: var(--cour-radius-card);
+  font-size: 14px;
   text-align: center;
-  box-shadow: -1px 3px 8px 1px rgba(33, 33, 33, 0.3);
-  margin-bottom: var(--s2);
   list-style: none;
-  animation: toast-in 200ms ease-in-out;
+  pointer-events: auto;
+  animation: toast-in 200ms ease-out;
   /* Toast bodies carry unbroken runs (the share-link URL, long titles);
      without a wrap rule they overflowed the bubble (audit 17 M9). */
   overflow-wrap: anywhere;
 }
 
 @keyframes toast-in {
-  from { transform: translateY(200%); }
-  to   { transform: translateY(0%); }
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: none; }
 }
 
+@keyframes toast-fade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toast {
+    animation-name: toast-fade;
+  }
+}
+
+/* Tone is a tint and a hairline, not a slab: the text stays text-0. */
 .toastSuccess {
   composes: toast;
-  background-color: var(--cour-accent);
-  color: white;
-  border-color: transparent;
+  border-color: var(--cour-accent);
+  background: linear-gradient(var(--cour-accent-soft), var(--cour-accent-soft)), var(--cour-bg-1);
 }
 
 .toastFailure {
   composes: toast;
-  background-color: var(--cour-negative);
-  color: white;
-  border-color: transparent;
+  border-color: var(--cour-negative);
+  background: linear-gradient(oklch(0.62 0.13 35 / 0.16), oklch(0.62 0.13 35 / 0.16)), var(--cour-bg-1);
 }
-
 
 /* The toast body doubles as its own dismiss button (audit 17): visually
    invisible as a button, it inherits the bubble's type and colors. */
 .toastBody {
   all: unset;
   display: block;
+  box-sizing: border-box;
   width: 100%;
+  padding: 12px 16px;
   cursor: pointer;
   overflow-wrap: anywhere;
 }

@@ -21,6 +21,7 @@ export const Tutorial = () => {
   return (
     <DialogScrim
       label="How cour works"
+      alert={false}
       onDismiss={dismiss}
       backdropClassName={styles.backdrop}
       dialogClassName={styles.dialog}
@@ -30,7 +31,7 @@ export const Tutorial = () => {
         <li className={styles.step}>
           <span className={styles.stepKicker}>VERDICT THE SEASON</span>
           One title at a time: <strong>Keep</strong>, <strong>Pass</strong>,
-          or <strong>Unsure</strong>. Go at your own pace -- nobody waits on
+          or <strong>Unsure</strong>. Go at your own pace: nobody waits on
           anybody.
         </li>
         <li className={styles.step}>
@@ -41,7 +42,7 @@ export const Tutorial = () => {
         <li className={styles.step}>
           <span className={styles.stepKicker}>NOTHING IS FINAL YET</span>
           The review screen shows every verdict; tap any of them to change
-          your mind -- right up until you lock in.
+          your mind, right up until you lock in.
         </li>
         <li className={styles.step}>
           <span className={styles.stepKicker}>LOCK IN, THEN RANK</span>

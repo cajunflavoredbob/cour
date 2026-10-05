@@ -3,8 +3,8 @@
   "short_name": "cour",
   "start_url": "./",
   "display": "fullscreen",
-  "background_color": "#0a0604",
-  "theme_color": "#0a0604",
+  "background_color": "#0d0b07",
+  "theme_color": "#0d0b07",
   "orientation": "portrait",
   "icons": [
     {

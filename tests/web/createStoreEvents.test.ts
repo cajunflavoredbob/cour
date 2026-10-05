@@ -762,7 +762,9 @@ describe('season rotation reset', () => {
     const state = mod.useZustandStore.getState();
     expect(state.review).toBeUndefined();
     expect(state.results).toBeUndefined();
-    expect(state.toasts.some((t) => t.message.includes('season rotated'))).toBe(true);
+    expect(state.toasts.map((t) => t.message)).toContain(
+      "The season rotated: Fall is up. Fresh deck, everyone's picks reset.",
+    );
     expect(clientMock.review).toHaveBeenCalledTimes(1);
   });
 });

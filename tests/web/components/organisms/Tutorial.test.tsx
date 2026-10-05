@@ -24,6 +24,9 @@ describe('Tutorial', () => {
   it('explains the four beats: verdicts, skip-all hold, review, lock-then-rank', () => {
     render(<Tutorial />);
     expect(screen.getByText('how cour works')).toBeDefined();
+    expect(screen.getByRole('dialog').getAttribute('aria-label')).toBe('How cour works');
+    expect(document.body.textContent).toContain('Go at your own pace: nobody waits on anybody.');
+    expect(document.body.textContent).toContain('your mind, right up until you lock in.');
     expect(screen.getByText('VERDICT THE SEASON')).toBeDefined();
     expect(screen.getByText('IN A HURRY?')).toBeDefined();
     expect(screen.getByText('NOTHING IS FINAL YET')).toBeDefined();

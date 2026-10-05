@@ -72,6 +72,13 @@
   transition: none;
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .panel,
+  .dim {
+    transition: none;
+  }
+}
+
 .panelInner {
   flex: 1;
   min-height: 0;

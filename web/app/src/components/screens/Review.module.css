@@ -277,9 +277,15 @@
   color: var(--cour-negative);
 }
 
+/* Locked, the pill still reads as its verdict (the ledger is read-only). */
 .verdictPill:disabled {
   cursor: default;
-  opacity: 0.6;
+}
+
+/* Offline, it reads as unavailable. */
+.verdictPill[data-offline="true"] {
+  border-color: var(--cour-line);
+  color: var(--cour-text-3);
 }
 
 .overflowBtn {
@@ -327,9 +333,10 @@
   box-shadow: 0 8px 24px -8px var(--cour-accent);
 }
 
-/* Ready but offline. */
+/* Ready but offline: the same bg-2 pill as not ready. */
 .lockBtn[data-complete="true"]:disabled {
-  opacity: 0.5;
+  background: var(--cour-bg-2);
+  color: var(--cour-text-2);
   cursor: default;
   box-shadow: none;
 }
@@ -438,7 +445,7 @@
 
 .confirmLock:disabled {
   background: var(--cour-bg-2);
-  color: var(--cour-text-3);
+  color: var(--cour-text-2);
   cursor: default;
   box-shadow: none;
 }

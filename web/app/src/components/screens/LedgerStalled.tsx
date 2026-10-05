@@ -14,7 +14,7 @@ export const LedgerStalled = () => {
       <h1 className={styles.headline}>couldn&apos;t load your season.</h1>
       <p className={styles.text}>
         The server isn&apos;t answering the review request. It may be
-        restarting -- try again in a moment.
+        restarting. Try again in a moment.
       </p>
       <button
         type="button"

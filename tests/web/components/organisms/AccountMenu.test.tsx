@@ -176,6 +176,8 @@ describe('AccountMenu audit-17 UX additions', () => {
     expect(input).not.toBeNull();
     expect(input.value).toContain('roomName=');
     expect(input.readOnly).toBe(true);
+    expect(screen.getByRole('dialog').getAttribute('aria-label')).toBe('Share this room');
+    expect(screen.getByText('Copy the link below. It pre-fills the room on the join form.')).toBeDefined();
     fireEvent.click(screen.getByText('Done'));
     expect(document.querySelector('[data-test-handle="share-link-input"]')).toBeNull();
   });

@@ -143,6 +143,8 @@ export const DeckScreen = () => {
       if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)) {
         return;
       }
+      // Not under an open dialog or menu: the card is hidden behind it.
+      if (document.querySelector('[aria-modal="true"], [role="menu"]')) return;
       const verdict = KEY_VERDICTS[e.key.toLowerCase()];
       if (!verdict) return;
       e.preventDefault();

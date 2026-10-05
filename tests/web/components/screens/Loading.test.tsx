@@ -3,17 +3,19 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import { Loading } from '../../../../web/app/src/components/screens/Loading';
 
-// Loading is a full-viewport branded loader -- the "cour" wordmark
-// pulses on opacity + scale. Pure presentation; no props, no deps.
+// Loading is a full-viewport branded loader: the stylized wordmark (the
+// mark is the c) pulses in opacity. Pure presentation; no props, no deps.
 
 afterEach(() => {
   cleanup();
 });
 
 describe('Loading', () => {
-  it('renders the "cour" wordmark', () => {
-    render(<Loading />);
-    expect(screen.getByText('cour')).toBeDefined();
+  it('renders the stylized wordmark: the full dotted mark, then "our"', () => {
+    const { container } = render(<Loading />);
+    expect(screen.getByText('our')).toBeDefined();
+    expect(container.querySelectorAll('svg circle').length).toBeGreaterThan(0);
+    expect(container.querySelector('svg')?.getAttribute('width')).toBe('58');
   });
 
   // role=status so assistive tech announces the loading state without

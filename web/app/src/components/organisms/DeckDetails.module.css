@@ -30,6 +30,9 @@
   width: 100%;
   height: 100%;
   border: none;
+  /* The embed is a light-scheme page: matching it keeps Chrome from
+     painting a white canvas behind the player under the app's dark scheme. */
+  color-scheme: normal;
 }
 
 .heroImg {

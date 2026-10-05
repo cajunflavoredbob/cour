@@ -561,10 +561,25 @@ export const RankScreen = () => {
   const detailDialogEl = detailMedia && (
     <DialogScrim
       label={detailMedia.title}
+      alert={false}
       onDismiss={() => setDetailTitleId(null)}
       backdropClassName={styles.detailBackdrop}
       dialogClassName={styles.detailDialog}
     >
+      {/* Pinned to the top of the scrolling dialog, so the way out stays in view. */}
+      <div className={styles.detailTop}>
+        <button
+          type="button"
+          className={styles.detailClose}
+          aria-label="Close"
+          onClick={() => setDetailTitleId(null)}
+          data-test-handle="detail-close"
+        >
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+          </svg>
+        </button>
+      </div>
       <DeckDetails media={detailMedia} />
     </DialogScrim>
   );
