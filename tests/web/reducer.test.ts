@@ -400,6 +400,69 @@ describe('deck scope (0.10.0 re-review passes)', () => {
   });
 });
 
+describe('review view (pile, reveal, saved scroll)', () => {
+  const view = { pile: 'dislike' as const, showAll: true, scroll: { top: 340, desktop: false } };
+  const viewing: Store = {
+    ...initialState,
+    route: 'room',
+    room: { name: 'movie-night', joined: true, media: [] },
+    review: {
+      verdicts: [{ titleId: 101, verdict: 'dislike', updatedAt: 1 }],
+      counts: { like: 0, dislike: 1, skip: 0 },
+      members: [],
+      lockedAt: null,
+      total: 1,
+    },
+    deckScope: { titleIds: [101], position: 0 },
+    reviewView: view,
+  };
+
+  it('enterDeckScope stores the view to come back to, scope apart', () => {
+    const from = { pile: 'skip' as const, showAll: false, scroll: { top: 90, desktop: false } };
+    const next = reducer(initialState, {
+      type: 'enterDeckScope',
+      payload: { titleIds: [101], position: 0, from },
+    } as Actions);
+    expect(next.reviewView).toBe(from);
+    expect(next.deckScope).toEqual({ titleIds: [101], position: 0 });
+    const kept = reducer({ ...initialState, reviewView: from }, {
+      type: 'enterDeckScope',
+      payload: { titleIds: [101], position: 0 },
+    } as Actions);
+    expect(kept.reviewView).toBe(from);
+  });
+
+  it('opening the locked peek starts it on Kept; closing keeps the view', () => {
+    expect(reducer(viewing, { type: 'viewLockedReview', payload: { open: true } } as Actions).reviewView).toBeUndefined();
+    expect(reducer(viewing, { type: 'viewLockedReview', payload: { open: false } } as Actions).reviewView).toBe(view);
+  });
+
+  it('stores what the review page dispatches', () => {
+    const next = reducer(initialState, { type: 'reviewView', payload: { pile: 'skip', showAll: false } } as Actions);
+    expect(next.reviewView).toEqual({ pile: 'skip', showAll: false });
+  });
+
+  it('survives the trip to the deck and back', () => {
+    const verdicted = reducer(viewing, { type: 'verdictSuccess', payload: { titleId: 101, verdict: 'like' } } as Actions);
+    expect(verdicted.route).toBe('home');
+    expect(verdicted.reviewView).toBe(view);
+    expect(reducer(viewing, { type: 'exitDeckScope' } as Actions).reviewView).toBe(view);
+  });
+
+  it('survives a same-room rejoin', () => {
+    const next = reducer(viewing, { type: 'joinOrCreateRoom', payload: { roomName: 'movie-night' } } as Actions);
+    expect(next.reviewView).toBe(view);
+  });
+
+  it('resets on leaving the room, joining another, or a season rotation', () => {
+    expect(reducer(viewing, { type: 'leaveRoomSuccess' } as Actions).reviewView).toBeUndefined();
+    expect(
+      reducer(viewing, { type: 'joinOrCreateRoom', payload: { roomName: 'other-room' } } as Actions).reviewView,
+    ).toBeUndefined();
+    expect(reducer(viewing, { type: 'seasonRotated', payload: { season: 'WINTER' } } as Actions).reviewView).toBeUndefined();
+  });
+});
+
 describe('ranking results (0.13.0)', () => {
   const results = {
     submittedCount: 1,

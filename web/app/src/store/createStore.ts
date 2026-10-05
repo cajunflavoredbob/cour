@@ -57,6 +57,7 @@ const dispatchToClient = (
     case "navigate":
     case "enterDeckScope":
     case "exitDeckScope":
+    case "reviewView":
     case "soundPref":
     case "viewLockedReview":
     case "tutorial":

@@ -139,6 +139,41 @@ describe('ReviewScreen desktop (rail + main)', () => {
     expect(screen.queryByText(/MORE/)).toBeNull();
   });
 
+  it('carries the ledger list scroll to the deck', () => {
+    const { container } = render(<ReviewScreen />);
+    const list = container.querySelector('[class*="main"] ul') as HTMLElement;
+    list.scrollTop = 75;
+    fireEvent.click(screen.getByText('Iron Bloom'));
+    expect(dispatch.mock.calls.map(([action]) => action)).toEqual([
+      {
+        type: 'enterDeckScope',
+        payload: {
+          titleIds: [101],
+          position: 0,
+          from: { pile: 'like', showAll: false, scroll: { top: 75, desktop: true } },
+        },
+      },
+    ]);
+  });
+
+  it('scrolls the ledger list, not the page, back to where the deck trip began', () => {
+    const scrollTo = vi.spyOn(window, 'scrollTo').mockImplementation(() => {});
+    withState({ reviewView: { pile: 'like', showAll: false, scroll: { top: 120, desktop: true } } });
+    const { container } = render(<ReviewScreen />);
+    const list = container.querySelector('[class*="main"] ul') as HTMLElement;
+    expect(list.scrollTop).toBe(120);
+    expect(scrollTo).not.toHaveBeenCalled();
+    expect(dispatch).toHaveBeenCalledWith({ type: 'reviewView', payload: { pile: 'like', showAll: false } });
+  });
+
+  it('drops a scroll saved in the mobile layout instead of applying it to the list', () => {
+    withState({ reviewView: { pile: 'like', showAll: false, scroll: { top: 400, desktop: false } } });
+    const { container } = render(<ReviewScreen />);
+    const list = container.querySelector('[class*="main"] ul') as HTMLElement;
+    expect(list.scrollTop).toBe(0);
+    expect(dispatch).toHaveBeenCalledWith({ type: 'reviewView', payload: { pile: 'like', showAll: false } });
+  });
+
   it('falls back to the mobile stack (sticky footer) below 900px', () => {
     stubDesktop(false);
     const { container } = render(<ReviewScreen />);

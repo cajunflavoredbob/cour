@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { Media, VerdictValue } from "../../../../../types/reely";
 import { AccountMenu } from "../organisms/AccountMenu";
 import { AppHeader } from "../organisms/AppHeader";
@@ -38,17 +38,22 @@ const PILE_LABELS: Record<VerdictValue, string> = {
  * once and placed per layout.
  */
 export const ReviewScreen = () => {
-  const [{ room, review, members, connectionStatus, finalizing }] = useStore([
+  const [{ room, review, members, connectionStatus, finalizing, reviewView }] = useStore([
     "room",
     "review",
     "members",
     "connectionStatus",
     "finalizing",
+    "reviewView",
   ]);
   const dispatch = useDispatch();
   const isDesktop = useMediaQuery(DESKTOP_QUERY);
-  const [pile, setPile] = useState<VerdictValue>("like");
-  const [showAll, setShowAll] = useState(false);
+  const pile = reviewView?.pile ?? "like";
+  const showAll = reviewView?.showAll ?? false;
+  // Desktop scrolls the ledger list itself; mobile scrolls the page.
+  const ledgerRef = useRef<HTMLUListElement>(null);
+  const savedScroll = reviewView?.scroll;
+  const ledgerShown = room != null && review != null;
   // Lock-in is FINAL (0.12.0: no admin unlock exists anymore), so the
   // button opens a no-take-backsies dialog gated on an explicit
   // checkbox.
@@ -89,6 +94,18 @@ export const ReviewScreen = () => {
     return () => clearTimeout(timer);
   }, [finalizing?.kind, ackedAt, finalizingStartedAt, dispatchStable]);
 
+  // Back from the deck: put the ledger where the trip began, once. An
+  // offset from the other layout belongs to a different scroller.
+  useLayoutEffect(() => {
+    const ledger = ledgerRef.current;
+    if (!savedScroll || !ledgerShown || !ledger) return;
+    if (savedScroll.desktop === isDesktop) {
+      if (isDesktop) ledger.scrollTop = savedScroll.top;
+      else window.scrollTo(0, savedScroll.top);
+    }
+    dispatch({ type: "reviewView", payload: { pile, showAll } });
+  }, [savedScroll, ledgerShown, isDesktop, pile, showAll, dispatch]);
+
   if (!room || !review) return null;
 
   const total = review.total;
@@ -112,6 +129,15 @@ export const ReviewScreen = () => {
   // truncate -- show every row. Mobile keeps the "+N MORE" reveal.
   const visibleRows = isDesktop || showAll ? pileRows : pileRows.slice(0, ROWS_BEFORE_OVERFLOW);
   const overflow = pileRows.length - visibleRows.length;
+
+  // A re-review on the deck, noting where the ledger was for the return.
+  const openOnDeck = (titleIds: number[]) => {
+    const top = isDesktop ? (ledgerRef.current?.scrollTop ?? 0) : window.scrollY;
+    dispatch({
+      type: "enterDeckScope",
+      payload: { titleIds, position: 0, from: { pile, showAll, scroll: { top, desktop: isDesktop } } },
+    });
+  };
 
   // ── Pieces (placed differently per layout) ──
 
@@ -166,10 +192,7 @@ export const ReviewScreen = () => {
           aria-selected={pile === v}
           className={styles.pileTab}
           data-active={pile === v}
-          onClick={() => {
-            setPile(v);
-            setShowAll(false);
-          }}
+          onClick={() => dispatch({ type: "reviewView", payload: { pile: v, showAll: false } })}
         >
           {PILE_LABELS[v]} {review.counts[v]}
         </button>
@@ -181,12 +204,7 @@ export const ReviewScreen = () => {
     <button
       type="button"
       className={styles.pileReviewBtn}
-      onClick={() =>
-        dispatch({
-          type: "enterDeckScope",
-          payload: { titleIds: pileRows.map((r) => r.titleId), position: 0 },
-        })
-      }
+      onClick={() => openOnDeck(pileRows.map((r) => r.titleId))}
       data-test-handle="review-pile"
     >
       REVIEW ALL {pileRows.length} {PILE_LABELS[pile].toUpperCase()} &rarr;
@@ -194,7 +212,7 @@ export const ReviewScreen = () => {
   );
 
   const ledgerEl = (
-    <ul className={styles.rows}>
+    <ul className={styles.rows} ref={ledgerRef}>
       {visibleRows.length === 0 && (
         <li className={styles.emptyPile}>nothing {PILE_LABELS[pile].toLowerCase()} yet</li>
       )}
@@ -202,17 +220,13 @@ export const ReviewScreen = () => {
         <li key={row.titleId} className={styles.row}>
           {/* Tapping the row re-opens JUST this title on the deck --
               a one-element scope; verdicting (or backing out) lands
-              right back here. The pill keeps its quick tap-to-cycle. */}
+              right back here, on the same pile. The pill keeps its
+              quick tap-to-cycle. */}
           <button
             type="button"
             className={styles.rowMain}
             disabled={locked}
-            onClick={() =>
-              dispatch({
-                type: "enterDeckScope",
-                payload: { titleIds: [row.titleId], position: 0 },
-              })
-            }
+            onClick={() => openOnDeck([row.titleId])}
           >
             <span className={styles.rowThumb}>
               {row.media?.posterUrl && (
@@ -249,7 +263,7 @@ export const ReviewScreen = () => {
           <button
             type="button"
             className={styles.overflowBtn}
-            onClick={() => setShowAll(true)}
+            onClick={() => dispatch({ type: "reviewView", payload: { pile, showAll: true } })}
           >
             +{overflow} MORE
           </button>

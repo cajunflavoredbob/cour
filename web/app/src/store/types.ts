@@ -11,6 +11,7 @@ import type {
   Media,
   ServerMessage,
   User,
+  VerdictValue,
 } from "../../../../types/reely";
 
 // Action vocabulary (audit 12 #214 documentation):
@@ -42,12 +43,24 @@ export interface DeckScope {
   position: number;
 }
 
+// The review page's open pile and "+N MORE" reveal. Kept in the store so
+// a trip to the deck and back lands on the same list. scroll is where the
+// ledger stood when that trip began (desktop scrolls the list, mobile the
+// page), restored once on return if the layout still matches.
+export interface ReviewView {
+  pile: VerdictValue;
+  showAll: boolean;
+  scroll?: { top: number; desktop: boolean };
+}
+
 export type ClientActions =
   | { type: "addToast"; payload: Toast }
   | { type: "removeToast"; payload: Toast }
   | { type: "navigate"; payload: { route: Routes } }
-  | { type: "enterDeckScope"; payload: DeckScope }
+  // `from` is the review view to come back to.
+  | { type: "enterDeckScope"; payload: DeckScope & { from?: ReviewView } }
   | { type: "exitDeckScope" }
+  | { type: "reviewView"; payload: ReviewView }
   // Local-only since 0.12.0: autoplay preference lives in localStorage,
   // not on a server account.
   | { type: "soundPref"; payload: { enabled: boolean } }
@@ -108,6 +121,8 @@ export interface Store {
   // advance through titleIds only, and the end (or back) returns to the
   // review page instead of the main deck flow.
   deckScope?: DeckScope;
+  // The review page's pile, reveal, and saved scroll; unset means Kept.
+  reviewView?: ReviewView;
   // Live per-member lock/submit state (audit 17 UX 3/7/11): seeded by
   // review/results payloads, updated by roomPulse pushes.
   members?: RoomMemberState[];

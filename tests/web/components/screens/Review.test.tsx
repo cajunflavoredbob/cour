@@ -87,7 +87,7 @@ describe('ReviewScreen (design section 07)', () => {
     expect(dispatch).toHaveBeenCalledWith({ type: 'navigate', payload: { route: 'room' } });
   });
 
-  it('pile tabs carry counts and switch the visible ledger', () => {
+  it('pile tabs carry counts and pick the pile to show', () => {
     render(<ReviewScreen />);
     expect(screen.getByText('Kept 1')).toBeDefined();
     expect(screen.getByText('Unsure 1')).toBeDefined();
@@ -95,8 +95,22 @@ describe('ReviewScreen (design section 07)', () => {
     expect(screen.getByText('Iron Bloom')).toBeDefined();
     expect(screen.queryByText('Second Show')).toBeNull();
     fireEvent.click(screen.getByText('Unsure 1'));
+    expect(dispatch).toHaveBeenCalledWith({ type: 'reviewView', payload: { pile: 'skip', showAll: false } });
+  });
+
+  it('switching piles folds the +N MORE reveal back up', () => {
+    withState({ reviewView: { pile: 'like', showAll: true } });
+    render(<ReviewScreen />);
+    fireEvent.click(screen.getByText('Unsure 1'));
+    expect(dispatch).toHaveBeenCalledWith({ type: 'reviewView', payload: { pile: 'skip', showAll: false } });
+  });
+
+  it('shows the pile the store holds', () => {
+    withState({ reviewView: { pile: 'skip', showAll: false } });
+    render(<ReviewScreen />);
     expect(screen.getByText('Second Show')).toBeDefined();
     expect(screen.queryByText('Iron Bloom')).toBeNull();
+    expect(screen.getByText('Unsure 1').getAttribute('aria-selected')).toBe('true');
   });
 
   it('tapping a verdict pill cycles the verdict via the normal UPSERT', () => {
@@ -106,7 +120,9 @@ describe('ReviewScreen (design section 07)', () => {
       type: 'verdict',
       payload: { titleId: 101, verdict: 'dislike' },
     });
-    fireEvent.click(screen.getByText('Unsure 1'));
+    cleanup();
+    withState({ reviewView: { pile: 'skip', showAll: false } });
+    render(<ReviewScreen />);
     fireEvent.click(screen.getByText('UNSURE'));
     expect(dispatch).toHaveBeenCalledWith({
       type: 'verdict',
@@ -236,8 +252,17 @@ describe('ReviewScreen (design section 07)', () => {
     withState({ review: { ...reviewState({ verdicts: many }), total: 20 } });
     render(<ReviewScreen />);
     expect(screen.getByText('+3 MORE')).toBeDefined();
+    expect(document.querySelectorAll('li[class*="row"]')).toHaveLength(12);
     fireEvent.click(screen.getByText('+3 MORE'));
+    expect(dispatch).toHaveBeenCalledWith({ type: 'reviewView', payload: { pile: 'like', showAll: true } });
+    cleanup();
+    withState({
+      review: { ...reviewState({ verdicts: many }), total: 20 },
+      reviewView: { pile: 'like', showAll: true },
+    });
+    render(<ReviewScreen />);
     expect(screen.queryByText('+3 MORE')).toBeNull();
+    expect(document.querySelectorAll('li[class*="row"]')).toHaveLength(15);
   });
 });
 
@@ -247,8 +272,53 @@ describe('ReviewScreen re-review passes (0.10.0)', () => {
     fireEvent.click(screen.getByText('Iron Bloom'));
     expect(dispatch).toHaveBeenCalledWith({
       type: 'enterDeckScope',
-      payload: { titleIds: [101], position: 0 },
+      payload: {
+        titleIds: [101],
+        position: 0,
+        from: { pile: 'like', showAll: false, scroll: { top: 0, desktop: false } },
+      },
     });
+  });
+
+  it('carries the pile, reveal and page scroll to the deck in one action', () => {
+    vi.spyOn(window, 'scrollY', 'get').mockReturnValue(340);
+    withState({ reviewView: { pile: 'skip', showAll: true } });
+    render(<ReviewScreen />);
+    fireEvent.click(screen.getByText('Second Show'));
+    expect(dispatch.mock.calls.map(([action]) => action)).toEqual([
+      {
+        type: 'enterDeckScope',
+        payload: {
+          titleIds: [102],
+          position: 0,
+          from: { pile: 'skip', showAll: true, scroll: { top: 340, desktop: false } },
+        },
+      },
+    ]);
+  });
+
+  it('scrolls the page back to where the deck trip began, once', () => {
+    const scrollTo = vi.spyOn(window, 'scrollTo').mockImplementation(() => {});
+    withState({ reviewView: { pile: 'skip', showAll: true, scroll: { top: 340, desktop: false } } });
+    render(<ReviewScreen />);
+    expect(scrollTo).toHaveBeenCalledWith(0, 340);
+    expect(dispatch).toHaveBeenCalledWith({ type: 'reviewView', payload: { pile: 'skip', showAll: true } });
+  });
+
+  it('drops a scroll saved in the desktop layout instead of applying it to the page', () => {
+    const scrollTo = vi.spyOn(window, 'scrollTo').mockImplementation(() => {});
+    withState({ reviewView: { pile: 'skip', showAll: false, scroll: { top: 120, desktop: true } } });
+    render(<ReviewScreen />);
+    expect(scrollTo).not.toHaveBeenCalled();
+    expect(dispatch).toHaveBeenCalledWith({ type: 'reviewView', payload: { pile: 'skip', showAll: false } });
+  });
+
+  it('leaves the scroll alone without a saved position', () => {
+    const scrollTo = vi.spyOn(window, 'scrollTo').mockImplementation(() => {});
+    withState({ reviewView: { pile: 'skip', showAll: false } });
+    render(<ReviewScreen />);
+    expect(scrollTo).not.toHaveBeenCalled();
+    expect(dispatch).not.toHaveBeenCalled();
   });
 
   it('REVIEW ALL opens the visible pile as a scope, in row order', () => {
@@ -265,7 +335,11 @@ describe('ReviewScreen re-review passes (0.10.0)', () => {
     fireEvent.click(screen.getByText(/REVIEW ALL 2 KEPT/));
     expect(dispatch).toHaveBeenCalledWith({
       type: 'enterDeckScope',
-      payload: { titleIds: [101, 103], position: 0 },
+      payload: {
+        titleIds: [101, 103],
+        position: 0,
+        from: { pile: 'like', showAll: false, scroll: { top: 0, desktop: false } },
+      },
     });
   });
 

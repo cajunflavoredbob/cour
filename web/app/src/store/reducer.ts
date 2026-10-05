@@ -90,10 +90,14 @@ export const reducer = (state: Store = initialState, action: Actions): Store => 
       }
       return { ...state, config: action.payload, error };
     }
-    case "enterDeckScope":
-      return { ...state, deckScope: action.payload, route: "room" };
+    case "enterDeckScope": {
+      const { from, ...scope } = action.payload;
+      return { ...state, deckScope: scope, reviewView: from ?? state.reviewView, route: "room" };
+    }
     case "exitDeckScope":
       return { ...state, deckScope: undefined, route: "home" };
+    case "reviewView":
+      return { ...state, reviewView: action.payload };
     case "navigate":
       return {
         ...state,
@@ -229,7 +233,12 @@ export const reducer = (state: Store = initialState, action: Actions): Store => 
       };
     }
     case "viewLockedReview":
-      return { ...state, viewLockedReview: action.payload.open };
+      // The read-only peek opens on Kept.
+      return {
+        ...state,
+        viewLockedReview: action.payload.open,
+        reviewView: action.payload.open ? undefined : state.reviewView,
+      };
     case "tutorial":
       return { ...state, tutorialOpen: action.payload.open };
     case "ledgerStalled":
@@ -256,6 +265,7 @@ export const reducer = (state: Store = initialState, action: Actions): Store => 
         results: undefined,
         members: undefined,
         deckScope: undefined,
+        reviewView: undefined,
         viewLockedReview: undefined,
         toastCounter: state.toastCounter + 1,
         toasts: [
@@ -302,6 +312,7 @@ export const reducer = (state: Store = initialState, action: Actions): Store => 
         ...state,
         error: undefined,
         room: { name: action.payload.roomName, joined: false },
+        reviewView: undefined,
       };
     }
     case "createRoomSuccess":
@@ -351,6 +362,7 @@ export const reducer = (state: Store = initialState, action: Actions): Store => 
         review: undefined,
         results: undefined,
         deckScope: undefined,
+        reviewView: undefined,
         members: undefined,
         viewLockedReview: undefined,
         route: "home",
