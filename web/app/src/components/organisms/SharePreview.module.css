@@ -1,0 +1,164 @@
+/* The app's dialog grammar: the scrim, panel and pill pair of the confirm
+   dialogs. */
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(10, 7, 7, 0.7);
+}
+
+/* Every row at its own height except the image's, which takes what is
+   left under the cap. Below 180px of image the dialog scrolls instead. */
+.dialog {
+  width: 100%;
+  max-width: 400px;
+  max-height: 85dvh;
+  overflow-y: auto;
+  background: var(--cour-bg-1);
+  border: 1px solid var(--cour-line-strong);
+  border-radius: 20px;
+  padding: 22px 20px 18px;
+  display: grid;
+  grid-template-rows: auto auto minmax(180px, auto) auto;
+  gap: 12px;
+}
+
+/* Live standings add the sentence above the image. */
+.live {
+  grid-template-rows: auto auto auto minmax(180px, auto) auto;
+}
+
+.title {
+  font-family: var(--cour-font-display);
+  font-weight: 600;
+  font-size: 26px;
+  color: var(--cour-text-0);
+}
+
+.context {
+  font-family: var(--cour-font-mono);
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  color: var(--cour-text-2);
+}
+
+.text {
+  font-family: var(--cour-font-ui);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--cour-text-1);
+}
+
+/* The image at its own shape, as large as its row allows. */
+.image {
+  justify-self: center;
+  align-self: start;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 100%;
+  border-radius: 16px;
+}
+
+/* While the image is made: the card's usual shape, empty. */
+.image[data-state="making"] {
+  background: var(--cour-bg-2);
+  animation: cour-image-pulse 1.6s ease-in-out infinite;
+}
+
+.image[data-state="failed"] {
+  background: var(--cour-bg-2);
+  outline: 1px solid var(--cour-negative);
+  outline-offset: -1px;
+}
+
+@keyframes cour-image-pulse {
+  0%, 100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .image[data-state="making"] {
+    animation: none;
+  }
+}
+
+/* The buttons and caption stay in reach when a short screen scrolls the
+   dialog. Sticky offsets count from inside the dialog's padding, so -18px
+   is the footer's own resting place. */
+.footer {
+  position: sticky;
+  bottom: -18px;
+  margin: 0 -20px -18px;
+  padding: 0 20px 18px;
+  background: var(--cour-bg-1);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 2px;
+}
+
+.close {
+  flex: 1;
+  padding: 12px;
+  border: 1px solid var(--cour-line-strong);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--cour-text-1);
+  font-family: var(--cour-font-ui);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.primary {
+  flex: 1;
+  padding: 12px;
+  border: none;
+  border-radius: 999px;
+  background: var(--cour-accent);
+  color: white;
+  font-family: var(--cour-font-ui);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 8px 24px -8px var(--cour-accent);
+}
+
+/* Not ready yet: the guide's disabled pill, still focusable. */
+.primary[aria-disabled="true"] {
+  background: var(--cour-bg-2);
+  color: var(--cour-text-2);
+  cursor: default;
+  box-shadow: none;
+}
+
+/* What happened, or what else works: one line, so nothing moves when it
+   changes. */
+.caption {
+  min-height: 1.5em;
+  margin: 0;
+  text-align: center;
+  font-family: var(--cour-font-mono);
+  font-size: 9.5px;
+  line-height: 1.5;
+  letter-spacing: 0.1em;
+  color: var(--cour-text-2);
+}
+
+.caption[data-tone="error"] {
+  color: var(--cour-negative);
+}

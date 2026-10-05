@@ -93,15 +93,22 @@ afterEach(() => {
 describe('renderStandingsCard', () => {
   it('draws without posters that never load, once the deadline passes', async () => {
     let finished = false;
-    const done = renderStandingsCard(card()).then((blob) => {
+    const done = renderStandingsCard(card()).then((rendered) => {
       finished = true;
-      return blob;
+      return rendered;
     });
     await vi.advanceTimersByTimeAsync(2999);
     expect(finished).toBe(false);
     await vi.advanceTimersByTimeAsync(1);
-    expect((await done).type).toBe('image/png');
+    const { blob, complete } = await done;
+    expect(blob.type).toBe('image/png');
+    expect(complete).toBe(false);
     expect(contexts[0].drawn).toEqual(expect.arrayContaining(['NO. 1', 'Show 101', 'ALL 2 RANKINGS IN · FINAL']));
+  });
+
+  it('is complete when every font and poster made it', async () => {
+    const noPosters = card().standings.map((s) => ({ ...s, poster: undefined }));
+    expect((await renderStandingsCard(card({ standings: noPosters }))).complete).toBe(true);
   });
 
   it('labels the strip with the scoring positions', async () => {
@@ -140,27 +147,32 @@ describe('renderStandingsCard', () => {
     try {
       let finished = false;
       const noPosters = card().standings.map((s) => ({ ...s, poster: undefined }));
-      const done = renderStandingsCard(card({ standings: noPosters })).then(() => {
+      const done = renderStandingsCard(card({ standings: noPosters })).then((rendered) => {
         finished = true;
+        return rendered;
       });
       await vi.advanceTimersByTimeAsync(1000);
       expect(finished).toBe(false);
       release();
       await vi.advanceTimersByTimeAsync(0);
-      await done;
+      expect((await done).complete).toBe(false);
       expect(finished).toBe(true);
     } finally {
       Reflect.deleteProperty(document, 'fonts');
     }
   });
 
-  it('draws in fallback fonts if the card fonts never load', async () => {
+  it('draws in fallback fonts if the card fonts never load, and says it did', async () => {
     Object.defineProperty(document, 'fonts', {
       configurable: true,
       value: { load: () => new Promise(() => {}), ready: new Promise(() => {}) },
     });
     try {
       expect(await drawnText(card())).toContain('NO. 1');
+      const noPosters = card().standings.map((s) => ({ ...s, poster: undefined }));
+      const done = renderStandingsCard(card({ standings: noPosters }));
+      await vi.advanceTimersByTimeAsync(3000);
+      expect((await done).complete).toBe(false);
     } finally {
       Reflect.deleteProperty(document, 'fonts');
     }

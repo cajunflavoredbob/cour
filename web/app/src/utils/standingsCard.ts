@@ -75,6 +75,28 @@ export const pickNames = (d: StandingsCardData, titleId: number): string[] =>
 export const offCardPicks = (d: StandingsCardData): CardPick[] =>
   d.topPicks.filter((p) => !d.standings.some((s) => s.titleId === p.titleId));
 
+/** A key for what the card shows: equal for equal content, whatever the object. */
+export const cardSignature = (d: StandingsCardData): string => JSON.stringify(d);
+
+/** "a", "a and b", "a, b and c". */
+export const listOf = (items: readonly string[]): string =>
+  items.length < 2 ? items.join("") : `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
+
+/** The card in words: the preview image's alt text. */
+export const cardAltText = (d: StandingsCardData): string => {
+  const rows = d.standings.map((s) => {
+    const ranked = s.rankedByNames.length > 0 ? `, ranked by ${listOf(s.rankedByNames)}` : "";
+    const picks = d.topPicks.filter((p) => p.titleId === s.titleId).map((p) => `${p.userName}'s number 1`);
+    const points = `${s.points} ${s.points === 1 ? "point" : "points"}`;
+    return `${s.rank}, ${s.title}, ${points}${ranked}${picks.length > 0 ? `, ${listOf(picks)}` : ""}.`;
+  });
+  const offCard = offCardPicks(d).map((p) => `${p.userName}'s number 1 is ${p.title}.`);
+  const status = `${rankingsIn(d.submittedCount, d.memberCount).toLowerCase()}, ${
+    standingsFinal(d.submittedCount, d.memberCount) ? "final" : "so far"
+  }.`;
+  return [`Standings card for ${d.roomName}, ${d.season.toLowerCase()} ${d.year}.`, ...rows, ...offCard, status].join(" ");
+};
+
 export const cardFilename = (d: StandingsCardData): string => {
   const room = d.roomName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
   return `cour-${d.season.toLowerCase()}-${d.year}-${room || "room"}.png`;

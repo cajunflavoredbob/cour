@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useRef } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 
 interface DialogScrimProps {
   /** Accessible name for the dialog. */
@@ -27,6 +27,18 @@ export const DialogScrim = ({
   children,
 }: DialogScrimProps) => {
   const dialogRef = useRef<HTMLDivElement>(null);
+
+  // Focus goes back where it was when the dialog closes. Read on the first
+  // render, before an autoFocus inside the dialog commits.
+  const [opener] = useState(() => document.activeElement);
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    return () => {
+      // Still on the page: a StrictMode re-run, not a close.
+      if (dialog?.isConnected) return;
+      if (opener instanceof HTMLElement && opener.isConnected) opener.focus();
+    };
+  }, [opener]);
 
   useEffect(() => {
     const dialog = dialogRef.current;

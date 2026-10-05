@@ -182,6 +182,26 @@ describe('AccountMenu audit-17 UX additions', () => {
     expect(document.querySelector('[data-test-handle="share-link-input"]')).toBeNull();
   });
 
+  it('hands focus back to the avatar as the menu closes, and from the room-link dialog', () => {
+    Object.defineProperty(window.navigator, 'clipboard', {
+      value: undefined,
+      configurable: true,
+    });
+    render(<AccountMenu />);
+    const avatar = screen.getByRole('button', { name: 'Account' });
+    openMenu();
+    screen.getByText('How cour works').focus();
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(screen.queryByRole('menu')).toBeNull();
+    expect(document.activeElement).toBe(avatar);
+    openMenu();
+    screen.getByText('Share room').focus();
+    fireEvent.click(screen.getByText('Share room'));
+    expect(document.activeElement).toBe(document.querySelector('[data-test-handle="share-link-input"]'));
+    fireEvent.click(screen.getByText('Done'));
+    expect(document.activeElement).toBe(avatar);
+  });
+
   it('reopens the tutorial on demand', () => {
     withState({});
     render(<AccountMenu />);

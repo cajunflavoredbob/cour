@@ -341,7 +341,7 @@ describe('RankScreen desktop standings', () => {
   it('offers the standings as an image', () => {
     withState({ results: standings });
     render(<RankScreen />);
-    expect(document.querySelector('[data-test-handle="share-standings"]')?.textContent).toBe('SAVE IMAGE');
+    expect(document.querySelector('[data-test-handle="share-standings"]')?.textContent).toBe('SHARE THE STANDINGS →');
   });
 
   it('offers no image while there are no standings yet', () => {

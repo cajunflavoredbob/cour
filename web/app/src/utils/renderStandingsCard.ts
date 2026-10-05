@@ -359,21 +359,31 @@ const drawCard = (
   return height;
 };
 
+export interface RenderedCard {
+  blob: Blob;
+  // False when a font or poster missed the deadline and the card drew without it.
+  complete: boolean;
+}
+
 /** Renders the standings card as a PNG. */
-export const renderStandingsCard = async (d: StandingsCardData): Promise<Blob> => {
+export const renderStandingsCard = async (d: StandingsCardData): Promise<RenderedCard> => {
   const theme = readTheme(d.season);
   const fonts = document.fonts;
+  // True when every card font loaded.
   const fontsReady = fonts
     ? Promise.allSettled([
         fonts.load(`600 60px ${theme.display}`, `standings ${theme.kanji}`),
         fonts.load(`500 26px ${theme.display}`, "pick"),
         fonts.load(`600 23px ${theme.ui}`, "Aa"),
         fonts.load(`500 20px ${theme.mono}`, "A0"),
-      ]).then(() => fonts.ready)
-    : Promise.resolve();
+      ]).then(async (loads) => {
+        await fonts.ready;
+        return loads.every((load) => load.status === "fulfilled");
+      })
+    : Promise.resolve(true);
   const sources = d.standings.map((s) => s.poster).filter((s): s is string => !!s);
-  const [, images] = await Promise.all([
-    within(fontsReady.then(() => undefined), ASSET_TIMEOUT_MS, undefined),
+  const [fontsLoaded, images] = await Promise.all([
+    within(fontsReady, ASSET_TIMEOUT_MS, false),
     Promise.all(sources.map(async (s) => [s, await within(loadImage(s), ASSET_TIMEOUT_MS, null)] as const)).then(
       (entries) => new Map(entries),
     ),
@@ -388,7 +398,8 @@ export const renderStandingsCard = async (d: StandingsCardData): Promise<Blob> =
   ctx.fillRect(0, 0, WIDTH, canvas.height);
   ctx.imageSmoothingQuality = "high";
   drawCard(ctx, d, theme, images, true);
-  return new Promise((resolve, reject) =>
-    canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error("PNG encoding failed"))), "image/png"),
+  const blob = await new Promise<Blob>((resolve, reject) =>
+    canvas.toBlob((png) => (png ? resolve(png) : reject(new Error("PNG encoding failed"))), "image/png"),
   );
+  return { blob, complete: fontsLoaded && [...images.values()].every((img) => img != null) };
 };

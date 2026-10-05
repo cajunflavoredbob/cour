@@ -470,10 +470,33 @@
   margin-bottom: 18px;
 }
 
-/* The share button under the standings headline. */
-.shareRow {
-  display: flex;
-  margin-bottom: 20px;
+/* Share the standings: the screen's mono accent link (as REVIEW ALL and
+   SHOW ALL), 12px under the status line, its 44px target reached by an
+   invisible margin. */
+.shareLink {
+  position: relative;
+  display: block;
+  width: fit-content;
+  text-align: left;
+  margin: -10px 0 12px;
+  padding: 8px 0;
+  border: none;
+  background: transparent;
+  font-family: var(--cour-font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--cour-accent-bright);
+  cursor: pointer;
+}
+
+.shareLink::after {
+  content: "";
+  position: absolute;
+  inset: -6px 0;
+}
+
+.shareLink:hover {
+  filter: brightness(1.15);
 }
 
 .standingsHead > :last-child {

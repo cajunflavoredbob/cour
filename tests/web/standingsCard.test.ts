@@ -4,7 +4,9 @@ import type { RankingResults } from '../../types/reely';
 import {
   buildStandingsCard,
   CARD_STANDINGS,
+  cardAltText,
   cardFilename,
+  cardSignature,
   fitText,
   offCardPicks,
   pickLines,
@@ -116,6 +118,46 @@ describe('card text', () => {
     expect(cardFilename(card())).toBe('cour-fall-2026-couch-coop.png');
     expect(cardFilename(card({ roomName: '  Movie Night!! ' }))).toBe('cour-fall-2026-movie-night.png');
     expect(cardFilename(card({ roomName: '☆☆' }))).toBe('cour-fall-2026-room.png');
+  });
+});
+
+describe('cardSignature', () => {
+  it('is the same for the same standings in a fresh object', () => {
+    expect(cardSignature(card())).toBe(cardSignature(card()));
+  });
+
+  it('changes with anything the card shows', () => {
+    expect(cardSignature(card({ submittedCount: 1 }))).not.toBe(cardSignature(card()));
+    expect(cardSignature(card({ roomName: 'Other' }))).not.toBe(cardSignature(card()));
+  });
+});
+
+describe('cardAltText', () => {
+  it('reads the card in words: rows, rankers, whose #1, and the status', () => {
+    expect(cardAltText(card())).toBe(
+      'Standings card for Couch-Coop, fall 2026. ' +
+        "1, Show 101, 21 points, ranked by user1 and user2, user1's number 1. " +
+        "2, Show 102, 21 points, ranked by user1 and user2, user2's number 1. " +
+        '3, Show 103, 9 points, ranked by user1 and user2. ' +
+        '4, Show 106, 6 points, ranked by user2. ' +
+        '5, Show 104, 3 points, ranked by user1. ' +
+        'all 2 rankings in, final.',
+    );
+  });
+
+  it('names a #1 that missed the card, and says so far before every ranking is in', () => {
+    const c = card({
+      submittedCount: 1,
+      topPicks: [{ titleId: 105, userName: 'user2', title: 'Show 105' }],
+    });
+    expect(cardAltText(c)).toContain("user2's number 1 is Show 105.");
+    expect(cardAltText(c)).toMatch(/1 of 2 rankings in, so far\.$/);
+  });
+
+  it('says 1 point, not 1 points', () => {
+    const c = card();
+    const last = { ...c.standings[4], points: 1 };
+    expect(cardAltText({ ...c, standings: [...c.standings.slice(0, 4), last] })).toContain('5, Show 104, 1 point, ranked by user1.');
   });
 });
 

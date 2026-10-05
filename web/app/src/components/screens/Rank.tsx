@@ -3,10 +3,11 @@ import type { Media, RankingStanding } from "../../../../../types/reely";
 import { AccountMenu } from "../organisms/AccountMenu";
 import { AppHeader } from "../organisms/AppHeader";
 import { DialogScrim } from "../molecules/DialogScrim";
-import { ShareStandingsButton } from "../molecules/ShareStandingsButton";
 import { DeckDetails } from "../organisms/DeckDetails";
+import { SharePreview } from "../organisms/SharePreview";
 import { Loading } from "./Loading";
 import { useDragReorder } from "../../hooks/useDragReorder";
+import { useStandingsCardImage } from "../../hooks/useStandingsCardImage";
 import { DESKTOP_QUERY, useMediaQuery } from "../../hooks/useMediaQuery";
 import { useStore } from "../../store";
 import { posterSrc } from "../../utils/poster";
@@ -81,6 +82,7 @@ export const RankScreen = () => {
   const [standingsView, setStandingsView] = useState<"all" | "shared">("all");
   const [refining, setRefining] = useState(false);
   const [refineOrder, setRefineOrder] = useState<number[]>([]);
+  const [shareOpen, setShareOpen] = useState(false);
 
   // Up/down buttons are the keyboard path.
   const rankDrag = useDragReorder(order, setOrder);
@@ -129,6 +131,16 @@ export const RankScreen = () => {
   const canRefine = round != null && !round.myRefined && round.sharedTitleIds.length >= 2;
   // The refine editor holds through its own ceremony, as the ranking's does.
   const editingRefine = round != null && ((refining && canRefine) || refineSubmitting);
+
+  // The share image is made in the background only while the standings are
+  // on screen, never behind an editor.
+  const standingsShown =
+    results?.mySubmitted === true && !submitting && !editingRefine && results.standings.length > 0;
+  const cardImage = useStandingsCardImage(standingsShown ? standingsCard : null);
+  // Standings that leave the screen (a new season) take the preview with them.
+  useEffect(() => {
+    if (!standingsShown) setShareOpen(false);
+  }, [standingsShown]);
 
   // A closed round (a new member joined) ends any refine in progress, and
   // the screen falls back to all picks.
@@ -391,10 +403,18 @@ export const RankScreen = () => {
         {!isFinal && waitingOn.length > 0 &&
           ` · WAITING ON ${waitingOn.map((n) => n.toUpperCase()).join(", ")}`}
       </p>
-      {standingsCard && results.standings.length > 0 && (
-        <div className={styles.shareRow}>
-          <ShareStandingsButton card={standingsCard} />
-        </div>
+      {standingsShown && standingsCard && (
+        <button
+          type="button"
+          className={styles.shareLink}
+          onClick={() => {
+            cardImage.refresh();
+            setShareOpen(true);
+          }}
+          data-test-handle="share-standings"
+        >
+          SHARE THE STANDINGS <span aria-hidden="true">&rarr;</span>
+        </button>
       )}
     </>
   );
@@ -584,6 +604,16 @@ export const RankScreen = () => {
     </DialogScrim>
   );
 
+  const shareDialogEl = shareOpen && standingsShown && standingsCard && (
+    <SharePreview
+      card={standingsCard}
+      image={cardImage}
+      allPicks={round != null}
+      waitingOn={waitingOn}
+      onClose={() => setShareOpen(false)}
+    />
+  );
+
   const confirmIsRefine = confirmFor === "refine";
   const confirmDialogEl = confirmFor && (
     <DialogScrim
@@ -672,6 +702,7 @@ export const RankScreen = () => {
         )}
         {confirmDialogEl}
         {detailDialogEl}
+        {shareDialogEl}
       </div>
     );
   }
@@ -715,6 +746,7 @@ export const RankScreen = () => {
 
       {confirmDialogEl}
       {detailDialogEl}
+      {shareDialogEl}
     </div>
   );
 };

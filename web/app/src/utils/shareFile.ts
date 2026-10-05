@@ -10,7 +10,27 @@ export const canShareFiles = (): boolean => {
   }
 };
 
-const download = (blob: Blob, filename: string) => {
+/**
+ * Hands the image to the system share sheet. A cancel is not an error;
+ * a refusal (no user activation left, permissions) throws.
+ */
+export const shareImage = async (
+  blob: Blob,
+  filename: string,
+  title: string,
+): Promise<"shared" | "cancelled"> => {
+  const file = new File([blob], filename, { type: blob.type || "image/png" });
+  try {
+    await navigator.share({ files: [file], title });
+    return "shared";
+  } catch (err) {
+    if ((err as { name?: unknown } | null)?.name === "AbortError") return "cancelled";
+    throw err;
+  }
+};
+
+/** Starts a download of the image. Where it lands is the browser's call. */
+export const downloadImage = (blob: Blob, filename: string): void => {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
@@ -21,26 +41,17 @@ const download = (blob: Blob, filename: string) => {
   setTimeout(() => URL.revokeObjectURL(url), 30_000);
 };
 
-/**
- * Opens the system share sheet with `blob` where the browser can share
- * files, else saves it as a download. A refused share (no user activation
- * left, permissions) falls back to the download; a cancelled one does not.
- */
-export const shareOrDownload = async (
-  blob: Blob,
-  filename: string,
-  title: string,
-): Promise<"shared" | "cancelled" | "downloaded"> => {
-  const file = new File([blob], filename, { type: blob.type || "image/png" });
-  if (typeof navigator.canShare === "function" && navigator.canShare({ files: [file] })) {
-    try {
-      await navigator.share({ files: [file], title });
-      return "shared";
-    } catch (err) {
-      if ((err as { name?: unknown } | null)?.name === "AbortError") return "cancelled";
-      console.warn("Share refused; saving the image instead", err);
-    }
-  }
-  download(blob, filename);
-  return "downloaded";
+/** The image as a data: URL (the page's CSP allows data: images, not blob:). */
+export const imageDataUrl = (blob: Blob): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(reader.error ?? new Error("Could not read the image"));
+    reader.readAsDataURL(blob);
+  });
+
+/** A PNG's pixel size, read from its header. */
+export const pngSize = async (blob: Blob): Promise<{ width: number; height: number }> => {
+  const header = new DataView(await blob.slice(16, 24).arrayBuffer());
+  return { width: header.getUint32(0), height: header.getUint32(4) };
 };

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { AvatarButton } from "../atoms/AvatarButton";
 import { DialogScrim } from "../molecules/DialogScrim";
 import { useEscape } from "../../hooks/useEscape";
@@ -27,7 +27,14 @@ export const AccountMenu = () => {
   // fallback was an unselectable toast that vanished in 8 seconds.
   const [shareLink, setShareLink] = useState<string | null>(null);
 
-  const close = () => setOpen(false);
+  const avatarRef = useRef<HTMLButtonElement>(null);
+  const bubbleRef = useRef<HTMLDivElement>(null);
+  // Focus inside the menu goes back to the avatar as it closes, so a dialog
+  // opened from the menu has somewhere to return focus to.
+  const close = () => {
+    if (bubbleRef.current?.contains(document.activeElement)) avatarRef.current?.focus();
+    setOpen(false);
+  };
   useEscape(close, open);
 
   if (!user) return null;
@@ -83,13 +90,13 @@ export const AccountMenu = () => {
 
   return (
     <div className={styles.anchor}>
-      <AvatarButton userName={user.userName} onClick={() => setOpen((o) => !o)} />
+      <AvatarButton ref={avatarRef} userName={user.userName} onClick={() => setOpen((o) => !o)} />
       {open && (
         <>
           {/* biome-ignore lint/a11y/noStaticElementInteractions: transparent outside-tap catcher; Esc is the keyboard path. */}
           {/* biome-ignore lint/a11y/useKeyWithClickEvents: transparent outside-tap catcher; Esc is the keyboard path. */}
           <div className={styles.scrim} onClick={close} />
-          <div className={styles.bubble} role="menu" aria-label="Account">
+          <div ref={bubbleRef} className={styles.bubble} role="menu" aria-label="Account">
             <div className={styles.caret} aria-hidden="true" />
 
             <div className={styles.header}>
