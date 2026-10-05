@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 
 const { useStoreMock } = vi.hoisted(() => ({ useStoreMock: vi.fn() }));
 let dispatch: ReturnType<typeof vi.fn>;
@@ -298,6 +298,36 @@ describe('RankScreen audit v1.2.0 additions', () => {
     expect(btn).not.toBeNull();
     expect(btn.disabled).toBe(true);
     expect(btn.textContent).toContain('Submitting');
+  });
+});
+
+describe('RankScreen submit ceremony', () => {
+  it('ends the ceremony once the ack is in and the 3s floor has passed', () => {
+    withState({
+      results: {
+        submittedCount: 1, memberCount: 2, mySubmitted: true,
+        myRanking: [101], standings: [], members: [],
+      },
+      finalizing: { kind: 'submit', startedAt: Date.now() },
+    });
+    render(<RankScreen />);
+    act(() => {
+      vi.advanceTimersByTime(2999);
+    });
+    expect(dispatch).not.toHaveBeenCalledWith({ type: 'finalizing', payload: null });
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(dispatch).toHaveBeenCalledWith({ type: 'finalizing', payload: null });
+  });
+
+  it('will not confirm a ranking while offline', () => {
+    const { rerender } = render(<RankScreen />);
+    fireEvent.click(document.querySelector('[data-test-handle="submit-rankings"]') as HTMLElement);
+    fireEvent.click(screen.getByText('This is my final ranking'));
+    withState({ connectionStatus: 'disconnected' });
+    rerender(<RankScreen />);
+    expect((document.querySelector('[data-test-handle="confirm-submit"]') as HTMLButtonElement).disabled).toBe(true);
   });
 });
 

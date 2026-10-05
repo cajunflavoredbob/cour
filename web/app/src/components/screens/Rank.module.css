@@ -474,7 +474,7 @@
   margin-bottom: 20px;
 }
 
-.standingsHead .shareRow {
+.standingsHead > :last-child {
   margin-bottom: 0;
 }
 
@@ -682,4 +682,87 @@
   font-size: 13px;
   color: var(--cour-accent-bright);
   margin-left: 6px;
+}
+
+/* All picks / shared shows once the refine round opens: the same pill
+   tabs as the review piles. */
+.viewTabs {
+  display: flex;
+  gap: 8px;
+  margin: 0 0 14px;
+}
+
+.standingsHead .viewTabs {
+  margin-top: 18px;
+}
+
+.viewTab {
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--cour-line);
+  background: var(--cour-bg-1);
+  color: var(--cour-text-2);
+  font-family: var(--cour-font-ui);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.viewTab[data-active="true"] {
+  background: var(--cour-accent-soft);
+  border-color: var(--cour-accent);
+  color: var(--cour-text-0);
+}
+
+/* The shared view's status line and refine link. */
+.sharedHead {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  margin-bottom: 14px;
+}
+
+.sharedHead .contextLine {
+  margin-bottom: 2px;
+}
+
+/* Mono accent links, as REVIEW ALL on the review page. */
+.refineBtn,
+.refineBack {
+  padding: 8px 0;
+  border: none;
+  background: transparent;
+  font-family: var(--cour-font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--cour-accent-bright);
+  cursor: pointer;
+}
+
+.refineBtn {
+  margin: 0;
+}
+
+.refineBack {
+  display: block;
+  margin: 10px auto 0;
+}
+
+.refineBtn:hover:not(:disabled),
+.refineBack:hover:not(:disabled) {
+  filter: brightness(1.15);
+}
+
+.refineBtn:disabled,
+.refineBack:disabled {
+  color: var(--cour-text-2);
+  cursor: default;
+}
+
+/* A short note under the shared status line. */
+.sharedNote {
+  margin: 0 0 4px;
+  font-family: var(--cour-font-ui);
+  font-size: 13px;
+  color: var(--cour-text-2);
 }

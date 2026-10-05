@@ -11,6 +11,12 @@ export const rankingsIn = (submittedCount: number, memberCount: number): string 
   return memberCount === 1 ? `1 ${noun} IN` : `ALL ${memberCount} ${noun} IN`;
 };
 
+/** "1 OF 2 REFINED", or "ALL 2 REFINED" once every member has refined. */
+export const refinedIn = (refinedCount: number, memberCount: number): string =>
+  memberCount > 0 && refinedCount >= memberCount
+    ? `ALL ${memberCount} REFINED`
+    : `${refinedCount} OF ${memberCount} REFINED`;
+
 /** "RANKED BY USER1 + USER2", a count when the names are missing, or "" for a single ranker. */
 export const rankedByText = (names: readonly string[] | undefined, rankedBy: number): string =>
   names?.length

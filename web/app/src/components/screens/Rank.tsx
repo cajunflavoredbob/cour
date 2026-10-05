@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import type { Media } from "../../../../../types/reely";
+import { type Dispatch, type SetStateAction, useEffect, useMemo, useRef, useState } from "react";
+import type { Media, RankingStanding } from "../../../../../types/reely";
 import { AccountMenu } from "../organisms/AccountMenu";
 import { AppHeader } from "../organisms/AppHeader";
 import { DialogScrim } from "../molecules/DialogScrim";
@@ -14,7 +14,7 @@ import { reconcileOrder } from "../../utils/rankOrder";
 import { useSeason } from "../../hooks/useSeason";
 import { SEASON_THEMES } from "../../utils/season";
 import { buildStandingsCard } from "../../utils/standingsCard";
-import { rankedByText, rankingsIn, standingsFinal } from "../../utils/standingsText";
+import { rankedByText, rankingsIn, refinedIn, standingsFinal } from "../../utils/standingsText";
 import styles from "./Rank.module.css";
 
 // The couple-profile point values, shown next to the top five slots so
@@ -30,6 +30,11 @@ const STANDINGS_PREVIEW = 5;
  * submission it's the ordering editor over YOUR liked titles (dislikes
  * and skips are discarded); after, it's the live combined standings,
  * updated the moment any member's ranking lands (server push).
+ *
+ * Once every ranking is in, the refine round adds a second view: the
+ * standings over just the shows every member kept, and an optional
+ * one-shot re-rank of those shows. The all-picks standings stay the
+ * room's result.
  *
  * Desktop (docs/DESKTOP.md 0.15.0): the editor gets a rail (headline +
  * point legend + submit) beside the sortable list; the standings get the
@@ -64,16 +69,22 @@ export const RankScreen = () => {
   );
 
   const [order, setOrder] = useState<number[]>(likedIds);
-  const [confirmOpen, setConfirmOpen] = useState(false);
+  // Which one-shot submit the confirm dialog is asking about.
+  const [confirmFor, setConfirmFor] = useState<"submit" | "refine" | null>(null);
   const [confirmChecked, setConfirmChecked] = useState(false);
   const [showAllStandings, setShowAllStandings] = useState(false);
   // Standings row -> read-only details drawer (audit 17 UX 4): post-lock
   // there was no way to see a synopsis/PV exactly when the group decides
   // what to watch.
   const [detailTitleId, setDetailTitleId] = useState<number | null>(null);
+  // The refine round: which standings show, and the open re-rank.
+  const [standingsView, setStandingsView] = useState<"all" | "shared">("all");
+  const [refining, setRefining] = useState(false);
+  const [refineOrder, setRefineOrder] = useState<number[]>([]);
 
   // Up/down buttons are the keyboard path.
-  const { listRef, draggingId, onPointerDown: onRowPointerDown } = useDragReorder(order, setOrder);
+  const rankDrag = useDragReorder(order, setOrder);
+  const refineDrag = useDragReorder(refineOrder, setRefineOrder);
 
   useEffect(() => {
     dispatch({ type: "results" });
@@ -112,7 +123,41 @@ export const RankScreen = () => {
   );
   const offline = connectionStatus !== "connected";
   const submitting = finalizing?.kind === "submit";
+  const refineSubmitting = finalizing?.kind === "refine";
   const kanji = SEASON_THEMES[season].kanji;
+  const round = results?.refined;
+  const canRefine = round != null && !round.myRefined && round.sharedTitleIds.length >= 2;
+  // The refine editor holds through its own ceremony, as the ranking's does.
+  const editingRefine = round != null && ((refining && canRefine) || refineSubmitting);
+
+  // A closed round (a new member joined) ends any refine in progress, and
+  // the screen falls back to all picks.
+  const roundOpen = round != null;
+  useEffect(() => {
+    if (roundOpen) return;
+    setRefining(false);
+    setStandingsView("all");
+    setConfirmFor((current) => (current === "refine" ? null : current));
+    if (refineSubmitting) dispatch({ type: "finalizing", payload: null });
+  }, [roundOpen, refineSubmitting, dispatch]);
+
+  // The refine order follows a change in the shared shows (the server takes
+  // exactly the shared set), keeping the member's own ordering.
+  const myOrderKey = round?.myOrder.join(",") ?? "";
+  useEffect(() => {
+    const mine = myOrderKey === "" ? [] : myOrderKey.split(",").map(Number);
+    setRefineOrder((current) => reconcileOrder(current, mine));
+  }, [myOrderKey]);
+
+  // Focus follows the switch into the refine editor and back.
+  const refineHeadRef = useRef<HTMLHeadingElement>(null);
+  const sharedTabRef = useRef<HTMLButtonElement>(null);
+  const wasEditing = useRef(false);
+  useEffect(() => {
+    if (editingRefine === wasEditing.current) return;
+    wasEditing.current = editingRefine;
+    (editingRefine ? refineHeadRef.current : sharedTabRef.current)?.focus();
+  }, [editingRefine]);
 
   // Reconnect staleness is healed by the store, not here: createStore's
   // joinRoomSuccess handler refetches results after a rejoin lands (a
@@ -120,19 +165,22 @@ export const RankScreen = () => {
   // server-side with "Join a room first").
 
   // Minimum-3s "Submitting..." ceremony (the owner's spec, audit v1.2.0
-  // #9): the editor holds until BOTH the ack (mySubmitted) and the 3s
-  // floor have passed.
-  const acked = results?.mySubmitted === true;
+  // #9) for both one-shot submits: the editor holds until BOTH the ack
+  // (mySubmitted, or myRefined for a refine) and the 3s floor have passed.
+  const acked =
+    finalizing?.kind === "submit"
+      ? results?.mySubmitted === true
+      : finalizing?.kind === "refine" && results?.refined?.myRefined === true;
   const finalizingStartedAt = finalizing?.startedAt;
   useEffect(() => {
-    if (finalizing?.kind !== "submit" || !acked || finalizingStartedAt == null) return;
+    if (!acked || finalizingStartedAt == null) return;
     const remaining = Math.max(0, finalizingStartedAt + 3000 - Date.now());
     const timer = setTimeout(
       () => dispatch({ type: "finalizing", payload: null }),
       remaining,
     );
     return () => clearTimeout(timer);
-  }, [finalizing?.kind, acked, finalizingStartedAt, dispatch]);
+  }, [acked, finalizingStartedAt, dispatch]);
 
   if (!room) return <div />;
 
@@ -142,9 +190,10 @@ export const RankScreen = () => {
   // The editor holds through the submit ceremony so the standings never
   // flash in early.
   const submitted = results.mySubmitted && !submitting;
+  const view = round ? standingsView : "all";
 
-  const move = (index: number, delta: number) => {
-    setOrder((current) => {
+  const moveIn = (setList: Dispatch<SetStateAction<number[]>>) => (index: number, delta: number) => {
+    setList((current) => {
       const target = index + delta;
       if (target < 0 || target >= current.length) return current;
       const next = [...current];
@@ -159,7 +208,14 @@ export const RankScreen = () => {
     return url ? posterSrc(url) : undefined;
   };
 
-  // ── Editor pieces ──
+  const openRefine = () => {
+    if (!round) return;
+    setRefineOrder(round.myOrder);
+    setStandingsView("shared");
+    setRefining(true);
+  };
+
+  // ── Editor pieces (the ranking, and the refine of the shared shows) ──
 
   const editorHeadline = (
     <>
@@ -171,22 +227,34 @@ export const RankScreen = () => {
     </>
   );
 
-  const editorList =
-    order.length === 0 ? (
-      <p className={styles.emptyNote}>
-        you kept nothing this season. bold. submit to sit this one out.
+  const refineHeadline = (
+    <>
+      <h1 className={styles.headline} ref={refineHeadRef} tabIndex={-1}>refine your order.</h1>
+      <p className={styles.contextLine}>
+        ONLY THE SHOWS EVERYONE KEPT &middot; TOP 5 SCORE 12 &middot; 9 &middot; 6 &middot; 3 &middot; 1
       </p>
-    ) : (
-      <ul className={styles.rows} ref={listRef} data-reordering={draggingId != null}>
-        {order.map((titleId, i) => (
+    </>
+  );
+
+  // A sortable list: drag any row, or the up/down buttons.
+  const orderList = (
+    list: number[],
+    setList: Dispatch<SetStateAction<number[]>>,
+    drag: ReturnType<typeof useDragReorder>,
+    frozen: boolean,
+  ) => {
+    const move = moveIn(setList);
+    return (
+      <ul className={styles.rows} ref={drag.listRef} data-reordering={drag.draggingId != null}>
+        {list.map((titleId, i) => (
           <li
             key={titleId}
             className={styles.row}
             data-rank-row
             data-reorder-id={titleId}
-            data-dragging={draggingId === titleId}
-            // No dragging during the submit ceremony.
-            onPointerDown={submitting ? undefined : (e) => onRowPointerDown(e, titleId)}
+            data-dragging={drag.draggingId === titleId}
+            // No dragging during a submit ceremony.
+            onPointerDown={frozen ? undefined : (e) => drag.onPointerDown(e, titleId)}
           >
             <span
               className={styles.grip}
@@ -214,7 +282,7 @@ export const RankScreen = () => {
                 type="button"
                 className={styles.moveBtn}
                 aria-label={`Move ${titleOf(titleId)} up`}
-                disabled={i === 0 || submitting}
+                disabled={i === 0 || frozen}
                 onClick={() => move(i, -1)}
               >
                 <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
@@ -225,7 +293,7 @@ export const RankScreen = () => {
                 type="button"
                 className={styles.moveBtn}
                 aria-label={`Move ${titleOf(titleId)} down`}
-                disabled={i === order.length - 1 || submitting}
+                disabled={i === list.length - 1 || frozen}
                 onClick={() => move(i, 1)}
               >
                 <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
@@ -237,6 +305,23 @@ export const RankScreen = () => {
         ))}
       </ul>
     );
+  };
+
+  const editorList =
+    order.length === 0 ? (
+      <p className={styles.emptyNote}>
+        you kept nothing this season. bold. submit to sit this one out.
+      </p>
+    ) : (
+      orderList(order, setOrder, rankDrag, submitting)
+    );
+
+  const refineList = orderList(refineOrder, setRefineOrder, refineDrag, refineSubmitting);
+
+  const openConfirm = (kind: "submit" | "refine") => {
+    setConfirmChecked(false);
+    setConfirmFor(kind);
+  };
 
   const submitControls = (
     <>
@@ -244,15 +329,36 @@ export const RankScreen = () => {
         type="button"
         className={styles.submitBtn}
         disabled={offline || submitting}
-        onClick={() => {
-          setConfirmChecked(false);
-          setConfirmOpen(true);
-        }}
+        onClick={() => openConfirm("submit")}
         data-test-handle="submit-rankings"
       >
         {submitting ? "Submitting\u2026" : "Submit rankings"}
       </button>
       <p className={styles.submitCaption}>STANDINGS COMBINE ONCE RANKINGS COME IN</p>
+    </>
+  );
+
+  const refineControls = (
+    <>
+      <button
+        type="button"
+        className={styles.submitBtn}
+        disabled={offline || refineSubmitting}
+        onClick={() => openConfirm("refine")}
+        data-test-handle="submit-refine"
+      >
+        {refineSubmitting ? "Submitting\u2026" : "Submit refined order"}
+      </button>
+      <p className={styles.submitCaption}>ONE SHOT &middot; THE ALL-PICKS STANDINGS STAY THE RESULT</p>
+      <button
+        type="button"
+        className={styles.refineBack}
+        disabled={refineSubmitting}
+        onClick={() => setRefining(false)}
+        data-test-handle="refine-back"
+      >
+        BACK TO STANDINGS
+      </button>
     </>
   );
 
@@ -293,10 +399,59 @@ export const RankScreen = () => {
     </>
   );
 
-  const allStandings = results?.standings ?? [];
-  const visibleStandings = showAllStandings
-    ? allStandings
-    : allStandings.slice(0, STANDINGS_PREVIEW);
+  const allStandings = results.standings ?? [];
+
+  // All picks, or the shared shows once the refine round is open.
+  const viewTabs = round && (
+    <div className={styles.viewTabs} role="tablist" aria-label="Standings">
+      <button
+        type="button"
+        role="tab"
+        aria-selected={view === "all"}
+        data-active={view === "all"}
+        className={styles.viewTab}
+        onClick={() => setStandingsView("all")}
+        data-test-handle="standings-all"
+      >
+        All picks {allStandings.length}
+      </button>
+      <button
+        type="button"
+        role="tab"
+        aria-selected={view === "shared"}
+        data-active={view === "shared"}
+        className={styles.viewTab}
+        ref={sharedTabRef}
+        onClick={() => setStandingsView("shared")}
+        data-test-handle="standings-shared"
+      >
+        Shared shows {round.sharedTitleIds.length}
+      </button>
+    </div>
+  );
+
+  const sharedHead = round && view === "shared" && (
+    <div className={styles.sharedHead}>
+      <p className={styles.contextLine}>
+        {`SHOWS EVERYONE KEPT · ${refinedIn(round.refinedCount, results.memberCount)}`}
+        {round.myRefined && " · YOURS IS IN"}
+      </p>
+      {round.sharedTitleIds.length === 1 && (
+        <p className={styles.sharedNote}>only one show in common, so there is nothing to refine.</p>
+      )}
+      {canRefine && (
+        <button
+          type="button"
+          className={styles.refineBtn}
+          disabled={offline}
+          onClick={openRefine}
+          data-test-handle="open-refine"
+        >
+          REFINE YOUR ORDER &rarr;
+        </button>
+      )}
+    </div>
+  );
 
   // " · RANKED BY ..." after a row's points, or nothing.
   const rankedBySuffix = (names: readonly string[] | undefined, count: number) => {
@@ -304,79 +459,103 @@ export const RankScreen = () => {
     return text ? ` · ${text}` : "";
   };
 
-  const standingsList = (desktop: boolean) => (
-    <ul
-      className={desktop ? styles.standingsRows : styles.rows}
-      key={desktop ? results?.submittedCount : undefined}
-    >
-      {visibleStandings.map((standing) => (
-        <li
-          key={standing.titleId}
-          className={styles.row}
-          data-rank={standing.rank}
-          data-hero={desktop && standing.rank === 1}
-        >
-          {/* The whole row opens the read-only details drawer (UX 4). */}
-          <button
-            type="button"
-            className={styles.rowOpen}
-            onClick={() => setDetailTitleId(standing.titleId)}
-            data-test-handle="standing-details"
+  // Every member ranks every shared show, so the shared rows skip the names.
+  const standingsList = (desktop: boolean, rows: RankingStanding[], named: boolean, listKey: string | number) => {
+    const visible = showAllStandings ? rows : rows.slice(0, STANDINGS_PREVIEW);
+    return (
+      <ul
+        className={desktop ? styles.standingsRows : styles.rows}
+        key={desktop ? listKey : undefined}
+      >
+        {visible.map((standing) => (
+          <li
+            key={standing.titleId}
+            className={styles.row}
+            data-rank={standing.rank}
+            data-hero={desktop && standing.rank === 1}
           >
-            <span className={styles.standingRank}>{standing.rank}</span>
-            <span className={styles.rowThumb}>
-              {posterOf(standing.titleId) && (
-                <img className={styles.rowThumbImg} src={posterOf(standing.titleId)} alt="" />
-              )}
-            </span>
-            <span className={styles.rowText}>
-              <span className={styles.rowTitle}>{titleOf(standing.titleId)}</span>
-              <span className={styles.rowMeta}>
-                {standing.points} PTS
-                {/* Who ranked it: names instead of an anonymous count. */}
-                {rankedBySuffix(standing.rankedByNames, standing.rankedBy)}
+            {/* The whole row opens the read-only details drawer (UX 4). */}
+            <button
+              type="button"
+              className={styles.rowOpen}
+              onClick={() => setDetailTitleId(standing.titleId)}
+              data-test-handle="standing-details"
+            >
+              <span className={styles.standingRank}>{standing.rank}</span>
+              <span className={styles.rowThumb}>
+                {posterOf(standing.titleId) && (
+                  <img className={styles.rowThumbImg} src={posterOf(standing.titleId)} alt="" />
+                )}
               </span>
-            </span>
-          </button>
-        </li>
-      ))}
-      {allStandings.length === 0 && (
-        <li className={styles.emptyNote}>no rankings yet</li>
-      )}
-    </ul>
-  );
+              <span className={styles.rowText}>
+                <span className={styles.rowTitle}>{titleOf(standing.titleId)}</span>
+                <span className={styles.rowMeta}>
+                  {standing.points} PTS
+                  {/* Who ranked it: names instead of an anonymous count. */}
+                  {named && rankedBySuffix(standing.rankedByNames, standing.rankedBy)}
+                </span>
+              </span>
+            </button>
+          </li>
+        ))}
+        {rows.length === 0 && (
+          <li className={styles.emptyNote}>
+            {named ? "no rankings yet" : "no shows in common this season."}
+          </li>
+        )}
+      </ul>
+    );
+  };
 
   // "Everyone's #1" -- each submitted member's top pick, regardless of
   // where it lands in the combined standings (the owner's ask).
-  const topPicksEl = (results?.topPicks ?? []).length > 0 && (
-    <div className={styles.topPicks}>
-      <p className={styles.topPicksLabel}>EVERYONE&apos;S #1</p>
-      <div className={styles.topPicksRow}>
-        {(results?.topPicks ?? []).map((pick) => (
-          <div key={pick.userName} className={styles.pickCard} data-test-handle="top-pick">
-            <span className={styles.pickPoster}>
-              {posterOf(pick.titleId) && (
-                <img className={styles.pickPosterImg} src={posterOf(pick.titleId)} alt="" />
-              )}
-            </span>
-            <span className={styles.pickName}>{pick.userName}</span>
-            <span className={styles.pickTitle}>{titleOf(pick.titleId)}</span>
-          </div>
-        ))}
+  const topPicksEl = (picks: Array<{ userName: string; titleId: number }>, label: string) =>
+    picks.length > 0 && (
+      <div className={styles.topPicks}>
+        <p className={styles.topPicksLabel}>{label}</p>
+        <div className={styles.topPicksRow}>
+          {picks.map((pick) => (
+            <div key={pick.userName} className={styles.pickCard} data-test-handle="top-pick">
+              <span className={styles.pickPoster}>
+                {posterOf(pick.titleId) && (
+                  <img className={styles.pickPosterImg} src={posterOf(pick.titleId)} alt="" />
+                )}
+              </span>
+              <span className={styles.pickName}>{pick.userName}</span>
+              <span className={styles.pickTitle}>{titleOf(pick.titleId)}</span>
+            </div>
+          ))}
+        </div>
       </div>
-    </div>
-  );
+    );
 
-  const standingsRevealEl = allStandings.length > STANDINGS_PREVIEW && (
-    <button
-      type="button"
-      className={styles.showAllBtn}
-      onClick={() => setShowAllStandings((v) => !v)}
-      data-test-handle="standings-reveal"
-    >
-      {showAllStandings ? "SHOW TOP 5" : `SHOW ALL ${allStandings.length} →`}
-    </button>
-  );
+  const standingsRevealEl = (rows: RankingStanding[]) =>
+    rows.length > STANDINGS_PREVIEW && (
+      <button
+        type="button"
+        className={styles.showAllBtn}
+        onClick={() => setShowAllStandings((v) => !v)}
+        data-test-handle="standings-reveal"
+      >
+        {showAllStandings ? "SHOW TOP 5" : `SHOW ALL ${rows.length} →`}
+      </button>
+    );
+
+  // The body under the headline, per view.
+  const standingsContent = (desktop: boolean) =>
+    view === "shared" && round ? (
+      <>
+        {topPicksEl(round.topPicks, "EVERYONE'S SHARED #1")}
+        {standingsList(desktop, round.standings, false, `shared-${round.refinedCount}`)}
+        {standingsRevealEl(round.standings)}
+      </>
+    ) : (
+      <>
+        {topPicksEl(results.topPicks ?? [], "EVERYONE'S #1")}
+        {standingsList(desktop, allStandings, true, results.submittedCount)}
+        {standingsRevealEl(allStandings)}
+      </>
+    );
 
   const detailMedia = detailTitleId != null ? mediaById.get(detailTitleId) : undefined;
   const detailDialogEl = detailMedia && (
@@ -390,17 +569,19 @@ export const RankScreen = () => {
     </DialogScrim>
   );
 
-  const confirmDialogEl = confirmOpen && (
+  const confirmIsRefine = confirmFor === "refine";
+  const confirmDialogEl = confirmFor && (
     <DialogScrim
-      label="Submit your rankings"
-      onDismiss={() => setConfirmOpen(false)}
+      label={confirmIsRefine ? "Submit your refined order" : "Submit your rankings"}
+      onDismiss={() => setConfirmFor(null)}
       backdropClassName={styles.confirmBackdrop}
       dialogClassName={styles.confirmDialog}
     >
         <h2 className={styles.confirmTitle}>no turning back.</h2>
         <p className={styles.confirmText}>
-          This submits your final ranking and reveals the standings.
-          You can&apos;t reorder after this.
+          {confirmIsRefine
+            ? "This submits your order of the shows everyone kept. You can't reorder after this, and the all-picks standings stay the room's result."
+            : "This submits your final ranking and reveals the standings. You can't reorder after this."}
         </p>
         <label className={styles.confirmCheckRow}>
           <input
@@ -409,26 +590,31 @@ export const RankScreen = () => {
             checked={confirmChecked}
             onChange={(e) => setConfirmChecked(e.target.checked)}
           />
-          <span>This is my final ranking</span>
+          <span>{confirmIsRefine ? "This is my refined order" : "This is my final ranking"}</span>
         </label>
         <div className={styles.confirmActions}>
           <button
             type="button"
             className={styles.confirmCancel}
-            onClick={() => setConfirmOpen(false)}
+            onClick={() => setConfirmFor(null)}
           >
             Keep ordering
           </button>
           <button
             type="button"
             className={styles.confirmSubmit}
-            disabled={!confirmChecked}
+            disabled={!confirmChecked || offline}
             onClick={() => {
-              setConfirmOpen(false);
-              dispatch({ type: "finalizing", payload: { kind: "submit" } });
-              dispatch({ type: "submitRankings", payload: { rankedTitleIds: order } });
+              setConfirmFor(null);
+              if (confirmIsRefine) {
+                dispatch({ type: "finalizing", payload: { kind: "refine" } });
+                dispatch({ type: "submitRefinedRankings", payload: { rankedTitleIds: refineOrder } });
+              } else {
+                dispatch({ type: "finalizing", payload: { kind: "submit" } });
+                dispatch({ type: "submitRankings", payload: { rankedTitleIds: order } });
+              }
             }}
-            data-test-handle="confirm-submit"
+            data-test-handle={confirmIsRefine ? "confirm-refine" : "confirm-submit"}
           >
             Submit
           </button>
@@ -441,12 +627,23 @@ export const RankScreen = () => {
     return (
       <div className={styles.deskScreen}>
         <AppHeader roomLabel={roomName} />
-        {submitted ? (
+        {editingRefine ? (
+          <div className={styles.deskBody}>
+            <aside className={styles.rail}>
+              {refineHeadline}
+              {pointLegend}
+              <div className={styles.railSubmit}>{refineControls}</div>
+            </aside>
+            <div className={styles.main}>{refineList}</div>
+          </div>
+        ) : submitted ? (
           <div className={styles.standingsBody}>
-            <div className={styles.standingsHead}>{standingsHeadline}</div>
-            {topPicksEl}
-            {standingsList(true)}
-            {standingsRevealEl}
+            <div className={styles.standingsHead}>
+              {standingsHeadline}
+              {viewTabs}
+              {sharedHead}
+            </div>
+            {standingsContent(true)}
           </div>
         ) : (
           <div className={styles.deskBody}>
@@ -480,7 +677,13 @@ export const RankScreen = () => {
         <AccountMenu />
       </header>
 
-      {!submitted ? (
+      {editingRefine ? (
+        <>
+          {refineHeadline}
+          {refineList}
+          <footer className={styles.submitBar}>{refineControls}</footer>
+        </>
+      ) : !submitted ? (
         <>
           {editorHeadline}
           {editorList}
@@ -489,9 +692,9 @@ export const RankScreen = () => {
       ) : (
         <>
           {standingsHeadline}
-          {topPicksEl}
-          {standingsList(false)}
-          {standingsRevealEl}
+          {viewTabs}
+          {sharedHead}
+          {standingsContent(false)}
         </>
       )}
 
