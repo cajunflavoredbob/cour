@@ -1,4 +1,5 @@
-import { useDispatch } from "../../store";
+import { useDispatch, useSelector } from "../../store";
+import { roomOffline } from "../../store/offline";
 import styles from "./LedgerStalled.module.css";
 
 /**
@@ -9,6 +10,9 @@ import styles from "./LedgerStalled.module.css";
  */
 export const LedgerStalled = () => {
   const dispatch = useDispatch();
+  // A retry sent before the room is rejoined is refused; the rejoin
+  // fetches the ledger itself.
+  const offline = roomOffline(useSelector(["connectionStatus", "rejoining"]) ?? {});
   return (
     <div className={styles.screen} role="alert">
       <h1 className={styles.headline}>couldn&apos;t load your season.</h1>
@@ -19,6 +23,7 @@ export const LedgerStalled = () => {
       <button
         type="button"
         className={styles.retry}
+        disabled={offline}
         onClick={() => dispatch({ type: "review" })}
         data-test-handle="ledger-retry"
       >

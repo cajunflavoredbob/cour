@@ -19,11 +19,13 @@ interface PillTabsProps<T extends string> {
   className?: string;
 }
 
-const tabId = (idPrefix: string, id: string) => `${idPrefix}-tab-${id}`;
+export const tabId = (idPrefix: string, id: string) => `${idPrefix}-tab-${id}`;
+
+const panelId = (idPrefix: string) => `${idPrefix}-panel`;
 
 /** Attributes for the panel the tabs switch. */
 export const tabPanelProps = (idPrefix: string, active: string) => ({
-  id: `${idPrefix}-panel`,
+  id: panelId(idPrefix),
   role: "tabpanel" as const,
   "aria-labelledby": tabId(idPrefix, active),
 });
@@ -68,7 +70,7 @@ export const PillTabs = <T extends string>({ label, tabs, active, onSelect, idPr
           role="tab"
           id={tabId(idPrefix, tab.id)}
           aria-selected={tab.id === active}
-          aria-controls={`${idPrefix}-panel`}
+          aria-controls={panelId(idPrefix)}
           tabIndex={tab.id === active ? 0 : -1}
           className={styles.tab}
           data-active={tab.id === active}

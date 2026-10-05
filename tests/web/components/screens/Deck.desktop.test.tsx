@@ -83,6 +83,9 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  // Nodes a test put on the page itself, left by a failed assertion,
+  // would hold later tests under a dialog or menu.
+  document.body.replaceChildren();
   vi.unstubAllGlobals();
 });
 
@@ -172,6 +175,15 @@ describe('DeckScreen desktop stage', () => {
 
   it('does NOT bind verdict keys while disconnected (audit 17 M7)', () => {
     withState({ connectionStatus: 'disconnected' });
+    render(<DeckScreen />);
+    fireEvent.keyDown(window, { key: 'k' });
+    expect(dispatch).not.toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'verdict' }),
+    );
+  });
+
+  it('does NOT bind verdict keys until the rejoin lands', () => {
+    withState({ rejoining: true });
     render(<DeckScreen />);
     fireEvent.keyDown(window, { key: 'k' });
     expect(dispatch).not.toHaveBeenCalledWith(

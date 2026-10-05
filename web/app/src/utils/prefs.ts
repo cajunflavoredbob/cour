@@ -62,6 +62,49 @@ export const clearStoredRoom = (): void => {
   removeItem(ROOM_KEY);
 };
 
+// This tab's own member, the room it last landed in, and a room it is
+// joining but has yet to land in, kept for the tab's life (a reload, a
+// restored or discarded tab). The keys above are shared by every tab of
+// the browser, so they only start a new tab.
+const TAB_NAME_KEY = "courTabName";
+const TAB_ROOM_KEY = "courTabRoom";
+const TAB_JOINING_KEY = "courTabJoining";
+
+const readTabItem = (key: string): string | null => {
+  try {
+    return sessionStorage.getItem(key);
+  } catch {
+    return null;
+  }
+};
+
+const writeTabItem = (key: string, value: string | undefined): void => {
+  try {
+    if (value === undefined) sessionStorage.removeItem(key);
+    else sessionStorage.setItem(key, value);
+  } catch {
+    // Best-effort, as above: a reload then starts from the shared keys.
+  }
+};
+
+export const getTabName = (): string | undefined => readTabItem(TAB_NAME_KEY) ?? undefined;
+
+export const setTabName = (name: string): void => {
+  writeTabItem(TAB_NAME_KEY, name);
+};
+
+export const getTabRoom = (): string | undefined => readTabItem(TAB_ROOM_KEY) ?? undefined;
+
+export const setTabRoom = (roomName: string | undefined): void => {
+  writeTabItem(TAB_ROOM_KEY, roomName);
+};
+
+export const getTabJoining = (): string | undefined => readTabItem(TAB_JOINING_KEY) ?? undefined;
+
+export const setTabJoining = (roomName: string | undefined): void => {
+  writeTabItem(TAB_JOINING_KEY, roomName);
+};
+
 export const getStoredSoundPref = (): boolean =>
   readItem(SOUND_KEY) === "1";
 
@@ -77,8 +120,9 @@ export const setStoredTutorialSeen = (): void => {
   writeItem(TUTORIAL_KEY, "1");
 };
 
-// The re-rank round's opening toast: once per browser, room and season.
-// Remembered in memory too, so blocked storage still means once per page.
+// The re-rank round's opening toast: once per member, room and season in
+// this browser. Remembered in memory too, so blocked storage still means
+// once per page.
 const RERANK_TOLD_PREFIX = "courRerankTold:";
 const rerankTold = new Set<string>();
 

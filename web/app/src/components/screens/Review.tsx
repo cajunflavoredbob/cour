@@ -3,11 +3,15 @@ import type { Media, VerdictValue } from "../../../../../types/reely";
 import { AccountMenu } from "../organisms/AccountMenu";
 import { AppHeader } from "../organisms/AppHeader";
 import { DialogScrim } from "../molecules/DialogScrim";
-import { PillTabs, tabPanelProps } from "../molecules/PillTabs";
+import { PillTabs, tabId, tabPanelProps } from "../molecules/PillTabs";
 import { DESKTOP_QUERY, useMediaQuery } from "../../hooks/useMediaQuery";
 import { useDispatch, useStore } from "../../store";
+import { roomOffline } from "../../store/offline";
 import { useSeason } from "../../hooks/useSeason";
 import { SEASON_THEMES } from "../../utils/season";
+import { placeKey, placeOf } from "../../utils/drafts";
+import { focusLost } from "../../utils/overlay";
+import { rerankOpen } from "../../utils/standingsText";
 import { posterSrc } from "../../utils/poster";
 import styles from "./Review.module.css";
 
@@ -39,11 +43,14 @@ const PILE_LABELS: Record<VerdictValue, string> = {
  * once and placed per layout.
  */
 export const ReviewScreen = () => {
-  const [{ room, review, members, connectionStatus, finalizing, reviewView }] = useStore([
+  const [{ user, room, review, results, members, connectionStatus, rejoining, finalizing, reviewView }] = useStore([
+    "user",
     "room",
     "review",
+    "results",
     "members",
     "connectionStatus",
+    "rejoining",
     "finalizing",
     "reviewView",
   ]);
@@ -54,6 +61,7 @@ export const ReviewScreen = () => {
   // Desktop scrolls the ledger list itself; mobile scrolls the page.
   const ledgerRef = useRef<HTMLUListElement>(null);
   const savedScroll = reviewView?.scroll;
+  const savedFocus = reviewView?.focusId;
   const ledgerShown = room != null && review != null;
   // Lock-in is FINAL (0.12.0: no admin unlock exists anymore), so the
   // button opens a no-take-backsies dialog gated on an explicit
@@ -75,9 +83,27 @@ export const ReviewScreen = () => {
   );
 
   // Hook: must run before the early return below.
-  const { season } = useSeason();
-  const offline = connectionStatus !== "connected";
+  const { season, year } = useSeason();
+  const offline = roomOffline({ connectionStatus, rejoining });
   const lockingIn = finalizing?.kind === "lock";
+
+  // The lock confirm lives only while a lock is still possible: a deck
+  // that grew while it was open (the daily refresh) takes it away, and
+  // the next title takes the focus its disabled opener cannot.
+  const lockable =
+    review != null &&
+    review.lockedAt == null &&
+    review.verdicts.length >= review.total &&
+    !(room?.media ?? []).some((m) => m.anilistId != null && !verdictedIds.has(m.anilistId));
+  const confirmLive = confirmOpen && lockable;
+  const resumeRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (!confirmOpen || confirmLive) return;
+    setConfirmOpen(false);
+    if (focusLost()) {
+      resumeRef.current?.focus();
+    }
+  }, [confirmOpen, confirmLive]);
 
   // The lock-in ceremony holds "Locking in..." for a MINIMUM of 3s (the
   // owner's spec, audit v1.2.0 #9) even when the ack lands faster; the
@@ -104,8 +130,13 @@ export const ReviewScreen = () => {
       if (isDesktop) ledger.scrollTop = savedScroll.top;
       else window.scrollTo(0, savedScroll.top);
     }
+    // Focus goes back to the row the trip began from, or to the pile's tab.
+    if (focusLost()) {
+      const row = savedFocus == null ? null : ledger.querySelector<HTMLElement>(`[data-title-id="${savedFocus}"]`);
+      (row ?? document.getElementById(tabId("piles", pile)))?.focus({ preventScroll: true });
+    }
     dispatch({ type: "reviewView", payload: { pile, showAll } });
-  }, [savedScroll, ledgerShown, isDesktop, pile, showAll, dispatch]);
+  }, [savedScroll, savedFocus, ledgerShown, isDesktop, pile, showAll, dispatch]);
 
   if (!room || !review) return null;
 
@@ -113,6 +144,8 @@ export const ReviewScreen = () => {
   const done = review.verdicts.length;
   const remaining = total - done;
   const locked = review.lockedAt != null;
+  // The ledger holds still through the lock ceremony, as Rank's lists do.
+  const frozen = locked || lockingIn;
   const kanji = SEASON_THEMES[season].kanji;
   const roomName = room.displayName ?? room.name;
 
@@ -132,11 +165,11 @@ export const ReviewScreen = () => {
   const overflow = pileRows.length - visibleRows.length;
 
   // A re-review on the deck, noting where the ledger was for the return.
-  const openOnDeck = (titleIds: number[]) => {
+  const openOnDeck = (titleIds: number[], focusId?: number) => {
     const top = isDesktop ? (ledgerRef.current?.scrollTop ?? 0) : window.scrollY;
     dispatch({
       type: "enterDeckScope",
-      payload: { titleIds, position: 0, from: { pile, showAll, scroll: { top, desktop: isDesktop } } },
+      payload: { titleIds, position: 0, from: { pile, showAll, scroll: { top, desktop: isDesktop }, focusId } },
     });
   };
 
@@ -161,6 +194,7 @@ export const ReviewScreen = () => {
 
   const resumeBannerEl = nextUp && !locked && (
     <button
+      ref={resumeRef}
       type="button"
       className={styles.resumeBanner}
       onClick={() => dispatch({ type: "navigate", payload: { route: "room" } })}
@@ -197,7 +231,7 @@ export const ReviewScreen = () => {
     />
   );
 
-  const pileReviewEl = pileRows.length > 0 && !locked && (
+  const pileReviewEl = pileRows.length > 0 && !frozen && (
     <button
       type="button"
       className={styles.pileReviewBtn}
@@ -222,8 +256,14 @@ export const ReviewScreen = () => {
           <button
             type="button"
             className={styles.rowMain}
-            disabled={locked}
-            onClick={() => openOnDeck([row.titleId])}
+            disabled={frozen}
+            // The second click of a double-click on a dialog button above
+            // ("Not yet") opens nothing.
+            onClick={(e) => {
+              if (e.detail > 1) return;
+              openOnDeck([row.titleId], row.titleId);
+            }}
+            data-title-id={row.titleId}
           >
             <span className={styles.rowThumb}>
               {row.media?.posterUrl && (
@@ -244,7 +284,7 @@ export const ReviewScreen = () => {
             className={styles.verdictPill}
             data-verdict={row.verdict}
             data-offline={offline && !locked}
-            disabled={locked || offline}
+            disabled={frozen || offline}
             onClick={() =>
               dispatch({
                 type: "verdict",
@@ -270,6 +310,21 @@ export const ReviewScreen = () => {
     </ul>
   );
 
+  // The peek goes back to the screen it came from: the standings, or an
+  // editor still open there (the re-rank one only while it can still take
+  // my order).
+  const rerankWaits =
+    rerankOpen(results) && placeOf(placeKey(user?.userName, room.name, season, year))?.refining === true;
+  const backLabel =
+    results?.mySubmitted === false ? "Back to ranking" : rerankWaits ? "Back to re-ranking" : "Back to standings";
+
+  // The lock ceremony, said aloud: its button goes disabled under focus.
+  const lockNote = (
+    <p className={styles.srOnly} role="status">
+      {lockingIn ? "Locking in your season…" : ""}
+    </p>
+  );
+
   const lockControls = locked ? (
     // Read-only peek after lock-in (audit 17 UX 6): the way back to the
     // standings, in the slot the lock button occupied.
@@ -277,11 +332,10 @@ export const ReviewScreen = () => {
       <button
         type="button"
         className={styles.lockBtn}
-        data-complete={true}
         onClick={() => dispatch({ type: "viewLockedReview", payload: { open: false } })}
         data-test-handle="back-to-standings"
       >
-        Back to standings
+        {backLabel}
       </button>
       <p className={styles.lockCaption}>LOCKED IN · THIS LEDGER IS READ-ONLY</p>
     </>
@@ -290,8 +344,9 @@ export const ReviewScreen = () => {
       <button
         type="button"
         className={styles.lockBtn}
-        data-complete={remaining === 0 && !lockingIn}
-        disabled={remaining > 0 || offline || lockingIn}
+        // A title the ledger has yet to hear about (the deck just grew)
+        // holds the lock as well.
+        disabled={!lockable || offline || lockingIn}
         onClick={() => {
           setConfirmChecked(false);
           setConfirmOpen(true);
@@ -308,7 +363,7 @@ export const ReviewScreen = () => {
     </>
   );
 
-  const confirmDialogEl = confirmOpen && (
+  const confirmDialogEl = confirmLive && (
     <DialogScrim
       label="Lock in your season"
       onDismiss={() => setConfirmOpen(false)}
@@ -340,7 +395,7 @@ export const ReviewScreen = () => {
           <button
             type="button"
             className={styles.confirmLock}
-            disabled={!confirmChecked}
+            disabled={!confirmChecked || offline}
             onClick={() => {
               setConfirmOpen(false);
               dispatch({ type: "finalizing", payload: { kind: "lock" } });
@@ -373,6 +428,7 @@ export const ReviewScreen = () => {
             </div>
           </div>
         </div>
+        {lockNote}
         {confirmDialogEl}
       </div>
     );
@@ -399,6 +455,7 @@ export const ReviewScreen = () => {
 
       <footer className={styles.lockBar}>{lockControls}</footer>
 
+      {lockNote}
       {confirmDialogEl}
     </div>
   );

@@ -139,6 +139,12 @@ describe('ReviewScreen desktop (rail + main)', () => {
     expect(screen.queryByText(/MORE/)).toBeNull();
   });
 
+  it('says the lock ceremony aloud in the rail layout too', () => {
+    withState({ finalizing: { kind: 'lock', startedAt: Date.now() } });
+    render(<ReviewScreen />);
+    expect(screen.getByRole('status').textContent).toBe('Locking in your season…');
+  });
+
   it('carries the ledger list scroll to the deck', () => {
     const { container } = render(<ReviewScreen />);
     const list = container.querySelector('[class*="main"] ul') as HTMLElement;
@@ -150,7 +156,7 @@ describe('ReviewScreen desktop (rail + main)', () => {
         payload: {
           titleIds: [101],
           position: 0,
-          from: { pile: 'like', showAll: false, scroll: { top: 75, desktop: true } },
+          from: { pile: 'like', showAll: false, scroll: { top: 75, desktop: true }, focusId: 101 },
         },
       },
     ]);

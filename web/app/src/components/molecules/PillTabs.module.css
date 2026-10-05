@@ -6,6 +6,7 @@
 }
 
 .tab {
+  composes: hitRow from "../shared.module.css";
   position: relative;
   padding: 8px 14px;
   border-radius: 999px;
@@ -16,13 +17,6 @@
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
-}
-
-/* A 44px target around the 37px pill. */
-.tab::after {
-  content: "";
-  position: absolute;
-  inset: -4px 0;
 }
 
 .tab[data-active="true"] {

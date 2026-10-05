@@ -3,8 +3,9 @@ import type { RankingStanding, RefinedResults } from '../../../types/reely';
 /**
  * The refine round: once every member's ranking is in, a member may
  * re-rank just the titles every member ranked. Until they do, their order
- * is their own ranking cut down to those titles, so the shared standings
- * are whole from the moment the round opens and refining stays optional.
+ * is their own ranking cut down to those titles, so the standings over
+ * those titles are whole from the moment the round opens and refining
+ * stays optional.
  */
 
 /** Points by position, #1 first, as the ranking standings score them. */
@@ -97,22 +98,20 @@ export interface RefineRound {
   sharedTitleIds: number[];
   refinedCount: number;
   standings: RankingStanding[];
-  topPicks: Array<{ userName: string; titleId: number }>;
   orders: ReadonlyMap<string, number[]>;
   refined: ReadonlySet<string>;
 }
 
 /**
- * The refine round, or undefined while it is closed: it opens when two or
- * more members have all submitted a ranking. `standingsOrder` is the
+ * The refine round over members who have all submitted a ranking (the
+ * caller checks), or undefined for fewer than two. `standingsOrder` is the
  * ranking standings' title order.
  */
 export const refineRound = (
   members: readonly RefineMember[],
-  allSubmitted: boolean,
   standingsOrder: readonly number[],
 ): RefineRound | undefined => {
-  if (members.length < 2 || !allSubmitted) return undefined;
+  if (members.length < 2) return undefined;
   const shared = sharedTitleIds(
     members.map((m) => m.ranking),
     standingsOrder,
@@ -122,10 +121,6 @@ export const refineRound = (
     sharedTitleIds: shared,
     refinedCount: members.filter((m) => m.refined).length,
     standings: scoreOrders(orders),
-    topPicks: orders
-      .filter((o) => o.order.length > 0)
-      .map((o) => ({ userName: o.userName, titleId: o.order[0] }))
-      .sort((a, b) => byName(a.userName, b.userName)),
     orders: new Map(orders.map((o) => [o.userName, o.order])),
     refined: new Set(members.filter((m) => m.refined).map((m) => m.userName)),
   };
@@ -138,5 +133,4 @@ export const refinedFor = (round: RefineRound, me: string | undefined): RefinedR
   myRefined: me != null && round.refined.has(me),
   myOrder: (me != null ? round.orders.get(me) : undefined) ?? [],
   standings: round.standings,
-  topPicks: round.topPicks,
 });

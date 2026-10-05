@@ -368,9 +368,9 @@
   flex: 1;
   min-height: 0;
   width: 100%;
-  max-width: 1120px;
+  max-width: var(--cour-desk-width);
   margin: 0 auto;
-  padding: 8px 24px 28px;
+  padding: 8px var(--cour-desk-gutter) 28px;
   display: grid;
   grid-template-columns: minmax(0, 360px) minmax(0, 1fr);
   gap: 44px;

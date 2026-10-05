@@ -1,0 +1,155 @@
+/* Recipes the screen and component modules compose. */
+
+/* A 44px-tall tap target for a text link, as wide as the link. The
+   composing rule positions the element (relative or absolute). */
+.hitRow::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 44px;
+  transform: translateY(-50%);
+}
+
+/* A tap target at least 44px square for a chip or an icon button. The
+   composing rule positions the element. */
+.hitBox::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: max(100%, 44px);
+  height: 44px;
+  transform: translate(-50%, -50%);
+}
+
+/* The season chip on a flat surface: serif 600 (the only weight with the
+   kanji glyphs), line-strong border. */
+.kanjiChip {
+  font-family: var(--cour-font-display);
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--cour-accent-bright);
+  border: 1px solid var(--cour-line-strong);
+  border-radius: 5px;
+  padding: 1px 5px;
+}
+
+/* Text for screen readers only. */
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* The dialog grammar: the scrim, panel, title, text, checkbox row and pill
+   pair of the confirm and share dialogs. Each dialog sets its own layer
+   (z-index), max-width and panel layout, so those stay out of here. */
+.scrim {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(10, 7, 7, 0.7);
+}
+
+/* The side and bottom padding are properties so a child can reach the
+   panel's edges (a sticky footer). */
+.panel {
+  --panel-pad-x: 20px;
+  --panel-pad-end: 18px;
+  width: 100%;
+  background: var(--cour-bg-1);
+  border: 1px solid var(--cour-line-strong);
+  border-radius: 20px;
+  padding: 22px var(--panel-pad-x) var(--panel-pad-end);
+  gap: 12px;
+}
+
+.dialogTitle {
+  font-family: var(--cour-font-display);
+  font-weight: 600;
+  font-size: 26px;
+  color: var(--cour-text-0);
+}
+
+.dialogText {
+  font-family: var(--cour-font-ui);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--cour-text-1);
+}
+
+.checkRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--cour-line-strong);
+  border-radius: 12px;
+  font-family: var(--cour-font-ui);
+  font-size: 13px;
+  color: var(--cour-text-0);
+  cursor: pointer;
+}
+
+.checkbox {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--cour-accent);
+  flex-shrink: 0;
+}
+
+/* The guide's disabled solid button: a bg-2 fill with no glow. Composed
+   into the button; aria-disabled keeps one focusable. */
+.solidDisabled:disabled,
+.solidDisabled[aria-disabled="true"] {
+  background: var(--cour-bg-2);
+  color: var(--cour-text-2);
+  cursor: default;
+  box-shadow: none;
+}
+
+/* Equal halves while both labels fit on one line; on narrow phones the
+   longer label takes its width, and the pair stacks when even that fails. */
+.pillPair {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 2px;
+}
+
+.pill {
+  flex: 1;
+  min-width: max-content;
+  padding: 12px;
+  border-radius: 999px;
+  font-family: var(--cour-font-ui);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.pillOutline {
+  composes: pill;
+  border: 1px solid var(--cour-line-strong);
+  background: transparent;
+  color: var(--cour-text-1);
+}
+
+.pillAccent {
+  composes: pill solidDisabled;
+  border: none;
+  background: var(--cour-accent);
+  color: white;
+  box-shadow: 0 8px 24px -8px var(--cour-accent);
+}

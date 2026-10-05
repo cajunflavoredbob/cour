@@ -9,10 +9,12 @@ import { DeckSheet } from "../organisms/DeckSheet";
 import { VerdictRow } from "../molecules/VerdictRow";
 import { DESKTOP_QUERY, useMediaQuery } from "../../hooks/useMediaQuery";
 import { useStore } from "../../store";
+import { roomOffline } from "../../store/offline";
 import { useSeason } from "../../hooks/useSeason";
 import { SEASON_THEMES } from "../../utils/season";
 import { posterSrc } from "../../utils/poster";
 import { metaLine } from "../../utils/metaLine";
+import { overlayOpen } from "../../utils/overlay";
 import styles from "./Deck.module.css";
 
 // Keyboard verdicts (desktop only): a deliberate keypress is a button
@@ -37,11 +39,12 @@ const KEY_VERDICTS: Record<string, VerdictValue> = {
  * and updated per verdictSuccess.
  */
 export const DeckScreen = () => {
-  const [{ room, review, deckScope, connectionStatus, ledgerStalled }, dispatch] = useStore([
+  const [{ room, review, deckScope, connectionStatus, rejoining, ledgerStalled }, dispatch] = useStore([
     "room",
     "review",
     "deckScope",
     "connectionStatus",
+    "rejoining",
     "ledgerStalled",
   ]);
   const isDesktop = useMediaQuery(DESKTOP_QUERY);
@@ -127,7 +130,7 @@ export const DeckScreen = () => {
   // contentEditable has focus, or with a modifier held (browser
   // shortcuts win).
   const currentId = current?.anilistId;
-  const connected = connectionStatus === "connected";
+  const connected = !roomOffline({ connectionStatus, rejoining });
   useEffect(() => {
     // `connected`: keyboard verdicts disable while disconnected, same as
     // the button row -- a parked verdict fires before the auto-rejoin
@@ -144,7 +147,7 @@ export const DeckScreen = () => {
         return;
       }
       // Not under an open dialog or menu: the card is hidden behind it.
-      if (document.querySelector('[aria-modal="true"], [role="menu"]')) return;
+      if (overlayOpen()) return;
       const verdict = KEY_VERDICTS[e.key.toLowerCase()];
       if (!verdict) return;
       e.preventDefault();

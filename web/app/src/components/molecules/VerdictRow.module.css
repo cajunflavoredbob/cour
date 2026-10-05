@@ -161,9 +161,12 @@
 }
 
 /* Offline: the buttons are disabled, in the guide's recipe (bg-2 fill,
-   text-2, no glow) rather than faded. */
+   text-2, no glow) rather than faded, and the re-review halo pauses. */
 .row[data-offline="true"] button {
   cursor: default;
+  animation: none;
+  outline: none;
+  box-shadow: none;
 }
 
 .row[data-offline="true"] .likeBtn,
@@ -172,12 +175,6 @@
   border: 1px solid var(--cour-line-strong);
   color: var(--cour-text-2);
   box-shadow: none;
-}
-
-/* The re-review halo pauses offline too. */
-.row[data-offline="true"] button {
-  animation: none;
-  outline: none;
 }
 
 .row[data-offline="true"] .dislikeBtn svg,

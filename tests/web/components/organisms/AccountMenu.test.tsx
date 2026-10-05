@@ -20,6 +20,7 @@ const withState = (slice: any = {}) => {
     {
       user: { userName: 'user1' },
       soundPref: false,
+      connectionStatus: 'connected',
       room: { name: 'couch-coop', joined: true },
       ...slice,
     },
@@ -72,11 +73,39 @@ describe('AccountMenu (popover, passwordless)', () => {
     expect(screen.queryByRole('menu')).toBeNull();
   });
 
+  it('holds Leave room until a reconnect rejoins the room', () => {
+    withState({ rejoining: true });
+    render(<AccountMenu />);
+    openMenu();
+    const leave = screen.getByText('Leave room') as HTMLButtonElement;
+    expect(leave.disabled).toBe(true);
+    fireEvent.click(leave);
+    expect(dispatch).not.toHaveBeenCalledWith({ type: 'leaveRoom' });
+  });
+
+  it('opens Leave room as the way out once the rejoin goes unanswered', () => {
+    withState({ rejoining: true, rejoinOverdue: true });
+    render(<AccountMenu />);
+    openMenu();
+    fireEvent.click(screen.getByText('Leave room'));
+    expect(dispatch).toHaveBeenCalledWith({ type: 'leaveRoom' });
+  });
+
   it('hides Leave room when not in a room', () => {
     withState({ room: undefined });
     render(<AccountMenu />);
     openMenu();
     expect(screen.queryByText('Leave room')).toBeNull();
+  });
+
+  it('stays open for the second click of the double-click that opened it', () => {
+    const { container } = render(<AccountMenu />);
+    openMenu();
+    const scrim = container.parentElement?.querySelector('[class*="scrim"]') as HTMLElement;
+    fireEvent.click(scrim, { detail: 2 });
+    expect(screen.getByRole('menu')).toBeDefined();
+    fireEvent.click(scrim, { detail: 1 });
+    expect(screen.queryByRole('menu')).toBeNull();
   });
 
   it('closes on outside tap and on Escape', () => {
@@ -177,6 +206,7 @@ describe('AccountMenu audit-17 UX additions', () => {
     expect(input.value).toContain('roomName=');
     expect(input.readOnly).toBe(true);
     expect(screen.getByRole('dialog').getAttribute('aria-label')).toBe('Share this room');
+    expect(screen.getByRole('heading').textContent).toBe('share this room.');
     expect(screen.getByText('Copy the link below. It pre-fills the room on the join form.')).toBeDefined();
     fireEvent.click(screen.getByText('Done'));
     expect(document.querySelector('[data-test-handle="share-link-input"]')).toBeNull();

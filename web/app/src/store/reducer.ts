@@ -1,11 +1,12 @@
 import type { Toast } from "../components/atoms/Toast";
+import { roomOffline } from "./offline";
 import type { Actions, Store } from "./types";
 
 // Auto-dismiss delay for error toasts (audit 12 #241). Without an explicit
 // showTimeMs the toast persists until the user manually dismisses it,
 // which piles up failure messages forever on a flaky connection. The
 // connection-failure toast is intentionally NOT given a TTL -- it's
-// cleared explicitly when the WS reconnects.
+// cleared explicitly once the room can be used again.
 const ERROR_TOAST_MS = 5000;
 
 // crypto.randomUUID() is only defined in secure contexts (https/localhost).
@@ -43,30 +44,72 @@ export const initialState: Store = {
   toastCounter: 0,
 };
 
+const CONNECTION_TOAST_ID = "connection-failure";
+
+// Everything a room scopes: its ledger and standings, passes, ceremonies
+// and rejoin wait. None of it outlives the room or carries into another.
+const ROOM_CLEARED = {
+  room: undefined,
+  review: undefined,
+  reviewView: undefined,
+  results: undefined,
+  members: undefined,
+  deckScope: undefined,
+  viewLockedReview: undefined,
+  ledgerStalled: undefined,
+  finalizing: undefined,
+  rejoining: undefined,
+  rejoinOverdue: undefined,
+} satisfies Partial<Store>;
+
+// Leaving a room's screens for the join form.
+const roomEnded = (state: Store): Store => ({ ...state, ...ROOM_CLEARED, route: "home" });
+
+// The all-locked celebration, from the member's own lock or the last
+// member's. A member who already ranked has no keeps left to rank.
+const allLockedToast = (state: Store): Pick<Store, "toastCounter" | "toasts"> => {
+  const toastCounter = state.toastCounter + 1;
+  return {
+    toastCounter,
+    toasts: [
+      ...state.toasts,
+      {
+        id: mintToastId(toastCounter),
+        appearance: "Success",
+        message: state.results?.mySubmitted ? "Everyone's locked in." : "Everyone's locked in. Rank your keeps.",
+        showTimeMs: 6000,
+      },
+    ],
+  };
+};
+
+// "Disconnected" stays up until the room can be used again: through the
+// rejoin a dropped socket needs, not only until the socket reopens.
 export const reducer = (state: Store = initialState, action: Actions): Store => {
+  const next = reduce(state, action);
+  if (roomOffline(next)) return next;
+  if (!next.toasts.some((t) => t.id === CONNECTION_TOAST_ID)) return next;
+  return { ...next, toasts: next.toasts.filter((t) => t.id !== CONNECTION_TOAST_ID) };
+};
+
+const reduce = (state: Store, action: Actions): Store => {
   switch (action.type) {
     case "updateConnectionStatus": {
-      // Helper split out of the prior nested ternary, which read as one
-      // unbroken array literal and forced the reader to mentally
-      // disambiguate which branch handled the disconnected case (audit 9
-      // #151). Logic: when disconnected, ensure a "connection-failure"
-      // toast exists (idempotent); when connected/connecting, clear it.
-      const updateConnectionToasts = (toasts: Toast[]): Toast[] => {
-        if (action.payload === "disconnected") {
-          const alreadyShown = toasts.some((t) => t.id === "connection-failure");
-          return alreadyShown
-            ? toasts
-            : [
-              { id: "connection-failure", message: "Disconnected", appearance: "Failure" },
-              ...toasts,
-            ];
-        }
-        return toasts.filter((t) => t.id !== "connection-failure");
-      };
+      // A drop shows the connection toast once; the reducer above takes
+      // it down.
+      const shown = state.toasts.some((t) => t.id === CONNECTION_TOAST_ID);
+      const toasts: Toast[] =
+        action.payload === "disconnected" && !shown
+          ? [{ id: CONNECTION_TOAST_ID, message: "Disconnected", appearance: "Failure" }, ...state.toasts]
+          : state.toasts;
       return {
         ...state,
         connectionStatus: action.payload,
-        toasts: updateConnectionToasts(state.toasts),
+        toasts,
+        // Room actions wait for the rejoin a dropped socket needs.
+        rejoining: action.payload !== "connected" && state.room?.joined ? true : state.rejoining,
+        // A new drop starts the wait for its rejoin over.
+        rejoinOverdue: action.payload === "connected" ? state.rejoinOverdue : undefined,
       };
     }
     case "config": {
@@ -94,6 +137,8 @@ export const reducer = (state: Store = initialState, action: Actions): Store => 
       const { from, ...scope } = action.payload;
       return { ...state, deckScope: scope, reviewView: from ?? state.reviewView, route: "room" };
     }
+    case "rejoinOverdue":
+      return state.rejoining ? { ...state, rejoinOverdue: true } : state;
     case "exitDeckScope":
       return { ...state, deckScope: undefined, route: "home" };
     case "reviewView":
@@ -102,6 +147,9 @@ export const reducer = (state: Store = initialState, action: Actions): Store => 
       return {
         ...state,
         route: action.payload.route,
+        // Leaving the deck for home ends a re-review pass; its pile and
+        // scroll stay in reviewView.
+        deckScope: action.payload.route === "home" ? undefined : state.deckScope,
       };
     case "addToast":
       return { ...state, toasts: [...state.toasts, action.payload] };
@@ -124,6 +172,9 @@ export const reducer = (state: Store = initialState, action: Actions): Store => 
         joinError: undefined,
       };
     case "loginError":
+      // A relogin refused on a reconnect ends the rejoin on the join form,
+      // where the reason shows.
+      if (state.rejoining) return { ...roomEnded(state), joinError: action.payload.message };
       return { ...state, joinError: action.payload.message };
     case "hydratePrefs":
       return { ...state, soundPref: action.payload.soundPref };
@@ -192,19 +243,7 @@ export const reducer = (state: Store = initialState, action: Actions): Store => 
       if (!action.payload.roomLocked) return base;
       // The all-locked edge: scores just got tallied server-side. The
       // results surface isn't designed yet, so a toast carries the moment.
-      return {
-        ...base,
-        toastCounter: base.toastCounter + 1,
-        toasts: [
-          ...base.toasts,
-          {
-            id: mintToastId(base.toastCounter + 1),
-            appearance: "Success" as const,
-            message: "Everyone's locked in. Rank your keeps.",
-            showTimeMs: 6000,
-          },
-        ],
-      };
+      return { ...base, ...allLockedToast(base) };
     }
     case "lockInError":
       // A failed lock also ends its in-flight ceremony -- the button must
@@ -220,20 +259,7 @@ export const reducer = (state: Store = initialState, action: Actions): Store => 
       // fires AGAIN -- it's true again.
       const base = { ...state, members: action.payload.members };
       if (!action.payload.allLocked) return base;
-      return {
-        ...base,
-        toastCounter: base.toastCounter + 1,
-        toasts: [
-          ...base.toasts,
-          {
-            id: mintToastId(base.toastCounter + 1),
-            appearance: "Success" as const,
-            // A member who already ranked has no keeps left to rank.
-            message: state.results?.mySubmitted ? "Everyone's locked in." : "Everyone's locked in. Rank your keeps.",
-            showTimeMs: 6000,
-          },
-        ],
-      };
+      return { ...base, ...allLockedToast(base) };
     }
     case "viewLockedReview":
       // The read-only peek opens on Kept.
@@ -270,6 +296,7 @@ export const reducer = (state: Store = initialState, action: Actions): Store => 
         deckScope: undefined,
         reviewView: undefined,
         viewLockedReview: undefined,
+        finalizing: undefined,
         toastCounter: state.toastCounter + 1,
         toasts: [
           ...state.toasts,
@@ -313,12 +340,9 @@ export const reducer = (state: Store = initialState, action: Actions): Store => 
       }
       return {
         ...state,
+        ...ROOM_CLEARED,
         error: undefined,
         room: { name: action.payload.roomName, joined: false },
-        reviewView: undefined,
-        // Another room's standings must not show, or speak, for this one.
-        results: undefined,
-        members: undefined,
       };
     }
     case "createRoomSuccess":
@@ -331,6 +355,8 @@ export const reducer = (state: Store = initialState, action: Actions): Store => 
         return {
           ...state,
           error: undefined,
+          rejoining: undefined,
+          rejoinOverdue: undefined,
           room: {
             ...state.room,
             // Prefer the server's sanitized canonical name when provided so
@@ -359,21 +385,10 @@ export const reducer = (state: Store = initialState, action: Actions): Store => 
     }
     case "joinRoomError":
     case "createRoomError":
-      // Room-flow errors surface on the home screen's join form, and the
-      // room's standings go with it.
-      return { ...state, error: action.payload, route: "home", room: undefined, results: undefined, members: undefined };
+      // Room-flow errors surface on the home screen's join form.
+      return { ...roomEnded(state), error: action.payload };
     case "leaveRoomSuccess":
-      return {
-        ...state,
-        room: undefined,
-        review: undefined,
-        results: undefined,
-        deckScope: undefined,
-        reviewView: undefined,
-        members: undefined,
-        viewLockedReview: undefined,
-        route: "home",
-      };
+      return roomEnded(state);
     // leaveRoomError / logoutError previously had no case and fell through,
     // so a failed leave/logout gave the user no feedback at all. Surface a
     // toast. Both are edge cases (NOT_JOINED / NotLoggedIn).
@@ -384,9 +399,7 @@ export const reducer = (state: Store = initialState, action: Actions): Store => 
       // room screen with no server-side membership -- swipes were
       // silently dropped and Leave dead-ended on this very error, a hard
       // trap only a page refresh escaped.
-      if (action.payload?.errorType === "NOT_JOINED") {
-        return { ...state, room: undefined, route: "home" };
-      }
+      if (action.payload?.errorType === "NOT_JOINED") return roomEnded(state);
       return { ...state, ...addErrorToast(state, "Couldn't leave the room.") };
     // Room events only fire to clients joined to a room, so the server
     // contract guarantees state.room is set when these arrive. Even so,

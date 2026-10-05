@@ -18,7 +18,9 @@ vi.mock('../../../../web/app/src/components/screens/Join', () => ({
   JoinScreen: () => <div data-testid="join-screen" />,
 }));
 vi.mock('../../../../web/app/src/components/screens/Rank', () => ({
-  RankScreen: () => <div data-testid="rank-screen" />,
+  RankScreen: ({ fromLock }: { fromLock?: boolean }) => (
+    <div data-testid="rank-screen" data-from-lock={String(fromLock ?? false)} />
+  ),
 }));
 
 import { HomeScreen } from '../../../../web/app/src/components/screens/Home';
@@ -35,6 +37,37 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+});
+
+describe('HomeScreen lock handoff', () => {
+  const room = { name: 'couch-coop', joined: true };
+  const locked = { verdicts: [], counts: { like: 0, dislike: 0, skip: 0 }, lockedAt: 111, total: 3 };
+
+  it('tells the ranking editor the lock ceremony just handed over', () => {
+    withState({ room, review: locked, finalizing: { kind: 'lock', startedAt: 1 } });
+    const { rerender } = render(<HomeScreen />);
+    expect(screen.getByTestId('review-screen')).toBeDefined();
+    withState({ room, review: locked });
+    rerender(<HomeScreen />);
+    expect(screen.getByTestId('rank-screen').dataset.fromLock).toBe('true');
+  });
+
+  it('hands nothing over when the lock ends without landing', () => {
+    const open = { ...locked, lockedAt: null };
+    withState({ room, review: open, finalizing: { kind: 'lock', startedAt: 1 } });
+    const { rerender } = render(<HomeScreen />);
+    withState({ room, review: open });
+    rerender(<HomeScreen />);
+    withState({ room, review: locked });
+    rerender(<HomeScreen />);
+    expect(screen.getByTestId('rank-screen').dataset.fromLock).toBe('false');
+  });
+
+  it('says nothing of a lock on a plain arrival', () => {
+    withState({ room, review: locked });
+    render(<HomeScreen />);
+    expect(screen.getByTestId('rank-screen').dataset.fromLock).toBe('false');
+  });
 });
 
 describe('HomeScreen (review-or-join)', () => {

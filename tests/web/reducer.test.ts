@@ -561,6 +561,162 @@ describe('reducer join/rejoin room-state handling', () => {
   });
 });
 
+describe('reducer room changes end what belonged to the room', () => {
+  const inRoom = (): Store =>
+    ({
+      ...initialState,
+      route: 'home',
+      room: { name: 'movie-night', displayName: 'Movie-Night', joined: true, media: [], users: [] },
+      review: { verdicts: [], counts: { like: 0, dislike: 0, skip: 0 }, members: [], lockedAt: 1, total: 0 },
+      results: { submittedCount: 1, memberCount: 2, members: [], mySubmitted: false, myRanking: [], standings: [], topPicks: [] },
+      deckScope: { titleIds: [101], position: 0 },
+      reviewView: { pile: 'dislike', showAll: false },
+      viewLockedReview: true,
+      ledgerStalled: true,
+      finalizing: { kind: 'submit', startedAt: 1 },
+      rejoining: true,
+    }) as Store;
+
+  // Everything the room scoped, gone with it.
+  const ended = {
+    route: 'home',
+    room: undefined,
+    review: undefined,
+    reviewView: undefined,
+    results: undefined,
+    members: undefined,
+    deckScope: undefined,
+    viewLockedReview: undefined,
+    ledgerStalled: undefined,
+    finalizing: undefined,
+    rejoining: undefined,
+    rejoinOverdue: undefined,
+  };
+
+  it('a leave ends a ceremony, a re-review pass and a rejoin wait', () => {
+    const next = reducer({ ...inRoom(), route: 'room', rejoinOverdue: true }, { type: 'leaveRoomSuccess' } as Actions);
+    expect(next).toMatchObject(ended);
+  });
+
+  it('a join for another room starts it clean, ledger included', () => {
+    const next = reducer(
+      { ...inRoom(), rejoinOverdue: true },
+      { type: 'joinOrCreateRoom', payload: { roomName: 'other-room' } } as Actions,
+    );
+    expect(next).toMatchObject({ ...ended, route: 'home', room: { name: 'other-room', joined: false } });
+  });
+
+  it('a refused join ends the same things, and says why', () => {
+    const payload = { message: 'Room is full.' };
+    const next = reducer({ ...inRoom(), route: 'room', rejoinOverdue: true }, { type: 'joinRoomError', payload } as Actions);
+    expect(next).toMatchObject({ ...ended, error: payload });
+  });
+
+  it('a leave the server already made ends the same things', () => {
+    const next = reducer(
+      { ...inRoom(), route: 'room', rejoinOverdue: true },
+      { type: 'leaveRoomError', payload: { errorType: 'NOT_JOINED', message: 'x' } } as Actions,
+    );
+    expect(next).toMatchObject(ended);
+  });
+
+  it('a refused relogin on a reconnect ends the same things', () => {
+    const next = reducer(
+      { ...inRoom(), route: 'room', rejoinOverdue: true },
+      { type: 'loginError', payload: { message: 'x' } } as Actions,
+    );
+    expect(next).toMatchObject({ ...ended, joinError: 'x' });
+  });
+
+  it('a season rotation ends a ceremony', () => {
+    const next = reducer(inRoom(), { type: 'seasonRotated', payload: { season: 'WINTER' } } as Actions);
+    expect(next.finalizing).toBeUndefined();
+  });
+
+  it('going home from the deck ends a re-review pass and keeps the pile', () => {
+    const state = { ...inRoom(), route: 'room' as const };
+    const home = reducer(state, { type: 'navigate', payload: { route: 'home' } } as Actions);
+    expect(home.deckScope).toBeUndefined();
+    expect(home.reviewView).toEqual({ pile: 'dislike', showAll: false });
+    const room = reducer(state, { type: 'navigate', payload: { route: 'room' } } as Actions);
+    expect(room.deckScope).toEqual({ titleIds: [101], position: 0 });
+  });
+
+  it('holds room actions from a dropped socket until the rejoin lands', () => {
+    const joined = { ...inRoom(), rejoining: undefined, finalizing: undefined };
+    const dropped = reducer(joined, { type: 'updateConnectionStatus', payload: 'disconnected' } as Actions);
+    expect(dropped.rejoining).toBe(true);
+    const back = reducer(dropped, { type: 'updateConnectionStatus', payload: 'connected' } as Actions);
+    expect(back.rejoining).toBe(true);
+    const rejoined = reducer(back, {
+      type: 'joinRoomSuccess',
+      payload: { roomName: 'movie-night', media: [], users: [] },
+    } as Actions);
+    expect(rejoined.rejoining).toBeUndefined();
+    // Without a room there is nothing to rejoin.
+    const away = reducer({ ...initialState }, { type: 'updateConnectionStatus', payload: 'disconnected' } as Actions);
+    expect(away.rejoining).toBeUndefined();
+  });
+});
+
+describe('reducer rejoin feedback', () => {
+  const joined = (): Store =>
+    ({
+      ...initialState,
+      route: 'home',
+      room: { name: 'movie-night', joined: true, media: [], users: [] },
+    }) as Store;
+  const toastShown = (state: Store) => state.toasts.some((t) => t.id === 'connection-failure');
+
+  it('keeps Disconnected up until the rejoin lands', () => {
+    const dropped = reducer(joined(), { type: 'updateConnectionStatus', payload: 'disconnected' } as Actions);
+    expect(toastShown(dropped)).toBe(true);
+    const back = reducer(dropped, { type: 'updateConnectionStatus', payload: 'connected' } as Actions);
+    expect(toastShown(back)).toBe(true);
+    const rejoined = reducer(back, {
+      type: 'joinRoomSuccess',
+      payload: { roomName: 'movie-night', media: [], users: [] },
+    } as Actions);
+    expect(toastShown(rejoined)).toBe(false);
+  });
+
+  it('takes Disconnected down on reconnect when no room waits on it', () => {
+    const dropped = reducer({ ...initialState }, { type: 'updateConnectionStatus', payload: 'disconnected' } as Actions);
+    const back = reducer(dropped, { type: 'updateConnectionStatus', payload: 'connected' } as Actions);
+    expect(toastShown(dropped)).toBe(true);
+    expect(toastShown(back)).toBe(false);
+  });
+
+  it('marks only a pending rejoin overdue, and a landing or a new drop clears it', () => {
+    expect(reducer(joined(), { type: 'rejoinOverdue' } as Actions).rejoinOverdue).toBeUndefined();
+    const dropped = reducer(joined(), { type: 'updateConnectionStatus', payload: 'disconnected' } as Actions);
+    const back = reducer(dropped, { type: 'updateConnectionStatus', payload: 'connected' } as Actions);
+    const overdue = reducer(back, { type: 'rejoinOverdue' } as Actions);
+    expect(overdue.rejoinOverdue).toBe(true);
+    const landed = reducer(overdue, {
+      type: 'joinRoomSuccess',
+      payload: { roomName: 'movie-night', media: [], users: [] },
+    } as Actions);
+    expect(landed.rejoinOverdue).toBeUndefined();
+    const again = reducer(overdue, { type: 'updateConnectionStatus', payload: 'disconnected' } as Actions);
+    expect(again.rejoinOverdue).toBeUndefined();
+  });
+
+  it('ends a rejoin whose relogin is refused, on the join form with the reason', () => {
+    const dropped = reducer(joined(), { type: 'updateConnectionStatus', payload: 'disconnected' } as Actions);
+    const back = reducer(dropped, { type: 'updateConnectionStatus', payload: 'connected' } as Actions);
+    const refused = reducer(back, { type: 'loginError', payload: { message: 'Names are 1 to 32 characters.' } } as Actions);
+    expect(refused).toMatchObject({ room: undefined, rejoining: undefined, route: 'home', joinError: 'Names are 1 to 32 characters.' });
+    expect(toastShown(refused)).toBe(false);
+  });
+
+  it('keeps the room through a refused login outside a rejoin', () => {
+    const refused = reducer(joined(), { type: 'loginError', payload: { message: 'Leave the room before switching names.' } } as Actions);
+    expect(refused.room?.joined).toBe(true);
+    expect(refused.joinError).toBe('Leave the room before switching names.');
+  });
+});
+
 // Audit 17 UX 3: live member pulse + the shared celebration edge.
 describe('reducer roomPulse', () => {
   const members = [

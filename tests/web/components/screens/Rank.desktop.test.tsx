@@ -123,6 +123,14 @@ describe('RankScreen desktop editor', () => {
     expect(container.querySelector('[class*="grip"]')).not.toBeNull();
   });
 
+  it('says the ranking is going in the rail layout too', () => {
+    withState({ finalizing: { kind: 'submit', startedAt: Date.now() } });
+    render(<RankScreen />);
+    expect([...document.querySelectorAll('[role="status"]')].map((el) => el.textContent)).toContain(
+      'Submitting your ranking…',
+    );
+  });
+
   it('up/down buttons still reorder (the accessible path)', () => {
     render(<RankScreen />);
     fireEvent.click(screen.getByLabelText('Move Second Show up'));

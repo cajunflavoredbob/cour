@@ -4,7 +4,7 @@ import { AuthBackground } from "../atoms/AuthBackground";
 import { CourMark } from "../atoms/CourMark";
 import { Layout } from "../layout/Layout";
 import { useStore } from "../../store";
-import { getStoredName, getStoredRoom } from "../../utils/prefs";
+import { getStoredName, getStoredRoom, getTabJoining, getTabName, getTabRoom } from "../../utils/prefs";
 import { useSeason } from "../../hooks/useSeason";
 
 /**
@@ -14,15 +14,20 @@ import { useSeason } from "../../hooks/useSeason";
  * there's no joined room.
  */
 export const JoinScreen = () => {
-  const [{ error, joinError, connectionStatus }, dispatch] = useStore([
+  const [{ user, error, joinError, connectionStatus }, dispatch] = useStore([
+    "user",
     "error",
     "joinError",
     "connectionStatus",
   ]);
-  const [name, setName] = useState(() => getStoredName() ?? "");
+  // This tab's own member first: storage holds whichever tab chose last.
+  const [name, setName] = useState(() => user?.userName ?? getTabName() ?? getStoredName() ?? "");
+  // Beside this tab's member, the room this tab is joining or last landed
+  // in; a new tab takes storage's.
   const [roomName, setRoomName] = useState(() => {
     const fromUrl = new URLSearchParams(location.search).get("roomName");
-    return fromUrl ?? getStoredRoom() ?? "";
+    const ownRoom = getTabName() === undefined ? getStoredRoom() : (getTabJoining() ?? getTabRoom());
+    return fromUrl ?? ownRoom ?? "";
   });
 
   const { season, year } = useSeason();

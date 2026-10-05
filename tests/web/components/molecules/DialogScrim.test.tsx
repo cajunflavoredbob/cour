@@ -76,4 +76,18 @@ describe('DialogScrim', () => {
     fireEvent.click(document.querySelector('[data-test-handle="dialog-backdrop"]') as HTMLElement);
     expect(onDismiss).toHaveBeenCalledTimes(2);
   });
+
+  it('stays open for the second click of the double-click that opened it', () => {
+    const onDismiss = vi.fn();
+    render(
+      <DialogScrim label="Test dialog" onDismiss={onDismiss} backdropClassName="b" dialogClassName="d">
+        <p>Body</p>
+      </DialogScrim>,
+    );
+    const backdrop = document.querySelector('[data-test-handle="dialog-backdrop"]') as HTMLElement;
+    fireEvent.click(backdrop, { detail: 2 });
+    expect(onDismiss).not.toHaveBeenCalled();
+    fireEvent.click(backdrop, { detail: 1 });
+    expect(onDismiss).toHaveBeenCalledTimes(1);
+  });
 });

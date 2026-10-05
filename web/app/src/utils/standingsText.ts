@@ -1,4 +1,21 @@
-// Standings wording shared by the Rank screen and the share card.
+// What the standings say and how they score, for the screens that show
+// them and the share card.
+import type { RankingResults } from "../../../../types/reely";
+
+/** Points for a ranking's top places, #1 first, as the server scores them. */
+export const RANK_POINTS: readonly number[] = [12, 9, 6, 3, 1];
+
+/** The re-rank round is open to me: two or more shows everyone kept, my order not in yet. */
+export const rerankOpen = (results: RankingResults | undefined): boolean => {
+  const round = results?.refined;
+  return round != null && round.sharedTitleIds.length >= 2 && !round.myRefined;
+};
+
+/** How the shows every member kept are named, for a couple and for a group. */
+export const keptWords = (memberCount: number) =>
+  memberCount === 2
+    ? { tab: "Both kept", phrase: "you both kept", rankings: "Both rankings" }
+    : { tab: "Everyone kept", phrase: "everyone kept", rankings: "All rankings" };
 
 /** Whether every member has submitted, so the standings are final. */
 export const standingsFinal = (submittedCount: number, memberCount: number): boolean =>

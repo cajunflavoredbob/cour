@@ -11,6 +11,7 @@ import {
   scoreOrders,
   sharedTitleIds,
 } from '../../internal/app/cour/refine';
+import { RANK_POINTS } from '../../web/app/src/utils/standingsText';
 
 describe('sharedTitleIds', () => {
   it('keeps the titles every order has, in base order', () => {
@@ -48,8 +49,9 @@ describe('refinedOrder', () => {
 });
 
 describe('scoreOrders', () => {
-  it('scores positions 12/9/6/3/1 and nothing deeper', () => {
+  it('scores positions 12/9/6/3/1 and nothing deeper, as the editors state it', () => {
     expect(POSITION_POINTS).toEqual([12, 9, 6, 3, 1]);
+    expect(RANK_POINTS).toEqual(POSITION_POINTS);
     const rows = scoreOrders([{ userName: 'user1', order: [1, 2, 3, 4, 5, 6] }]);
     expect(rows.map((s) => [s.titleId, s.points, s.rank])).toEqual([
       [1, 12, 1],
@@ -106,7 +108,7 @@ describe('byName', () => {
     const db = openDb(':memory:');
     const store = createCourStore(db);
     // Fullwidth letters sit above emoji in UTF-16 but below them in UTF-8.
-    const names = ['\u{1F600}bob', '\uFF22ob', 'User2', 'user1', 'ab', 'Abc', '\u00E9cole', 'zed'];
+    const names = ['\u{1F600}user3', '\uFF35ser4', 'User2', 'user1', 'ab', 'Abc', '\u00E9cole', 'zed'];
     for (const name of names) store.users.create(name);
     const sql = (db.prepare('SELECT username FROM users ORDER BY username COLLATE NOCASE').all() as Array<{ username: string }>)
       .map((r) => r.username);
@@ -122,13 +124,12 @@ describe('refineRound', () => {
   const standingsOrder = [4, 1, 3, 9, 2];
 
   const viewed = (list: readonly RefineMember[], me: string | undefined) => {
-    const round = refineRound(list, true, standingsOrder);
+    const round = refineRound(list, standingsOrder);
     return round && refinedFor(round, me);
   };
 
-  it('stays closed until two or more members have all submitted', () => {
-    expect(refineRound(members, false, standingsOrder)).toBeUndefined();
-    expect(refineRound(members.slice(0, 1), true, standingsOrder)).toBeUndefined();
+  it('stays closed for fewer than two members', () => {
+    expect(refineRound(members.slice(0, 1), standingsOrder)).toBeUndefined();
   });
 
   it('opens with each member counted by their ranking cut down to the shared titles', () => {
@@ -139,17 +140,6 @@ describe('refineRound', () => {
       [1, 18],
       [4, 18],
       [3, 18],
-    ]);
-    expect(r?.topPicks).toEqual([
-      { userName: 'user1', titleId: 1 },
-      { userName: 'user2', titleId: 4 },
-    ]);
-  });
-
-  it('lists the shared #1s in name order', () => {
-    expect(viewed([members[1], members[0]], 'user1')?.topPicks).toEqual([
-      { userName: 'user1', titleId: 1 },
-      { userName: 'user2', titleId: 4 },
     ]);
   });
 
@@ -180,7 +170,6 @@ describe('refineRound', () => {
       'refinedCount',
       'sharedTitleIds',
       'standings',
-      'topPicks',
     ]);
   });
 });

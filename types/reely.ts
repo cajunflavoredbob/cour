@@ -208,8 +208,6 @@ export interface RefinedResults {
   myOrder: number[];
   // Same scoring as the standings, over every member's shared order.
   standings: RankingStanding[];
-  // Each member's shared #1.
-  topPicks: Array<{ userName: string; titleId: number }>;
 }
 
 export interface ReviewPayload {

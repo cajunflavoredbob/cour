@@ -13,7 +13,10 @@ vi.mock('../../../../web/app/src/store', () => ({
 }));
 vi.mock('../../../../web/app/src/components/organisms/DeckDetails', () => ({ DeckDetails: () => <div /> }));
 vi.mock('../../../../web/app/src/components/organisms/AccountMenu', () => ({ AccountMenu: () => <div /> }));
-vi.mock('../../../../web/app/src/utils/renderStandingsCard', () => ({ renderStandingsCard: renderMock }));
+vi.mock('../../../../web/app/src/utils/renderStandingsCard', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  renderStandingsCard: renderMock,
+}));
 vi.mock('../../../../web/app/src/utils/shareFile', () => ({
   canShareFiles: () => false,
   shareImage: vi.fn(),

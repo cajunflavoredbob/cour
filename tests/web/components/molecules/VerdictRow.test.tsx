@@ -113,6 +113,18 @@ describe('VerdictRow', () => {
     expect((container.firstElementChild as HTMLElement).dataset.offline).toBe('true');
   });
 
+  it('holds the verdicts until the rejoin lands', async () => {
+    const { useSelector } = await import('../../../../web/app/src/store');
+    vi.mocked(useSelector).mockReturnValueOnce(
+      // biome-ignore lint/suspicious/noExplicitAny: partial store slice; the component only picks the connection fields.
+      { connectionStatus: 'connected', rejoining: true } as any,
+    );
+    const { container } = render(<VerdictRow titleId={101} remaining={12} />);
+    expect((container.firstElementChild as HTMLElement).dataset.offline).toBe('true');
+    fireEvent.click(screen.getByText('Keep'));
+    expect(dispatch).not.toHaveBeenCalled();
+  });
+
   it('leaves the row unmarked while connected', () => {
     const { container } = render(<VerdictRow titleId={101} remaining={12} />);
     expect((container.firstElementChild as HTMLElement).dataset.offline).toBe('false');

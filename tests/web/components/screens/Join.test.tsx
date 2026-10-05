@@ -31,6 +31,7 @@ beforeEach(() => {
   useStoreMock.mockReset();
   withState();
   localStorage.clear();
+  sessionStorage.clear();
   vi.useFakeTimers();
   vi.setSystemTime(new Date('2026-07-05T12:00:00'));
 });
@@ -66,6 +67,47 @@ describe('JoinScreen (passwordless)', () => {
     render(<JoinScreen />);
     expect((screen.getByLabelText('Your name') as HTMLInputElement).value).toBe('user1');
     expect((screen.getByLabelText('Room name') as HTMLInputElement).value).toBe('couch-coop');
+  });
+
+  it("prefills this tab's own member over a name another tab stored", () => {
+    localStorage.setItem('courName', 'user2');
+    withState({ user: { userName: 'user1' } });
+    render(<JoinScreen />);
+    expect((screen.getByLabelText('Your name') as HTMLInputElement).value).toBe('user1');
+  });
+
+  it("prefills the tab's member and room after a reload, before its login answers", () => {
+    localStorage.setItem('courName', 'user2');
+    localStorage.setItem('courRoom', 'r2');
+    sessionStorage.setItem('courTabName', 'user1');
+    sessionStorage.setItem('courTabRoom', 'r1');
+    render(<JoinScreen />);
+    expect((screen.getByLabelText('Your name') as HTMLInputElement).value).toBe('user1');
+    expect((screen.getByLabelText('Room name') as HTMLInputElement).value).toBe('r1');
+  });
+
+  it("prefills the room the tab was joining, and a link over the tab's own room", () => {
+    sessionStorage.setItem('courTabName', 'user1');
+    sessionStorage.setItem('courTabRoom', 'r1');
+    sessionStorage.setItem('courTabJoining', 'r7');
+    render(<JoinScreen />);
+    expect((screen.getByLabelText('Room name') as HTMLInputElement).value).toBe('r7');
+    cleanup();
+    window.history.replaceState(null, '', '/?roomName=r9');
+    try {
+      render(<JoinScreen />);
+      expect((screen.getByLabelText('Room name') as HTMLInputElement).value).toBe('r9');
+    } finally {
+      window.history.replaceState(null, '', '/');
+    }
+  });
+
+  it("never pairs the tab's member with another tab's room", () => {
+    localStorage.setItem('courName', 'user2');
+    localStorage.setItem('courRoom', 'r2');
+    sessionStorage.setItem('courTabName', 'user1');
+    render(<JoinScreen />);
+    expect((screen.getByLabelText('Room name') as HTMLInputElement).value).toBe('');
   });
 
   it('disables the CTA until both fields are filled and the socket is up', () => {

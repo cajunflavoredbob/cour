@@ -17,9 +17,14 @@ vi.mock('../../../../web/app/src/components/organisms/DeckDetails', () => ({
 vi.mock('../../../../web/app/src/components/organisms/AccountMenu', () => ({
   AccountMenu: () => <div data-testid="account-menu" />,
 }));
+// The share card never finishes here: these tests are about the views.
+vi.mock('../../../../web/app/src/utils/renderStandingsCard', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  renderStandingsCard: () => new Promise(() => {}),
+}));
 
 import { RankScreen } from '../../../../web/app/src/components/screens/Rank';
-import { forgetDrafts } from '../../../../web/app/src/utils/drafts';
+import { forgetDrafts, placeKey, placeOf } from '../../../../web/app/src/utils/drafts';
 import { makeMedia } from '../../../helpers';
 
 const media = [
@@ -43,12 +48,19 @@ const refined = (over = {}) => ({
     { titleId: 101, points: 21, bestRank: 1, rankedBy: 2, rankedByNames: ['user1', 'user2'], rank: 1 },
     { titleId: 103, points: 21, bestRank: 1, rankedBy: 2, rankedByNames: ['user1', 'user2'], rank: 2 },
   ],
-  topPicks: [
-    { userName: 'user1', titleId: 101 },
-    { userName: 'user2', titleId: 103 },
-  ],
   ...over,
 });
+// Seven shows both members kept: more than the standings show before the reveal.
+const seven = Array.from({ length: 7 }, (_, i) => ({
+  titleId: 200 + i,
+  points: 30 - i,
+  bestRank: 1,
+  rankedBy: 2,
+  rankedByNames: ['user1', 'user2'],
+  rank: i + 1,
+}));
+const sevenKept = () =>
+  refined({ sharedTitleIds: seven.map((m) => m.titleId), myOrder: seven.map((m) => m.titleId), standings: seven });
 const member = (userName: string, over = {}) => ({ userName, locked: true, submitted: true, refined: false, ...over });
 const results = (over = {}) => ({
   submittedCount: 2,
@@ -107,6 +119,7 @@ const editorTitles = () =>
   [...document.querySelectorAll('[data-rank-row] [class*="rowTitle"]')].map((el) => el.textContent);
 const toasts = () =>
   dispatch.mock.calls.filter(([a]) => a.type === 'addToast').map(([a]) => a.payload.message as string);
+const notes = () => [...document.querySelectorAll('[role="status"]')].map((el) => el.textContent).join('|');
 const openBothKept = () => fireEvent.click(handle('standings-shared') as HTMLElement);
 // The arrival toast waits for the revealed standings to settle.
 const settle = () =>
@@ -131,6 +144,9 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  // Nodes a test put on the page itself, left by a failed assertion,
+  // would hold later tests under a dialog or menu.
+  document.body.replaceChildren();
   vi.useRealTimers();
   vi.unstubAllGlobals();
 });
@@ -320,7 +336,10 @@ describe('RankScreen re-rank round', () => {
   });
 
   it('offers no second view, link or toast for one show kept by all, or none', () => {
+    // Its own room: no earlier test has told it anything.
+    const room = { name: 'one-show', joined: true, media };
     withState({
+      room,
       results: results({
         refined: refined({
           sharedTitleIds: [103],
@@ -332,9 +351,12 @@ describe('RankScreen re-rank round', () => {
     const { rerender } = render(<RankScreen />);
     expect(screen.queryByRole('tab')).toBeNull();
     expect(handle('open-refine')).toBeNull();
-    withState({ results: results({ refined: refined({ sharedTitleIds: [], myOrder: [], standings: [], topPicks: [] }) }) });
+    settle();
+    expect(toasts()).toEqual([]);
+    withState({ room, results: results({ refined: refined({ sharedTitleIds: [], myOrder: [], standings: [] }) }) });
     rerender(<RankScreen />);
     expect(screen.queryByRole('tab')).toBeNull();
+    settle();
     expect(toasts()).toEqual([]);
   });
 
@@ -381,33 +403,138 @@ describe('RankScreen re-rank round', () => {
     expect(editorTitles()).toEqual(['Iron Bloom', 'Third Show']);
   });
 
-  it('keeps both editors\' drafts across a trip away from the screen', () => {
+  it('remembers no open editor once the order is in', () => {
+    const key = placeKey(undefined, 'couch-coop', 'FALL', 2026);
+    const { rerender } = render(<RankScreen />);
+    openEditor();
+    expect(placeOf(key)?.refining).toBe(true);
+    withState({ results: results({ refined: refined({ myRefined: true, refinedCount: 1 }) }) });
+    rerender(<RankScreen />);
+    expect(placeOf(key)?.refining).toBe(false);
+  });
+
+  it('comes back to the open editor and its draft after a trip away from the screen', () => {
     const first = render(<RankScreen />);
     openEditor();
     fireEvent.click(screen.getByLabelText('Move Third Show up'));
     first.unmount();
     render(<RankScreen />);
-    openEditor();
     expect(editorTitles()).toEqual(['Third Show', 'Iron Bloom']);
   });
 
-  it('counts the rows in the reveal', () => {
-    const many = Array.from({ length: 7 }, (_, i) => ({
-      titleId: 200 + i,
-      points: 30 - i,
-      bestRank: 1,
-      rankedBy: 2,
-      rankedByNames: ['user1', 'user2'],
-      rank: i + 1,
-    }));
+  it('comes back to Both kept with its reveal open after a trip away from the screen', () => {
     withState({
       results: results({
-        refined: refined({ sharedTitleIds: many.map((m) => m.titleId), myOrder: many.map((m) => m.titleId), standings: many }),
+        refined: sevenKept(),
+      }),
+    });
+    const first = render(<RankScreen />);
+    openBothKept();
+    fireEvent.click(handle('standings-reveal') as HTMLElement);
+    first.unmount();
+    render(<RankScreen />);
+    expect(screen.getAllByRole('tab')[1].getAttribute('aria-selected')).toBe('true');
+    expect(handle('standings-reveal')?.textContent).toBe('SHOW TOP 5');
+  });
+
+  it('keeps each view its own reveal', () => {
+    withState({
+      results: results({
+        standings: seven,
+        refined: sevenKept(),
+      }),
+    });
+    render(<RankScreen />);
+    fireEvent.click(handle('standings-reveal') as HTMLElement);
+    expect(handle('standings-reveal')?.textContent).toBe('SHOW TOP 5');
+    openBothKept();
+    expect(handle('standings-reveal')?.textContent).toBe('SHOW ALL 7 →');
+    fireEvent.click(screen.getAllByRole('tab')[0]);
+    expect(handle('standings-reveal')?.textContent).toBe('SHOW TOP 5');
+  });
+
+  it('hands focus to the standings heading on coming back to the screen', () => {
+    const first = render(<RankScreen />);
+    first.unmount();
+    render(<RankScreen />);
+    expect(document.activeElement?.textContent).toBe('fall standings.');
+  });
+
+  it('scrolls the heading into view on coming back, not when the round closes in place', () => {
+    const focus = vi.spyOn(HTMLElement.prototype, 'focus');
+    const first = render(<RankScreen />);
+    first.unmount();
+    const back = render(<RankScreen />);
+    expect(focus).toHaveBeenLastCalledWith({ preventScroll: false });
+    openBothKept();
+    (document.activeElement as HTMLElement).blur();
+    withState({ results: closed() });
+    back.rerender(<RankScreen />);
+    expect(focus).toHaveBeenLastCalledWith({ preventScroll: true });
+  });
+
+  it('keeps the scroll when the round closes under All picks', () => {
+    const { rerender } = render(<RankScreen />);
+    const focus = vi.spyOn(HTMLElement.prototype, 'focus');
+    withState({ results: closed() });
+    rerender(<RankScreen />);
+    expect(document.activeElement?.textContent).toBe('fall standings.');
+    expect(focus).toHaveBeenLastCalledWith({ preventScroll: true });
+    focus.mockRestore();
+  });
+
+  it('brings the re-rank heading into view as the editor opens', () => {
+    render(<RankScreen />);
+    const focus = vi.spyOn(HTMLElement.prototype, 'focus');
+    openEditor();
+    expect(document.activeElement?.textContent).toBe('re-rank these 2.');
+    expect(focus.mock.lastCall?.[0]?.preventScroll).not.toBe(true);
+    focus.mockRestore();
+  });
+
+  it('takes focus on coming back only once, and not from under an open menu', () => {
+    const first = render(<RankScreen />);
+    first.unmount();
+    const menu = document.createElement('div');
+    menu.setAttribute('role', 'menu');
+    document.body.append(menu);
+    const back = render(<RankScreen />);
+    expect(document.activeElement).toBe(document.body);
+    menu.remove();
+    withState({ results: results() });
+    back.rerender(<RankScreen />);
+    expect(document.activeElement).toBe(document.body);
+  });
+
+  it('opens no confirm for the second click of a double-click on Submit this order', () => {
+    render(<RankScreen />);
+    openEditor();
+    fireEvent.click(handle('submit-refine') as HTMLElement, { detail: 2 });
+    expect(handle('confirm-refine')).toBeNull();
+    fireEvent.click(handle('submit-refine') as HTMLElement, { detail: 1 });
+    expect(handle('confirm-refine')).not.toBeNull();
+  });
+
+  it('opens details on a click, but not for the second click of a double-click', () => {
+    render(<RankScreen />);
+    const row = document.querySelector('[data-test-handle="standing-details"]') as HTMLElement;
+    fireEvent.click(row, { detail: 2 });
+    expect(screen.queryByTestId('deck-details')).toBeNull();
+    fireEvent.click(row, { detail: 1 });
+    expect(screen.getByTestId('deck-details')).toBeDefined();
+  });
+
+  it('counts the rows in the reveal', () => {
+    withState({
+      results: results({
+        refined: sevenKept(),
       }),
     });
     render(<RankScreen />);
     openBothKept();
     expect(handle('standings-reveal')?.textContent).toBe('SHOW ALL 7 →');
+    // The arrow is decoration, as on the screen's other links.
+    expect(screen.getByRole('button', { name: 'SHOW ALL 7' })).toBe(handle('standings-reveal'));
   });
 });
 
@@ -432,12 +559,13 @@ describe('RankScreen re-rank round opening and closing', () => {
   it('tells each member on a shared device', () => {
     const room = { name: 'told-per-member', joined: true, media };
     withState({ room, user: { userName: 'user1' } });
-    render(<RankScreen />).unmount();
+    const first = render(<RankScreen />);
     settle();
+    first.unmount();
     withState({ room, user: { userName: 'user2' } });
     render(<RankScreen />);
     settle();
-    expect(toasts()).toHaveLength(1);
+    expect(toasts()).toHaveLength(2);
   });
 
   it('takes the toast back once the member opens Both kept', () => {
@@ -506,6 +634,76 @@ describe('RankScreen re-rank round opening and closing', () => {
     spy.mockRestore();
   });
 
+  it('counts the view as found when the member opens Both kept before the toast', () => {
+    withState({ room: { name: 'found-first', joined: true, media } });
+    render(<RankScreen />);
+    openBothKept();
+    settle();
+    fireEvent.click(handle('standings-all') as HTMLElement);
+    settle();
+    expect(toasts()).toEqual([]);
+  });
+
+  it('says nothing over an open dialog, and speaks once it closes', () => {
+    withState({ room: { name: 'told-after-dialog', joined: true, media } });
+    render(<RankScreen />);
+    fireEvent.click(document.querySelector('[data-test-handle="standing-details"]') as HTMLElement);
+    settle();
+    expect(toasts()).toEqual([]);
+    fireEvent.click(handle('detail-close') as HTMLElement);
+    settle();
+    expect(toasts()).toHaveLength(1);
+  });
+
+  it('waits out the share preview', () => {
+    withState({ room: { name: 'told-after-share', joined: true, media } });
+    render(<RankScreen />);
+    fireEvent.click(handle('share-standings') as HTMLElement);
+    settle();
+    expect(toasts()).toEqual([]);
+    fireEvent.click(screen.getByText('Close'));
+    settle();
+    expect(toasts()).toHaveLength(1);
+  });
+
+  it('waits out the account menu', () => {
+    withState({ room: { name: 'told-after-account-menu', joined: true, media } });
+    render(<RankScreen />);
+    const menu = document.createElement('div');
+    menu.setAttribute('role', 'menu');
+    document.body.append(menu);
+    settle();
+    settle();
+    expect(toasts()).toEqual([]);
+    menu.remove();
+    settle();
+    expect(toasts()).toHaveLength(1);
+  });
+
+  it('waits out a dialog the screen does not own', () => {
+    withState({ room: { name: 'told-after-menu', joined: true, media } });
+    render(<RankScreen />);
+    const other = document.createElement('div');
+    other.setAttribute('aria-modal', 'true');
+    document.body.append(other);
+    settle();
+    settle();
+    expect(toasts()).toEqual([]);
+    other.remove();
+    settle();
+    expect(toasts()).toHaveLength(1);
+  });
+
+  it('takes the toast back when the round closes', () => {
+    withState({ room: { name: 'told-then-closed', joined: true, media } });
+    const { rerender } = render(<RankScreen />);
+    settle();
+    const id = dispatch.mock.calls.find(([a]) => a.type === 'addToast')?.[0].payload.id;
+    withState({ room: { name: 'told-then-closed', joined: true, media }, results: closed() });
+    rerender(<RankScreen />);
+    expect(dispatch).toHaveBeenCalledWith({ type: 'removeToast', payload: { id, message: '' } });
+  });
+
   it('falls back to All picks when the round closes', () => {
     const { rerender } = render(<RankScreen />);
     openBothKept();
@@ -548,6 +746,111 @@ describe('RankScreen re-rank round opening and closing', () => {
     expect(editorTitles()).toEqual(['Third Show', 'Iron Bloom']);
   });
 
+  it('comes back to the open editor once the standings arrive', () => {
+    const first = render(<RankScreen />);
+    openEditor();
+    first.unmount();
+    withState({ results: undefined });
+    const back = render(<RankScreen />);
+    withState({ results: results() });
+    back.rerender(<RankScreen />);
+    expect(screen.getByText('re-rank these 2.')).toBeDefined();
+  });
+
+  it('drops a re-rank left open when the round closed while the screen was away', () => {
+    const first = render(<RankScreen />);
+    openEditor();
+    first.unmount();
+    withState({ results: closed() });
+    const back = render(<RankScreen />);
+    expect(screen.queryByRole('tab')).toBeNull();
+    withState({ results: results({ memberCount: 3, submittedCount: 3 }) });
+    back.rerender(<RankScreen />);
+    expect(screen.queryByText('re-rank these 2.')).toBeNull();
+    expect(screen.getAllByRole('tab').map((t) => t.getAttribute('aria-selected'))).toEqual(['true', 'false']);
+  });
+
+  it('says why when the round closed while the screen was away on its view', () => {
+    const first = render(<RankScreen />);
+    openBothKept();
+    first.unmount();
+    dispatch.mockClear();
+    withState({ results: closed() });
+    render(<RankScreen />);
+    expect(toasts()).toEqual(['user3 joined, so the standings are live again.']);
+    expect(document.activeElement?.textContent).toBe('fall standings.');
+  });
+
+  it('says why when the closed round lands after the screen came back from the editor', () => {
+    const first = render(<RankScreen />);
+    openEditor();
+    first.unmount();
+    dispatch.mockClear();
+    withState({ results: undefined });
+    const back = render(<RankScreen />);
+    withState({ results: closed() });
+    back.rerender(<RankScreen />);
+    expect(toasts()).toEqual(['user3 joined, so the standings are live again.']);
+  });
+
+  it('says nothing of a close found on coming back to All picks', () => {
+    const first = render(<RankScreen />);
+    first.unmount();
+    dispatch.mockClear();
+    withState({ results: closed() });
+    render(<RankScreen />);
+    expect(toasts()).toEqual([]);
+  });
+
+  it('drops it too when the closed round arrives after the screen opens', () => {
+    const first = render(<RankScreen />);
+    openEditor();
+    first.unmount();
+    withState({ results: undefined });
+    const back = render(<RankScreen />);
+    withState({ results: closed() });
+    back.rerender(<RankScreen />);
+    withState({ results: results({ memberCount: 3, submittedCount: 3 }) });
+    back.rerender(<RankScreen />);
+    expect(screen.queryByText('re-rank these 2.')).toBeNull();
+    expect(screen.getAllByRole('tab').map((t) => t.getAttribute('aria-selected'))).toEqual(['true', 'false']);
+  });
+
+  it('takes the toast back when the screen comes back to a closed round', () => {
+    withState({ room: { name: 'told-then-away', joined: true, media } });
+    const first = render(<RankScreen />);
+    settle();
+    const id = dispatch.mock.calls.find(([a]) => a.type === 'addToast')?.[0].payload.id;
+    expect(id).toBeDefined();
+    first.unmount();
+    withState({ room: { name: 'told-then-away', joined: true, media }, results: closed() });
+    render(<RankScreen />);
+    expect(dispatch).toHaveBeenCalledWith({ type: 'removeToast', payload: { id, message: '' } });
+  });
+
+  it('closes the re-rank when fewer than two shows are left, focuses the standings, and does not reopen by itself', () => {
+    const { rerender } = render(<RankScreen />);
+    openEditor();
+    const focus = vi.spyOn(HTMLElement.prototype, 'focus');
+    const one = refined({
+      sharedTitleIds: [103],
+      myOrder: [103],
+      standings: [{ titleId: 103, points: 24, bestRank: 1, rankedBy: 2, rankedByNames: ['user1', 'user2'], rank: 1 }],
+    });
+    withState({ results: results({ refined: one }) });
+    rerender(<RankScreen />);
+    expect(screen.queryByText('re-rank these 2.')).toBeNull();
+    expect(screen.queryByRole('tab')).toBeNull();
+    expect(document.activeElement?.textContent).toBe('fall standings.');
+    // A change in place: the page stays where it is.
+    expect(focus).toHaveBeenLastCalledWith({ preventScroll: true });
+    focus.mockRestore();
+    withState({ results: results() });
+    rerender(<RankScreen />);
+    expect(screen.queryByText('re-rank these 2.')).toBeNull();
+    expect(screen.getAllByRole('tab').map((t) => t.getAttribute('aria-selected'))).toEqual(['true', 'false']);
+  });
+
   it('closes an open re-rank dialog when the round closes, then focuses the standings', () => {
     const { rerender } = render(<RankScreen />);
     openEditor();
@@ -574,13 +877,13 @@ describe('RankScreen re-rank round opening and closing', () => {
     withState({ results: results({ refined: refined({ myRefined: true, refinedCount: 1 }) }) });
     rerender(<RankScreen />);
     fireEvent.click(handle('standings-all') as HTMLElement);
-    const showAll = handle('share-standings') as HTMLElement;
-    showAll.focus();
+    const link = handle('share-standings') as HTMLElement;
+    link.focus();
     dispatch.mockClear();
     withState({ results: closed() });
     rerender(<RankScreen />);
     expect(toasts()).toEqual([]);
-    expect(document.activeElement).toBe(showAll);
+    expect(document.activeElement).toBe(link);
   });
 
   it('moves focus to the standings when the tabs it was on go away, without a toast', () => {
@@ -630,6 +933,42 @@ describe('RankScreen re-rank round opening and closing', () => {
     withState({ results: closed(), finalizing: { kind: 'refine', startedAt: Date.now() } });
     render(<RankScreen />);
     expect(dispatch).toHaveBeenCalledWith({ type: 'finalizing', payload: null });
+  });
+});
+
+describe('RankScreen re-rank editor and submit', () => {
+  it('closes a re-rank confirm whose order already landed from elsewhere', () => {
+    const { rerender } = render(<RankScreen />);
+    openEditor();
+    fireEvent.click(handle('submit-refine') as HTMLElement);
+    expect(handle('confirm-refine')).not.toBeNull();
+    withState({ results: results({ refined: refined({ myRefined: true, refinedCount: 1 }) }) });
+    rerender(<RankScreen />);
+    expect(handle('confirm-refine')).toBeNull();
+    expect(document.activeElement).toBe(handle('standings-shared'));
+    expect(notes()).toContain('Your order is in.');
+  });
+
+  it('says the order is going, then that it is in, and not again when a closed round reopens', () => {
+    withState({ finalizing: { kind: 'refine', startedAt: Date.now() } });
+    const { rerender } = render(<RankScreen />);
+    expect(notes()).toContain('Submitting your order…');
+    const done = results({ refined: refined({ myRefined: true, refinedCount: 1 }) });
+    withState({ results: done });
+    rerender(<RankScreen />);
+    expect(notes()).toContain('Your order is in.');
+    withState({ results: closed() });
+    rerender(<RankScreen />);
+    expect(notes()).not.toContain('Your order is in.');
+    withState({ results: done });
+    rerender(<RankScreen />);
+    expect(notes()).not.toContain('Your order is in.');
+  });
+
+  it('says nothing on arrival about an order already in', () => {
+    withState({ results: results({ refined: refined({ myRefined: true, refinedCount: 1 }) }) });
+    render(<RankScreen />);
+    expect(notes()).not.toContain('Your order is in.');
   });
 
   it('closes the editor once the re-rank is in and the ceremony is over, focusing Both kept', () => {

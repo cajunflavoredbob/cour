@@ -112,6 +112,11 @@
   cursor: pointer;
 }
 
+.logoutButton:disabled {
+  color: var(--cour-text-3);
+  cursor: default;
+}
+
 .pwForm {
   display: flex;
   flex-direction: column;
@@ -248,36 +253,20 @@
 /* Share-link dialog (audit 17 UX 5): the clipboard API doesn't exist on
    plain-HTTP LAN, so the link needs a real selectable field. */
 .shareBackdrop {
-  position: fixed;
-  inset: 0;
+  composes: scrim from "../shared.module.css";
   z-index: 650;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-  background: rgba(10, 7, 7, 0.7);
 }
 .shareDialog {
-  width: 100%;
+  composes: panel from "../shared.module.css";
   max-width: 360px;
-  background: var(--cour-bg-1);
-  border: 1px solid var(--cour-line-strong);
-  border-radius: 20px;
-  padding: 22px 20px 18px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
 }
 .shareTitle {
-  font-family: var(--cour-font-display);
-  font-weight: 600;
-  font-size: 24px;
-  color: var(--cour-text-0);
+  composes: dialogTitle from "../shared.module.css";
 }
 .shareText {
-  font-family: var(--cour-font-ui);
-  font-size: 13px;
-  color: var(--cour-text-1);
+  composes: dialogText from "../shared.module.css";
 }
 .shareInput {
   font-family: var(--cour-font-mono);

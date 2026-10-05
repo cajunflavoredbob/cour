@@ -17,6 +17,7 @@ vi.mock('../../../../web/app/src/components/organisms/AccountMenu', () => ({
 }));
 
 import { ReviewScreen } from '../../../../web/app/src/components/screens/Review';
+import { forgetDrafts, keepPlace, placeKey } from '../../../../web/app/src/utils/drafts';
 import { makeMedia } from '../../../helpers';
 
 const auth = { userName: 'user1', role: 'user' as const, soundPref: false };
@@ -60,6 +61,7 @@ const withState = (slice: any = {}) => {
 };
 
 beforeEach(() => {
+  forgetDrafts();
   dispatch = vi.fn();
   useStoreMock.mockReset();
   withState();
@@ -205,6 +207,28 @@ describe('ReviewScreen (design section 07)', () => {
     expect(lock.disabled).toBe(true);
   });
 
+  it('holds the pills, lock-in and its confirm until the rejoin lands', () => {
+    const decided = reviewState({
+      verdicts: [
+        { titleId: 101, verdict: 'like', updatedAt: 1 },
+        { titleId: 102, verdict: 'skip', updatedAt: 2 },
+        { titleId: 103, verdict: 'dislike', updatedAt: 3 },
+      ],
+    });
+    withState({ review: decided });
+    const { rerender } = render(<ReviewScreen />);
+    fireEvent.click(document.querySelector('[data-test-handle="lock-in"]') as HTMLElement);
+    fireEvent.click(screen.getByText("I'm ready to lock in my season"));
+    withState({ review: decided, rejoining: true });
+    rerender(<ReviewScreen />);
+    expect((document.querySelector('[class*="verdictPill"]') as HTMLButtonElement).disabled).toBe(true);
+    expect((document.querySelector('[data-test-handle="lock-in"]') as HTMLButtonElement).disabled).toBe(true);
+    const confirm = document.querySelector('[data-test-handle="confirm-lock"]') as HTMLButtonElement;
+    expect(confirm.disabled).toBe(true);
+    fireEvent.click(confirm);
+    expect(dispatch).not.toHaveBeenCalledWith({ type: 'lockIn' });
+  });
+
   it('confirming lock-in starts the min-3s ceremony (audit v1.2.0 #9)', () => {
     withState({
       review: reviewState({
@@ -285,6 +309,145 @@ describe('ReviewScreen (design section 07)', () => {
   });
 });
 
+describe('ReviewScreen lock-in hold and handoffs', () => {
+  const decided = () =>
+    reviewState({
+      verdicts: [
+        { titleId: 101, verdict: 'like', updatedAt: 1 },
+        { titleId: 102, verdict: 'skip', updatedAt: 2 },
+        { titleId: 103, verdict: 'dislike', updatedAt: 3 },
+      ],
+    });
+
+  it('holds the ledger still through the lock ceremony, and says so aloud', () => {
+    withState({ review: decided(), finalizing: { kind: 'lock', startedAt: Date.now() } });
+    render(<ReviewScreen />);
+    const rows = [...document.querySelectorAll('[data-title-id]')] as HTMLButtonElement[];
+    expect(rows.length).toBeGreaterThan(0);
+    expect(rows.every((r) => r.disabled)).toBe(true);
+    expect((document.querySelector('[class*="verdictPill"]') as HTMLButtonElement).disabled).toBe(true);
+    expect(document.querySelector('[data-test-handle="review-pile"]')).toBeNull();
+    expect(screen.getByRole('status').textContent).toBe('Locking in your season…');
+  });
+
+  it('closes the lock confirm when the deck grows under it, handing focus to the next title', () => {
+    withState({ review: decided() });
+    const { rerender } = render(<ReviewScreen />);
+    const lockIn = document.querySelector('[data-test-handle="lock-in"]') as HTMLButtonElement;
+    lockIn.focus();
+    fireEvent.click(lockIn);
+    expect(document.querySelector('[data-test-handle="confirm-lock"]')).not.toBeNull();
+    // The new title lands before the ledger that counts it.
+    const grown = [...media, makeMedia({ id: '104', anilistId: 104, title: 'Fourth Show' })];
+    const room = { name: 'couch-club', displayName: 'Couch-Club', joined: true, media: grown };
+    withState({ review: decided(), room });
+    rerender(<ReviewScreen />);
+    expect(document.querySelector('[data-test-handle="confirm-lock"]')).toBeNull();
+    expect((document.querySelector('[data-test-handle="lock-in"]') as HTMLButtonElement).disabled).toBe(true);
+    const resume = document.querySelector('[data-test-handle="resume-deck"]');
+    expect(document.activeElement).toBe(resume);
+    withState({ review: { ...decided(), total: 4 }, room });
+    rerender(<ReviewScreen />);
+    expect(document.activeElement).toBe(resume);
+  });
+
+  it('leaves the focus a closing lock confirm gave back to its opener', () => {
+    withState({ review: decided() });
+    const { rerender } = render(<ReviewScreen />);
+    // The control focused as the confirm opened gets the focus back.
+    const elsewhere = document.createElement('button');
+    document.body.append(elsewhere);
+    elsewhere.focus();
+    fireEvent.click(document.querySelector('[data-test-handle="lock-in"]') as HTMLButtonElement);
+    expect(document.activeElement).not.toBe(elsewhere);
+    const grown = [...media, makeMedia({ id: '104', anilistId: 104, title: 'Fourth Show' })];
+    withState({ review: decided(), room: { name: 'couch-club', displayName: 'Couch-Club', joined: true, media: grown } });
+    rerender(<ReviewScreen />);
+    expect(document.querySelector('[data-test-handle="confirm-lock"]')).toBeNull();
+    expect(document.activeElement).toBe(elsewhere);
+    elsewhere.remove();
+  });
+
+  it("reads the peek's way back from this member's own place", () => {
+    const peek = { ...decided(), lockedAt: 1 };
+    const results = { mySubmitted: true, refined: { sharedTitleIds: [101, 102], myRefined: false } };
+    keepPlace(placeKey('user2', 'couch-club', 'SUMMER', 2026), { view: 'shared', showAll: { all: false, shared: false }, refining: true });
+    withState({ user: { userName: 'user1' }, review: peek, results });
+    const { rerender } = render(<ReviewScreen />);
+    const back = () => document.querySelector('[data-test-handle="back-to-standings"]')?.textContent;
+    expect(back()).toBe('Back to standings');
+    keepPlace(placeKey('user1', 'couch-club', 'SUMMER', 2026), { view: 'shared', showAll: { all: false, shared: false }, refining: true });
+    rerender(<ReviewScreen />);
+    expect(back()).toBe('Back to re-ranking');
+  });
+
+  it('holds Lock in while a title lacks a verdict', () => {
+    withState({ review: { ...decided(), total: 4 } });
+    render(<ReviewScreen />);
+    expect((document.querySelector('[data-test-handle="lock-in"]') as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('names where the peek goes back to', () => {
+    const peek = { ...decided(), lockedAt: 1 };
+    const back = () => document.querySelector('[data-test-handle="back-to-standings"]')?.textContent;
+    const round = (over = {}) => ({ sharedTitleIds: [101, 102], myRefined: false, ...over });
+    withState({ review: peek, results: { mySubmitted: false } });
+    const { rerender } = render(<ReviewScreen />);
+    expect(back()).toBe('Back to ranking');
+    withState({ review: peek, results: { mySubmitted: true, refined: round() } });
+    rerender(<ReviewScreen />);
+    expect(back()).toBe('Back to standings');
+    keepPlace(placeKey(undefined, 'couch-club', 'SUMMER', 2026), { view: 'shared', showAll: { all: false, shared: false }, refining: true });
+    rerender(<ReviewScreen />);
+    expect(back()).toBe('Back to re-ranking');
+    // The round closed, or my order landed, while I was here.
+    withState({ review: peek, results: { mySubmitted: true } });
+    rerender(<ReviewScreen />);
+    expect(back()).toBe('Back to standings');
+    withState({ review: peek, results: { mySubmitted: true, refined: round({ myRefined: true }) } });
+    rerender(<ReviewScreen />);
+    expect(back()).toBe('Back to standings');
+    // An order that landed during its ceremony goes back to the standings.
+    withState({ review: peek, results: { mySubmitted: true, refined: round({ myRefined: true }) }, finalizing: { kind: 'refine', startedAt: 1 } });
+    rerender(<ReviewScreen />);
+    expect(back()).toBe('Back to standings');
+  });
+
+  it('opens no deck trip for the second click of a double-click on a row', () => {
+    render(<ReviewScreen />);
+    const row = document.querySelector('[data-title-id="101"]') as HTMLElement;
+    fireEvent.click(row, { detail: 2 });
+    expect(dispatch).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'enterDeckScope' }));
+    fireEvent.click(row, { detail: 1 });
+    expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({ type: 'enterDeckScope' }));
+  });
+
+  it('puts focus back on the row the deck trip began from', () => {
+    vi.spyOn(window, 'scrollTo').mockImplementation(() => {});
+    withState({ reviewView: { pile: 'like', showAll: false, scroll: { top: 0, desktop: false }, focusId: 101 } });
+    render(<ReviewScreen />);
+    expect(document.activeElement).toBe(document.querySelector('[data-title-id="101"]'));
+  });
+
+  it('leaves focus where it is when it was not lost on the way back', () => {
+    vi.spyOn(window, 'scrollTo').mockImplementation(() => {});
+    const elsewhere = document.createElement('button');
+    document.body.append(elsewhere);
+    elsewhere.focus();
+    withState({ reviewView: { pile: 'like', showAll: false, scroll: { top: 0, desktop: false }, focusId: 101 } });
+    render(<ReviewScreen />);
+    expect(document.activeElement).toBe(elsewhere);
+    elsewhere.remove();
+  });
+
+  it('puts focus on the pile tab after a pass over the whole pile', () => {
+    vi.spyOn(window, 'scrollTo').mockImplementation(() => {});
+    withState({ reviewView: { pile: 'like', showAll: false, scroll: { top: 0, desktop: false } } });
+    render(<ReviewScreen />);
+    expect(document.activeElement?.id).toBe('piles-tab-like');
+  });
+});
+
 describe('ReviewScreen re-review passes (0.10.0)', () => {
   it('tapping a row opens a single-title scope', () => {
     render(<ReviewScreen />);
@@ -294,7 +457,7 @@ describe('ReviewScreen re-review passes (0.10.0)', () => {
       payload: {
         titleIds: [101],
         position: 0,
-        from: { pile: 'like', showAll: false, scroll: { top: 0, desktop: false } },
+        from: { pile: 'like', showAll: false, scroll: { top: 0, desktop: false }, focusId: 101 },
       },
     });
   });
@@ -310,7 +473,7 @@ describe('ReviewScreen re-review passes (0.10.0)', () => {
         payload: {
           titleIds: [102],
           position: 0,
-          from: { pile: 'skip', showAll: true, scroll: { top: 340, desktop: false } },
+          from: { pile: 'skip', showAll: true, scroll: { top: 340, desktop: false }, focusId: 102 },
         },
       },
     ]);

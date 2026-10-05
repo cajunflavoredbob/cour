@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { VerdictValue } from "../../../../../types/reely";
 import { useDispatch, useSelector } from "../../store";
+import { roomOffline } from "../../store/offline";
 import styles from "./VerdictRow.module.css";
 
 interface VerdictRowProps {
@@ -32,9 +33,8 @@ const SKIP_ALL_HOLD_MS = 1500;
 export const VerdictRow = ({ titleId, remaining, allowSkipAll = true, currentVerdict }: VerdictRowProps) => {
   const dispatch = useDispatch();
   // Verdicts are disabled while offline, since one sent before the
-  // reconnect logs back in is lost; the row is dimmed then.
-  const { connectionStatus } = useSelector(["connectionStatus"]) ?? {};
-  const offline = connectionStatus !== "connected";
+  // reconnect rejoins the room is lost; the row is dimmed then.
+  const offline = roomOffline(useSelector(["connectionStatus", "rejoining"]) ?? {});
   const [holding, setHolding] = useState(false);
   const holdTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const holdFired = useRef(false);

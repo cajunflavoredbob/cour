@@ -67,10 +67,14 @@ export const DialogScrim = ({
     <div
       className={backdropClassName}
       onClick={(e) => {
-        if (e.target === e.currentTarget) onDismiss();
+        // The second click of a double-click on the control that opened
+        // the dialog lands here; it does not close it.
+        if (e.target === e.currentTarget && !(e.detail > 1)) onDismiss();
       }}
       data-test-handle="dialog-backdrop"
     >
+      {/* Two literal roles, not role={...}: biome's aria rule cannot see
+          that aria-modal suits both. Keep the two elements alike. */}
       {alert ? (
         <div
           ref={dialogRef}

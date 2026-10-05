@@ -26,13 +26,7 @@
 }
 
 .kanjiChip {
-  font-family: var(--cour-font-display);
-  font-weight: 600;
-  font-size: 12px;
-  color: var(--cour-accent-bright);
-  border: 1px solid var(--cour-line-strong);
-  border-radius: 5px;
-  padding: 1px 5px;
+  composes: kanjiChip from "../shared.module.css";
 }
 
 .headline {
@@ -181,6 +175,7 @@
 }
 
 .pileReviewBtn {
+  composes: hitRow from "../shared.module.css";
   position: relative;
   align-self: flex-start;
   margin: 6px 0 2px;
@@ -192,13 +187,6 @@
   letter-spacing: 0.08em;
   color: var(--cour-accent-bright);
   cursor: pointer;
-}
-
-/* A 44px target around the 32px link. */
-.pileReviewBtn::after {
-  content: "";
-  position: absolute;
-  inset: -6px 0;
 }
 
 .pileReviewBtn:hover {
@@ -305,32 +293,21 @@
   border-top: 1px solid var(--cour-line-strong);
 }
 
+/* Accent while it can be pressed; not ready, offline or locking in, the
+   shared disabled look. */
 .lockBtn {
+  composes: solidDisabled from "../shared.module.css";
   width: 100%;
   padding: 16px;
   border: none;
   border-radius: 999px;
-  background: var(--cour-bg-2);
-  color: var(--cour-text-2);
+  background: var(--cour-accent);
+  color: white;
   font-family: var(--cour-font-ui);
   font-size: 15px;
   font-weight: 600;
-  cursor: default;
-}
-
-.lockBtn[data-complete="true"] {
-  background: var(--cour-accent);
-  color: white;
   cursor: pointer;
   box-shadow: 0 8px 24px -8px var(--cour-accent);
-}
-
-/* Ready but offline: the same bg-2 pill as not ready. */
-.lockBtn[data-complete="true"]:disabled {
-  background: var(--cour-bg-2);
-  color: var(--cour-text-2);
-  cursor: default;
-  box-shadow: none;
 }
 
 .lockCaption {
@@ -345,101 +322,44 @@
 /* The no-take-backsies dialog (0.12.0): lock-in is final, so it takes a
    deliberate checkbox before the button arms. */
 .confirmBackdrop {
-  position: fixed;
-  inset: 0;
+  composes: scrim from "../shared.module.css";
   z-index: 600;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-  background: rgba(10, 7, 7, 0.7);
   animation: confirmFade 140ms ease-out;
 }
 
 .confirmDialog {
-  width: 100%;
+  composes: panel from "../shared.module.css";
   max-width: 340px;
-  background: var(--cour-bg-1);
-  border: 1px solid var(--cour-line-strong);
-  border-radius: 20px;
-  padding: 22px 20px 18px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
 }
 
 .confirmTitle {
-  font-family: var(--cour-font-display);
-  font-weight: 600;
-  font-size: 26px;
-  color: var(--cour-text-0);
+  composes: dialogTitle from "../shared.module.css";
 }
 
 .confirmText {
-  font-family: var(--cour-font-ui);
-  font-size: 13px;
-  line-height: 1.5;
-  color: var(--cour-text-1);
+  composes: dialogText from "../shared.module.css";
 }
 
 .confirmCheckRow {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
-  border: 1px solid var(--cour-line-strong);
-  border-radius: 12px;
-  font-family: var(--cour-font-ui);
-  font-size: 13px;
-  color: var(--cour-text-0);
-  cursor: pointer;
+  composes: checkRow from "../shared.module.css";
 }
 
 .confirmCheckbox {
-  width: 18px;
-  height: 18px;
-  accent-color: var(--cour-accent);
-  flex-shrink: 0;
+  composes: checkbox from "../shared.module.css";
 }
 
 .confirmActions {
-  display: flex;
-  gap: 10px;
-  margin-top: 2px;
+  composes: pillPair from "../shared.module.css";
 }
 
 .confirmCancel {
-  flex: 1;
-  padding: 12px;
-  border: 1px solid var(--cour-line-strong);
-  border-radius: 999px;
-  background: transparent;
-  color: var(--cour-text-1);
-  font-family: var(--cour-font-ui);
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
+  composes: pillOutline from "../shared.module.css";
 }
 
 .confirmLock {
-  flex: 1;
-  padding: 12px;
-  border: none;
-  border-radius: 999px;
-  background: var(--cour-accent);
-  color: white;
-  font-family: var(--cour-font-ui);
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  box-shadow: 0 8px 24px -8px var(--cour-accent);
-}
-
-.confirmLock:disabled {
-  background: var(--cour-bg-2);
-  color: var(--cour-text-2);
-  cursor: default;
-  box-shadow: none;
+  composes: pillAccent from "../shared.module.css";
 }
 
 @keyframes confirmFade {
@@ -477,9 +397,9 @@
   min-height: 0;
   overflow: hidden;
   width: 100%;
-  max-width: 1120px;
+  max-width: var(--cour-desk-width);
   margin: 0 auto;
-  padding: 8px 24px 32px;
+  padding: 8px var(--cour-desk-gutter) 32px;
   display: grid;
   grid-template-columns: 320px minmax(0, 1fr);
   gap: 48px;
@@ -526,4 +446,8 @@
   min-height: 0;
   overflow-y: auto;
   scrollbar-width: thin;
+}
+
+.srOnly {
+  composes: srOnly from "../shared.module.css";
 }

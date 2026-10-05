@@ -1,6 +1,7 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import type { CardImageState } from "../../hooks/useStandingsCardImage";
 import { useMediaQuery } from "../../hooks/useMediaQuery";
+import { CARD_USUAL_HEIGHT, CARD_WIDTH } from "../../utils/renderStandingsCard";
 import { canShareFiles, downloadImage, shareImage } from "../../utils/shareFile";
 import {
   cardAltText,
@@ -16,9 +17,12 @@ import styles from "./SharePreview.module.css";
 // A mouse or trackpad: right-click menus, downloads to a folder.
 const FINE_POINTER_QUERY = "(hover: hover) and (pointer: fine)";
 
+// A second save this soon is the same double-click, not a second copy.
+const SAVE_REPEAT_MS = 1000;
+
 // An empty frame in the card's usual shape, while there is no image.
 const PLACEHOLDER_SRC = `data:image/svg+xml,${encodeURIComponent(
-  '<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1321"/>',
+  `<svg xmlns="http://www.w3.org/2000/svg" width="${CARD_WIDTH}" height="${CARD_USUAL_HEIGHT}"/>`,
 )}`;
 
 interface SharePreviewProps {
@@ -70,8 +74,10 @@ export const SharePreview = ({ card, image: state, allPicks, waitingOn, onClose 
     setSharing(false);
   };
 
+  const lastSaveAt = useRef(Number.NEGATIVE_INFINITY);
   const download = () => {
-    if (!image) return;
+    if (!image || performance.now() - lastSaveAt.current < SAVE_REPEAT_MS) return;
+    lastSaveAt.current = performance.now();
     downloadImage(image.blob, filename);
     setLast({ outcome: "downloaded", blob: image.blob });
   };
@@ -88,7 +94,7 @@ export const SharePreview = ({ card, image: state, allPicks, waitingOn, onClose 
     : !ready
       ? { tone: "quiet", text: image ? "UPDATING THE IMAGE…" : "MAKING THE IMAGE…" }
       : outcome === "refused"
-        ? { tone: "error", text: "SHARING DIDN'T WORK · SAVE IT INSTEAD" }
+        ? { tone: "error", text: "COULDN'T SHARE · SAVE IT INSTEAD" }
         : outcome === "downloaded"
           ? { tone: "quiet", text: "CHECK YOUR DOWNLOADS" }
           : { tone: "quiet", text: finePointer ? "OR RIGHT-CLICK THE IMAGE TO COPY IT" : "OR PRESS AND HOLD THE IMAGE" };

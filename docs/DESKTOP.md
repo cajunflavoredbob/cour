@@ -156,3 +156,7 @@ the status line, SHARE THE STANDINGS and everyone's #1; the main column
 holds the All picks / Both kept tabs and the elevated list (#1 hero row,
 medal ranks), which keeps its own height so SHOW ALL sits right under
 it. The elevated-list call above stands; only the shell changed.
+
+Toasts on desktop now sit in the bottom-left corner of the content, which
+every desktop screen leaves empty; at the top they covered the main
+column's tabs. Phones keep them under the header row.

@@ -49,11 +49,13 @@ export type FinalizingKind = "lock" | "submit" | "refine";
 // The review page's open pile and "+N MORE" reveal. Kept in the store so
 // a trip to the deck and back lands on the same list. scroll is where the
 // ledger stood when that trip began (desktop scrolls the list, mobile the
-// page), restored once on return if the layout still matches.
+// page), restored once on return if the layout still matches; focusId is
+// the row the trip began from, which takes focus back.
 export interface ReviewView {
   pile: VerdictValue;
   showAll: boolean;
   scroll?: { top: number; desktop: boolean };
+  focusId?: number;
 }
 
 export type ClientActions =
@@ -63,6 +65,8 @@ export type ClientActions =
   // `from` is the review view to come back to.
   | { type: "enterDeckScope"; payload: DeckScope & { from?: ReviewView } }
   | { type: "exitDeckScope" }
+  // The rejoin after a dropped socket went unanswered on a live one.
+  | { type: "rejoinOverdue" }
   | { type: "reviewView"; payload: ReviewView }
   // Local-only since 0.12.0: autoplay preference lives in localStorage,
   // not on a server account.
@@ -138,6 +142,11 @@ export interface Store {
   ledgerStalled?: boolean;
   // Active one-shot finalizer ceremony (min 3s of in-flight state).
   finalizing?: { kind: FinalizingKind; startedAt: number } | null;
+  // The socket dropped while in a room and the rejoin hasn't landed: room
+  // actions wait, since the server refuses them until then.
+  rejoining?: boolean;
+  // The rejoin went unanswered; Leave room opens as a way out.
+  rejoinOverdue?: boolean;
 
   toasts: Toast[];
   config?: AppConfig;

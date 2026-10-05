@@ -63,6 +63,10 @@
    * accent so Dislike reads the same in every season. */
   --cour-negative: oklch(0.62 0.13 35);
 
+  /* The desktop shell: content width and side gutter. */
+  --cour-desk-width: 1120px;
+  --cour-desk-gutter: 24px;
+
   --cour-radius-card: 16px;
   --cour-radius-btn: 999px;
   --cour-radius-input: 16px;

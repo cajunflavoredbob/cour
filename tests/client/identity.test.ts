@@ -17,6 +17,7 @@ import type { ReelyProvider } from '../../internal/app/reely/providers/types';
 import type { Room } from '../../internal/app/reely/room';
 import { logger } from '../../internal/app/reely/logger';
 import { makeWs, push, sent, flush } from '../helpers';
+import { keptWords } from '../../web/app/src/utils/standingsText';
 
 // End-to-end handler tests over a real :memory: cour store: the
 // passwordless identity (0.12.0) and the verdict flow -- verdicts,
@@ -486,7 +487,9 @@ describe('verdict / review / lockIn', () => {
       ws1.send.mockClear();
       push(ws1, { type: 'submitRefinedRankings', payload: { rankedTitleIds } });
       await flush();
-      expect(last(ws1, 'submitRefinedRankingsError')?.payload.message).toBe('The shows everyone kept just changed. Try again.');
+      expect(last(ws1, 'submitRefinedRankingsError')?.payload.message).toBe(
+        `The shows ${keptWords(2).phrase} just changed. Try again.`,
+      );
       expect(last(ws1, 'submitRefinedRankingsSuccess')).toBeUndefined();
     }
 
@@ -563,7 +566,52 @@ describe('verdict / review / lockIn', () => {
     expect(last(ws1, 'resultsSuccess')?.payload.refined?.sharedTitleIds).toEqual([101]);
     push(ws1, { type: 'submitRefinedRankings', payload: { rankedTitleIds: [101] } });
     await flush();
-    expect(last(ws1, 'submitRefinedRankingsError')?.payload.message).toBe('Re-ranking needs at least two shows everyone kept.');
+    // The screen's own words for the shows, pinned to the server's copy.
+    expect(last(ws1, 'submitRefinedRankingsError')?.payload.message).toBe(
+      `Re-ranking needs at least two shows ${keptWords(2).phrase}.`,
+    );
+  });
+
+  it('submitRefinedRankings speaks of everyone in a room of three', async () => {
+    const room = makeWsRoom();
+    const sockets = [];
+    for (const name of ['user1', 'user0', 'user2']) sockets.push((await authedInRoom(name, room)).ws);
+    for (const ws of sockets) {
+      push(ws, { type: 'verdict', payload: { titleId: 101, verdict: 'like' } });
+      push(ws, { type: 'verdict', payload: { titleId: 102, verdict: ws === sockets[0] ? 'like' : 'dislike' } });
+      push(ws, { type: 'lockIn' });
+    }
+    await flush();
+    push(sockets[0], { type: 'submitRankings', payload: { rankedTitleIds: [101, 102] } });
+    push(sockets[1], { type: 'submitRankings', payload: { rankedTitleIds: [101] } });
+    push(sockets[2], { type: 'submitRankings', payload: { rankedTitleIds: [101] } });
+    await flush();
+    push(sockets[0], { type: 'submitRefinedRankings', payload: { rankedTitleIds: [101] } });
+    await flush();
+    expect(last(sockets[0], 'submitRefinedRankingsError')?.payload.message).toBe(
+      `Re-ranking needs at least two shows ${keptWords(3).phrase}.`,
+    );
+  });
+
+  it('submitRefinedRankings answers a failure it does not know as one to retry', async () => {
+    const room = makeWsRoom();
+    const { ws: ws1 } = await authedInRoom('user1', room);
+    const { ws: ws2 } = await authedInRoom('user0', room);
+    for (const ws of [ws1, ws2]) {
+      push(ws, { type: 'verdict', payload: { titleId: 101, verdict: 'like' } });
+      push(ws, { type: 'verdict', payload: { titleId: 102, verdict: 'like' } });
+      push(ws, { type: 'lockIn' });
+    }
+    await flush();
+    push(ws1, { type: 'submitRankings', payload: { rankedTitleIds: [101, 102] } });
+    push(ws2, { type: 'submitRankings', payload: { rankedTitleIds: [102, 101] } });
+    await flush();
+    vi.spyOn(cour.refined, 'submit').mockImplementation(() => {
+      throw new Error('disk I/O error');
+    });
+    push(ws1, { type: 'submitRefinedRankings', payload: { rankedTitleIds: [101, 102] } });
+    await flush();
+    expect(last(ws1, 'submitRefinedRankingsError')?.payload.message).toBe("Your order didn't go through. Please try again.");
   });
 
   it('submitRefinedRankings rejects a malformed payload', async () => {
@@ -571,7 +619,7 @@ describe('verdict / review / lockIn', () => {
     const { ws } = await authedInRoom('user1', room);
     push(ws, { type: 'submitRefinedRankings', payload: { rankedTitleIds: ['101'] } });
     await flush();
-    expect(last(ws, 'submitRefinedRankingsError')?.payload.message).toBe('Invalid rankings payload.');
+    expect(last(ws, 'submitRefinedRankingsError')?.payload.message).toBe('Invalid order payload.');
   });
 
   it('results returns the payload on request', async () => {

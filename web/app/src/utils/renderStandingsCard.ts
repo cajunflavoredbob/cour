@@ -12,7 +12,10 @@ import {
 } from "./standingsCard";
 import { rankedByText } from "./standingsText";
 
-const WIDTH = 1080;
+/** The card's width; its height follows what it holds. */
+export const CARD_WIDTH = 1080;
+/** A full card's usual height, a runner title on two lines: the shape a placeholder takes. */
+export const CARD_USUAL_HEIGHT = 1321;
 const PAD = 80;
 const FRAME_INSET = 36;
 const HERO_W = 330;
@@ -208,12 +211,12 @@ const drawCard = (
   const roomX = chipX + chipW + 18;
   const seasonLabel = `${d.season} ${d.year}`;
   const seasonW = measure(font.mono(20), "0.18em")(seasonLabel);
-  const room = fitText(measure(font.mono(20), "0.14em"), `· ${d.roomName.toUpperCase()}`, WIDTH - PAD - seasonW - 32 - roomX);
+  const room = fitText(measure(font.mono(20), "0.14em"), `· ${d.roomName.toUpperCase()}`, CARD_WIDTH - PAD - seasonW - 32 - roomX);
 
   // #1: the cover.
   const heroTop = top + 92;
   const textX = PAD + HERO_W + 52;
-  const textW = WIDTH - PAD - textX;
+  const textW = CARD_WIDTH - PAD - textX;
   let heroBottom = heroTop + HERO_H;
   if (hero) {
     const titleLines = wrapText(measure(font.display(60)), hero.title, textW, 3);
@@ -234,22 +237,22 @@ const drawCard = (
       const backH = heroBottom + 90;
       ctx.save();
       ctx.beginPath();
-      ctx.rect(0, 0, WIDTH, backH);
+      ctx.rect(0, 0, CARD_WIDTH, backH);
       ctx.clip();
       if (heroImg) {
         ctx.imageSmoothingQuality = "high";
         ctx.globalAlpha = 0.5;
-        drawCover(ctx, softened(heroImg), -60, -60, WIDTH + 120, backH + 120);
+        drawCover(ctx, softened(heroImg), -60, -60, CARD_WIDTH + 120, backH + 120);
       }
       ctx.restore();
       ctx.fillStyle = t.accentSoft;
-      ctx.fillRect(0, 0, WIDTH, backH);
+      ctx.fillRect(0, 0, CARD_WIDTH, backH);
       const fade = ctx.createLinearGradient(0, 0, 0, backH);
       fade.addColorStop(0, "rgba(0, 0, 0, 0.42)");
       fade.addColorStop(0.6, "rgba(0, 0, 0, 0.55)");
       fade.addColorStop(1, t.bg0);
       ctx.fillStyle = fade;
-      ctx.fillRect(0, 0, WIDTH, backH);
+      ctx.fillRect(0, 0, CARD_WIDTH, backH);
     }
 
     poster(hero.poster, PAD, heroTop, HERO_W, HERO_H, 18);
@@ -274,7 +277,7 @@ const drawCard = (
     // The season's kanji, printed faintly in the lower corner behind the strip.
     ctx.save();
     ctx.globalAlpha = 0.05;
-    text(t.kanji, WIDTH + 30, ctx.canvas.height - 40, { font: font.display(420), color: t.accentBright, align: "right" });
+    text(t.kanji, CARD_WIDTH + 30, ctx.canvas.height - 40, { font: font.display(420), color: t.accentBright, align: "right" });
     ctx.restore();
     // Header, over the backdrop.
     roundRect(ctx, chipX, PAD + 6, chipW, 38, 9);
@@ -285,7 +288,7 @@ const drawCard = (
   text("cour", PAD, PAD + 36, { font: font.display(40), color: t.text0 });
   text(t.kanji, chipX + 10, PAD + 33, { font: font.display(22), color: t.accentBright });
   text(room, roomX, PAD + 32, { font: font.mono(20), color: t.text1, spacing: "0.14em" });
-  text(seasonLabel, WIDTH - PAD, PAD + 32, { font: font.mono(20), color: t.accentBright, spacing: "0.18em", align: "right" });
+  text(seasonLabel, CARD_WIDTH - PAD, PAD + 32, { font: font.mono(20), color: t.accentBright, spacing: "0.18em", align: "right" });
 
   // The rest of the scoring positions: a poster strip.
   let y = heroBottom + 70;
@@ -295,11 +298,11 @@ const drawCard = (
     if (paint) {
       const lx = PAD + measure(font.mono(20), "0.18em")(label) + 20;
       ctx.fillStyle = t.lineStrong;
-      ctx.fillRect(lx, y - 7, WIDTH - PAD - lx, 2);
+      ctx.fillRect(lx, y - 7, CARD_WIDTH - PAD - lx, 2);
     }
     y += 32;
     const slots = CARD_STANDINGS - 1;
-    const runnerW = Math.min(RUNNER_W, (WIDTH - PAD * 2 - RUNNER_GAP * (slots - 1)) / slots);
+    const runnerW = Math.min(RUNNER_W, (CARD_WIDTH - PAD * 2 - RUNNER_GAP * (slots - 1)) / slots);
     const runnerH = runnerW * 1.5;
     let stripBottom = y + runnerH;
     rest.forEach((s, i) => {
@@ -334,7 +337,7 @@ const drawCard = (
   }
 
   // Picks that did not make the card.
-  const pickRows = pickLines(measure(font.mono(18), "0.06em"), offCardPicks(d), WIDTH - PAD * 2, 2);
+  const pickRows = pickLines(measure(font.mono(18), "0.06em"), offCardPicks(d), CARD_WIDTH - PAD * 2, 2);
   pickRows.forEach((row, i) => {
     y += i === 0 ? 54 : 30;
     text(row, PAD, y, { font: font.mono(18), color: t.text2, spacing: "0.06em" });
@@ -344,17 +347,17 @@ const drawCard = (
   y += 76;
   if (paint) {
     ctx.fillStyle = t.line;
-    ctx.fillRect(PAD, y - 46, WIDTH - PAD * 2, 2);
+    ctx.fillRect(PAD, y - 46, CARD_WIDTH - PAD * 2, 2);
   }
   text(statusLine(d), PAD, y, { font: font.mono(18), color: t.text3, spacing: "0.16em" });
-  text("pick the season together.", WIDTH - PAD, y + 2, { font: font.display(26, 500), color: t.text1, align: "right" });
+  text("pick the season together.", CARD_WIDTH - PAD, y + 2, { font: font.display(26, 500), color: t.text1, align: "right" });
   const height = y + PAD - 8;
 
   if (paint) {
     // A hairline frame, inset like a print border.
     ctx.strokeStyle = t.lineStrong;
     ctx.lineWidth = 1.5;
-    ctx.strokeRect(FRAME_INSET, FRAME_INSET, WIDTH - FRAME_INSET * 2, height - FRAME_INSET * 2);
+    ctx.strokeRect(FRAME_INSET, FRAME_INSET, CARD_WIDTH - FRAME_INSET * 2, height - FRAME_INSET * 2);
   }
   return height;
 };
@@ -390,12 +393,12 @@ export const renderStandingsCard = async (d: StandingsCardData): Promise<Rendere
   ]);
 
   const canvas = document.createElement("canvas");
-  canvas.width = WIDTH;
+  canvas.width = CARD_WIDTH;
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("Canvas 2D is unavailable");
   canvas.height = Math.ceil(drawCard(ctx, d, theme, images, false));
   ctx.fillStyle = theme.bg0;
-  ctx.fillRect(0, 0, WIDTH, canvas.height);
+  ctx.fillRect(0, 0, CARD_WIDTH, canvas.height);
   ctx.imageSmoothingQuality = "high";
   drawCard(ctx, d, theme, images, true);
   const blob = await new Promise<Blob>((resolve, reject) =>

@@ -33,7 +33,9 @@ describe('PillTabs', () => {
     render(<Harness />);
     expect(screen.getByRole('tablist').getAttribute('aria-label')).toBe('Piles');
     const tabs = screen.getAllByRole('tab');
-    expect(tabs.map((t) => t.getAttribute('aria-controls'))).toEqual(['piles-panel', 'piles-panel', 'piles-panel']);
+    const panelId = screen.getByRole('tabpanel').id;
+    expect(panelId).not.toBe('');
+    expect(tabs.map((t) => t.getAttribute('aria-controls'))).toEqual([panelId, panelId, panelId]);
     expect(screen.getByRole('tabpanel').getAttribute('aria-labelledby')).toBe(tabs[0].id);
     fireEvent.click(tabs[2]);
     expect(tabs[2].getAttribute('aria-selected')).toBe('true');

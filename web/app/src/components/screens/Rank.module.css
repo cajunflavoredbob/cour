@@ -162,7 +162,9 @@
   cursor: pointer;
 }
 
-.moveBtn:disabled {
+/* Frozen by the ceremony, or at the end of the list (still focusable). */
+.moveBtn:disabled,
+.moveBtn[aria-disabled="true"] {
   border-color: var(--cour-line);
   color: var(--cour-text-3);
   cursor: default;
@@ -185,6 +187,7 @@
 }
 
 .submitBtn {
+  composes: solidDisabled from "../shared.module.css";
   width: 100%;
   padding: 16px;
   border: none;
@@ -198,13 +201,6 @@
   box-shadow: 0 8px 24px -8px var(--cour-accent);
 }
 
-.submitBtn:disabled {
-  background: var(--cour-bg-2);
-  color: var(--cour-text-2);
-  cursor: default;
-  box-shadow: none;
-}
-
 .submitCaption {
   margin: 8px 0 0;
   text-align: center;
@@ -216,108 +212,51 @@
 
 /* Same dialog grammar as the lock-in confirm. */
 .confirmBackdrop {
-  position: fixed;
-  inset: 0;
+  composes: scrim from "../shared.module.css";
   z-index: 600;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-  background: rgba(10, 7, 7, 0.7);
 }
 
 .confirmDialog {
-  width: 100%;
+  composes: panel from "../shared.module.css";
   max-width: 340px;
-  background: var(--cour-bg-1);
-  border: 1px solid var(--cour-line-strong);
-  border-radius: 20px;
-  padding: 22px 20px 18px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
 }
 
 .confirmTitle {
-  font-family: var(--cour-font-display);
-  font-weight: 600;
-  font-size: 26px;
-  color: var(--cour-text-0);
+  composes: dialogTitle from "../shared.module.css";
 }
 
 .confirmText {
-  font-family: var(--cour-font-ui);
-  font-size: 13px;
-  line-height: 1.5;
-  color: var(--cour-text-1);
+  composes: dialogText from "../shared.module.css";
 }
 
 .confirmCheckRow {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
-  border: 1px solid var(--cour-line-strong);
-  border-radius: 12px;
-  font-family: var(--cour-font-ui);
-  font-size: 13px;
-  color: var(--cour-text-0);
-  cursor: pointer;
+  composes: checkRow from "../shared.module.css";
 }
 
 .confirmCheckbox {
-  width: 18px;
-  height: 18px;
-  accent-color: var(--cour-accent);
-  flex-shrink: 0;
+  composes: checkbox from "../shared.module.css";
 }
 
 .confirmActions {
-  display: flex;
-  gap: 10px;
-  margin-top: 2px;
+  composes: pillPair from "../shared.module.css";
 }
 
 .confirmCancel {
-  flex: 1;
-  padding: 12px;
-  border: 1px solid var(--cour-line-strong);
-  border-radius: 999px;
-  background: transparent;
-  color: var(--cour-text-1);
-  font-family: var(--cour-font-ui);
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
+  composes: pillOutline from "../shared.module.css";
 }
 
 .confirmSubmit {
-  flex: 1;
-  padding: 12px;
-  border: none;
-  border-radius: 999px;
-  background: var(--cour-accent);
-  color: white;
-  font-family: var(--cour-font-ui);
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  box-shadow: 0 8px 24px -8px var(--cour-accent);
-}
-
-.confirmSubmit:disabled {
-  background: var(--cour-bg-2);
-  color: var(--cour-text-2);
-  cursor: default;
-  box-shadow: none;
+  composes: pillAccent from "../shared.module.css";
 }
 
 
 
 /* ══ Desktop (docs/DESKTOP.md 0.15.0) ══ */
 
-/* A fixed-height shell: the header, rail, and submit stay put; only
-   the sortable list scrolls (the owner's call). */
+/* A fixed-height shell: the header and rail stay put, and the main
+   column's list scrolls (the owner's call for the editor). */
 .deskScreen {
   height: 100dvh;
   overflow: hidden;
@@ -325,15 +264,16 @@
   flex-direction: column;
 }
 
-/* Editor: rail (headline + point legend + submit) beside the list. */
+/* Every state: a rail (the editors' headline, legend and submit, or the
+   standings' head and everyone's #1) beside the main column. */
 .deskBody {
   flex: 1;
   min-height: 0;
   overflow: hidden;
   width: 100%;
-  max-width: 1120px;
+  max-width: var(--cour-desk-width);
   margin: 0 auto;
-  padding: 8px 24px 32px;
+  padding: 8px var(--cour-desk-gutter) 32px;
   display: grid;
   grid-template-columns: 300px minmax(0, 1fr);
   gap: 48px;
@@ -482,14 +422,15 @@
 }
 
 /* Share the standings: the screen's mono accent link (as REVIEW ALL and
-   SHOW ALL), 12px under the status line, its 44px target reached by an
-   invisible margin. */
+   SHOW ALL), 12px under the status line, with a 44px target. It ends the
+   head, which sets the space after it. */
 .shareLink {
+  composes: hitRow from "../shared.module.css";
   position: relative;
   display: block;
   width: fit-content;
   text-align: left;
-  margin: -10px 0 12px;
+  margin: -10px 0 0;
   padding: 8px 0;
   border: none;
   background: transparent;
@@ -500,12 +441,6 @@
   cursor: pointer;
 }
 
-.shareLink::after {
-  content: "";
-  position: absolute;
-  inset: -6px 0;
-}
-
 .shareLink:hover {
   filter: brightness(1.15);
 }
@@ -514,22 +449,17 @@
   margin-bottom: 0;
 }
 
-/* Only the standings list scrolls; the headline stays put. */
+/* The standings list scrolls in its own height, so SHOW ALL sits right
+   under it. */
 .standingsRows {
   list-style: none;
   margin: 0;
   padding: 0 0 8px;
-  flex: 1;
+  flex: 0 1 auto;
   min-height: 0;
   overflow-y: auto;
   scrollbar-width: thin;
   animation: cour-standings-in 260ms ease-out;
-}
-
-/* In the main column the list keeps its own height, so SHOW ALL sits
-   right under it. */
-.main .standingsRows {
-  flex: 0 1 auto;
 }
 
 @keyframes cour-standings-in {
@@ -582,6 +512,7 @@
 /* The standings top-5 reveal (the owner: we mainly care about the top 5;
    the rest hides by default). Static below the (scrolling) list. */
 .showAllBtn {
+  composes: hitRow from "../shared.module.css";
   position: relative;
   align-self: center;
   flex-shrink: 0;
@@ -595,13 +526,6 @@
   letter-spacing: 0.08em;
   color: var(--cour-accent-bright);
   cursor: pointer;
-}
-
-/* A 44px target around the 35px link. */
-.showAllBtn::after {
-  content: "";
-  position: absolute;
-  inset: -5px 0;
 }
 
 .showAllBtn:hover {
@@ -740,6 +664,7 @@
    corner (DeckDetails sets the box 14px down and 20px in). Darker than the
    deck's chips, since it is a control and the art can be bright. */
 .detailClose {
+  composes: hitBox from "../shared.module.css";
   position: absolute;
   top: 22px;
   right: 28px;
@@ -754,13 +679,6 @@
   backdrop-filter: blur(8px);
   color: white;
   cursor: pointer;
-}
-
-/* A 44px target around the 32px chip. */
-.detailClose::after {
-  content: "";
-  position: absolute;
-  inset: -6px;
 }
 
 /* Mobile header parity (audit v1.2.0 low): mirrors Deck's room stack. */
@@ -783,13 +701,7 @@
 /* The season chip, as on the review header: serif 600 (the only weight
    with the kanji glyphs), line-strong border. */
 .kanjiChip {
-  font-family: var(--cour-font-display);
-  font-weight: 600;
-  font-size: 12px;
-  color: var(--cour-accent-bright);
-  border: 1px solid var(--cour-line-strong);
-  border-radius: 5px;
-  padding: 1px 5px;
+  composes: kanjiChip from "../shared.module.css";
   margin-left: 7px;
 }
 
@@ -833,6 +745,7 @@
 
 /* Mono accent link, as REVIEW ALL on the review page, with a 44px target. */
 .refineBtn {
+  composes: hitRow from "../shared.module.css";
   position: relative;
   margin: 0;
   padding: 8px 0;
@@ -845,12 +758,6 @@
   cursor: pointer;
 }
 
-.refineBtn::after {
-  content: "";
-  position: absolute;
-  inset: -6px 0;
-}
-
 .refineBtn:hover {
   filter: brightness(1.15);
 }
@@ -858,6 +765,7 @@
 /* The way back from the re-rank: the deck's flat scope-back chip, with a
    44px target. */
 .backChip {
+  composes: hitBox solidDisabled from "../shared.module.css";
   position: relative;
   display: inline-flex;
   align-items: center;
@@ -872,28 +780,21 @@
   cursor: pointer;
 }
 
-.backChip::after {
-  content: "";
-  position: absolute;
-  inset: -7px;
-}
-
 .backChip:hover:not(:disabled) {
   border-color: var(--cour-text-3);
 }
 
 .backChip:disabled {
   border-color: var(--cour-line);
-  background: var(--cour-bg-2);
-  color: var(--cour-text-2);
-  cursor: default;
 }
 
 /* The scoped header, as the deck's: the way back, the room centered, the
    avatar. The room label gets less room beside the chip. */
 .topBar[data-scoped] {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  /* The sides never narrow past the chip and the avatar; the room label
+     gives way instead, so nothing paints over it. */
+  grid-template-columns: minmax(max-content, 1fr) minmax(0, auto) minmax(max-content, 1fr);
   gap: 8px;
 }
 
@@ -907,9 +808,15 @@
 
 .topBar[data-scoped] .roomStack {
   align-items: center;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .topBar[data-scoped] .roomLabel {
-  max-width: 40vw;
+  max-width: min(40vw, 100%);
 }
 
+/* Read by screen readers, not shown. */
+.srOnly {
+  composes: srOnly from "../shared.module.css";
+}

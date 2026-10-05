@@ -1,6 +1,5 @@
-/* System messages sit under the header row: clear of every bottom action
-   bar (a toast over Lock in or Keep ate the tap meant for the button) and
-   of the header's avatar and back chip. */
+/* System messages sit under the header row, clear of the bottom action
+   bars (Lock in, Keep) and of the header's avatar and back chip. */
 .toastList {
   position: fixed;
   top: max(100px, calc(env(safe-area-inset-top, 0px) + 12px));
@@ -41,8 +40,8 @@
 @media (min-width: 900px) {
   .toastList {
     top: auto;
-    bottom: 24px;
-    left: max(24px, calc((100vw - 1120px) / 2 + 24px));
+    bottom: var(--cour-desk-gutter);
+    left: max(var(--cour-desk-gutter), calc((100vw - var(--cour-desk-width)) / 2 + var(--cour-desk-gutter)));
     right: auto;
     padding: 0;
     align-items: flex-start;
@@ -76,7 +75,11 @@
 .toastFailure {
   composes: toast;
   border-color: var(--cour-negative);
-  background: linear-gradient(oklch(0.62 0.13 35 / 0.16), oklch(0.62 0.13 35 / 0.16)), var(--cour-bg-1);
+  background: linear-gradient(
+      color-mix(in oklch, var(--cour-negative) 16%, transparent),
+      color-mix(in oklch, var(--cour-negative) 16%, transparent)
+    ),
+    var(--cour-bg-1);
 }
 
 /* The toast body doubles as its own dismiss button (audit 17): visually

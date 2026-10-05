@@ -3,6 +3,7 @@ import { AvatarButton } from "../atoms/AvatarButton";
 import { DialogScrim } from "../molecules/DialogScrim";
 import { useEscape } from "../../hooks/useEscape";
 import { useDispatch, useStore } from "../../store";
+import { roomOffline } from "../../store/offline";
 import styles from "./AccountMenu.module.css";
 
 /**
@@ -13,12 +14,15 @@ import styles from "./AccountMenu.module.css";
  * name you typed on the join form; leaving lands back there.
  */
 export const AccountMenu = () => {
-  const [{ user, soundPref, room, review, route }] = useStore([
+  const [{ user, soundPref, room, review, route, connectionStatus, rejoining, rejoinOverdue }] = useStore([
     "user",
     "soundPref",
     "room",
     "review",
     "route",
+    "connectionStatus",
+    "rejoining",
+    "rejoinOverdue",
   ]);
   const dispatch = useDispatch();
   const [open, setOpen] = useState(false);
@@ -54,6 +58,9 @@ export const AccountMenu = () => {
   // After lock-in the ledger is a read-only peek off the standings
   // (audit 17 UX 6); before, it became unreachable forever.
   const showLockedReview = inRoom && locked;
+  // A leave sent before a reconnect's rejoin lands is undone by it; a
+  // rejoin gone unanswered leaves it as the way out.
+  const offline = rejoinOverdue === true ? connectionStatus !== "connected" : roomOffline({ connectionStatus, rejoining });
 
   const navigate = (r: "home" | "room") => {
     dispatch({ type: "navigate", payload: { route: r } });
@@ -93,9 +100,16 @@ export const AccountMenu = () => {
       <AvatarButton ref={avatarRef} userName={user.userName} onClick={() => setOpen((o) => !o)} />
       {open && (
         <>
+          {/* The second click of the double-click that opened the menu does not close it. */}
           {/* biome-ignore lint/a11y/noStaticElementInteractions: transparent outside-tap catcher; Esc is the keyboard path. */}
           {/* biome-ignore lint/a11y/useKeyWithClickEvents: transparent outside-tap catcher; Esc is the keyboard path. */}
-          <div className={styles.scrim} onClick={close} />
+          <div
+            className={styles.scrim}
+            onClick={(e) => {
+              if (e.detail > 1) return;
+              close();
+            }}
+          />
           <div ref={bubbleRef} className={styles.bubble} role="menu" aria-label="Account">
             <div className={styles.caret} aria-hidden="true" />
 
@@ -183,6 +197,7 @@ export const AccountMenu = () => {
               <button
                 type="button"
                 className={styles.logoutButton}
+                disabled={offline}
                 onClick={() => {
                   dispatch({ type: "leaveRoom" });
                   close();
@@ -208,7 +223,7 @@ export const AccountMenu = () => {
           backdropClassName={styles.shareBackdrop}
           dialogClassName={styles.shareDialog}
         >
-          <h2 className={styles.shareTitle}>share this room</h2>
+          <h2 className={styles.shareTitle}>share this room.</h2>
           <p className={styles.shareText}>
             Copy the link below. It pre-fills the room on the join form.
           </p>

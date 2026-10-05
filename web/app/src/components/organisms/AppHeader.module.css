@@ -6,9 +6,9 @@
   justify-content: space-between;
   gap: 16px;
   width: 100%;
-  max-width: 1120px;
+  max-width: var(--cour-desk-width);
   margin: 0 auto;
-  padding: 20px 24px 12px;
+  padding: 20px var(--cour-desk-gutter) 12px;
 }
 
 .left {
@@ -33,14 +33,8 @@
 }
 
 .kanjiChip {
+  composes: kanjiChip from "../shared.module.css";
   align-self: center;
-  font-family: var(--cour-font-display);
-  font-weight: 600;
-  font-size: 12px;
-  color: var(--cour-accent-bright);
-  border: 1px solid var(--cour-line-strong);
-  border-radius: 5px;
-  padding: 1px 5px;
 }
 
 .roomLabel {

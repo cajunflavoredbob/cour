@@ -12,7 +12,9 @@ import { useStandingsCardImage } from "../../hooks/useStandingsCardImage";
 import { DESKTOP_QUERY, useMediaQuery } from "../../hooks/useMediaQuery";
 import { usePageVisible } from "../../hooks/usePageVisible";
 import { useStore } from "../../store";
-import { draftOf, keepDraft } from "../../utils/drafts";
+import { roomOffline } from "../../store/offline";
+import { draftOf, keepDraft, keepPlace, placeKey, placeOf } from "../../utils/drafts";
+import { focusLost, overlayOpen } from "../../utils/overlay";
 import { posterSrc } from "../../utils/poster";
 import { getRerankTold, setRerankTold } from "../../utils/prefs";
 import { reconcileOrder } from "../../utils/rankOrder";
@@ -21,22 +23,25 @@ import { SEASON_THEMES } from "../../utils/season";
 import { buildStandingsCard, listOf } from "../../utils/standingsCard";
 import {
   groupTopPicks,
+  keptWords,
+  RANK_POINTS,
   rankedByText,
   rankingsIn,
   rerankedByText,
+  rerankOpen,
   standingsFinal,
 } from "../../utils/standingsText";
 import styles from "./Rank.module.css";
 
-// The couple-profile point values, shown next to the top five slots so
-// the stakes of the ordering are visible while ranking.
-const RANK_POINTS = [12, 9, 6, 3, 1];
+// The scoring, as the editors state it.
+const TOP_SCORE = `TOP ${RANK_POINTS.length} SCORE ${RANK_POINTS.join(" · ")}`;
 
 // Standings show the top 5 by default (the scoring positions); the rest
 // hide behind a reveal.
 const STANDINGS_PREVIEW = 5;
 
-// The re-rank round's opening toast lets the revealed standings land first.
+// The re-rank round's opening toast lets the revealed standings land
+// first, and waits as long again while a dialog or menu is open.
 const ARRIVAL_TOAST_DELAY_MS = 1500;
 
 /**
@@ -55,21 +60,31 @@ const ARRIVAL_TOAST_DELAY_MS = 1500;
  * standings put the head and everyone's #1 there, with the tabs and the
  * elevated list (#1 hero, medal ranks) in the main column.
  */
-export const RankScreen = () => {
-  const [{ user, room, review, results, members, connectionStatus, finalizing }, dispatch] = useStore([
+interface RankScreenProps {
+  /** The lock ceremony just handed over: the editor's heading takes focus. */
+  fromLock?: boolean;
+  onFocusTaken?: () => void;
+}
+
+export const RankScreen = ({ fromLock = false, onFocusTaken }: RankScreenProps = {}) => {
+  const [{ user, room, review, results, members, connectionStatus, rejoining, finalizing }, dispatch] = useStore([
     "user",
     "room",
     "review",
     "results",
     "members",
     "connectionStatus",
+    "rejoining",
     "finalizing",
   ]);
   const isDesktop = useMediaQuery(DESKTOP_QUERY);
   const pageVisible = usePageVisible();
   const { season, year } = useSeason();
   // Per member, room and season: a shared device keeps each member's own.
-  const draftKey = `${user?.userName ?? ""}:${room?.name ?? ""}:${season}:${year}`;
+  const draftKey = placeKey(user?.userName, room?.name, season, year);
+  // Coming back to the screen this page session (the review peek) rather
+  // than arriving for the first time.
+  const returning = useRef(placeOf(draftKey) != null);
 
   const mediaById = useMemo(() => {
     const map = new Map<number, Media>();
@@ -92,14 +107,15 @@ export const RankScreen = () => {
   // Which one-shot submit the confirm dialog is asking about.
   const [confirmFor, setConfirmFor] = useState<"submit" | "refine" | null>(null);
   const [confirmChecked, setConfirmChecked] = useState(false);
-  const [showAllStandings, setShowAllStandings] = useState(false);
+  // Each view's SHOW ALL reveal.
+  const [showAll, setShowAll] = useState(() => placeOf(draftKey)?.showAll ?? { all: false, shared: false });
   // Standings row -> read-only details drawer (audit 17 UX 4): post-lock
   // there was no way to see a synopsis/PV exactly when the group decides
   // what to watch.
   const [detailTitleId, setDetailTitleId] = useState<number | null>(null);
   // The refine round: which standings show, and the open re-rank.
-  const [standingsView, setStandingsView] = useState<"all" | "shared">("all");
-  const [refining, setRefining] = useState(false);
+  const [standingsView, setStandingsView] = useState<"all" | "shared">(() => placeOf(draftKey)?.view ?? "all");
+  const [refining, setRefining] = useState(() => placeOf(draftKey)?.refining ?? false);
   const [refineOrder, setRefineOrder] = useState<number[]>(() => draftOf(`rerank:${draftKey}`) ?? []);
   const [shareOpen, setShareOpen] = useState(false);
 
@@ -114,22 +130,30 @@ export const RankScreen = () => {
   const rankDrag = useDragReorder(order, setOrder);
   const refineDrag = useDragReorder(refineOrder, setRefineOrder);
 
+  // Room actions wait for the rejoin after a dropped socket: the server
+  // refuses them until it lands.
+  const offline = roomOffline({ connectionStatus, rejoining });
+
+  // Fetched on arrival, after any rejoin, and again after a rejoin that
+  // still has none (the store refetches results already on screen).
+  const resultsAsked = useRef(false);
+  const resultsMissing = results == null;
   useEffect(() => {
+    if (offline || (resultsAsked.current && !resultsMissing)) return;
+    resultsAsked.current = true;
     dispatch({ type: "results" });
-  }, [dispatch]);
+  }, [dispatch, offline, resultsMissing]);
 
   // While the payload hasn't arrived, keep asking at a pace slower than
   // the request timeout (15s) so attempts never stack. The screen holds
   // on the loading pulse below until it lands (audit 17 H8) -- rendering
   // the live editor before mySubmitted is known showed it to already-
   // submitted users, whose re-submit then ate their edits.
-  // Only while connected: a tick queued across an outage would reach the
-  // server before the reconnect rejoins the room.
   useEffect(() => {
-    if (results || connectionStatus !== "connected") return;
+    if (results || offline) return;
     const timer = setInterval(() => dispatch({ type: "results" }), 20_000);
     return () => clearInterval(timer);
-  }, [dispatch, results, connectionStatus]);
+  }, [dispatch, results, offline]);
 
   // The ledger can arrive after mount (review fetch on join), and it can
   // CHANGE while this screen is open: the season refreshes daily for its
@@ -148,23 +172,30 @@ export const RankScreen = () => {
     () => (results && room ? buildStandingsCard({ results, season, year, roomName, mediaById }) : null),
     [results, room, roomName, season, year, mediaById],
   );
-  const offline = connectionStatus !== "connected";
   const submitting = finalizing?.kind === "submit";
   const refineSubmitting = finalizing?.kind === "refine";
+  const mySubmitted = results?.mySubmitted === true;
+  // The editor holds through the submit ceremony so the standings never
+  // flash in early.
+  const rankingDone = mySubmitted && !submitting;
   const kanji = SEASON_THEMES[season].kanji;
   const round = results?.refined;
   const sharedCount = round?.sharedTitleIds.length ?? 0;
   // The second view exists only with at least two shows to compare.
   const tabsShown = round != null && sharedCount >= 2;
-  const canRerank = round != null && sharedCount >= 2 && !round.myRefined;
+  const myRefined = round?.myRefined === true;
+  const canRerank = rerankOpen(results);
   // The re-rank editor holds through its own ceremony, as the ranking's does.
   const editingRefine = round != null && ((refining && canRerank) || refineSubmitting);
-  const roomOfTwo = results?.memberCount === 2;
+  // Where the standings stood, for a trip away from the screen.
+  useEffect(() => {
+    keepPlace(draftKey, { view: standingsView, showAll, refining: editingRefine });
+  }, [draftKey, standingsView, showAll, editingRefine]);
+  const kept = keptWords(results?.memberCount ?? 0);
 
   // The share image is made in the background only while the standings are
   // on screen, never behind an editor.
-  const standingsShown =
-    results?.mySubmitted === true && !submitting && !editingRefine && results.standings.length > 0;
+  const standingsShown = rankingDone && !editingRefine && (results?.standings.length ?? 0) > 0;
   const cardImage = useStandingsCardImage(standingsShown ? standingsCard : null);
   // Standings that leave the screen (a new season) take the preview with them.
   useEffect(() => {
@@ -172,13 +203,21 @@ export const RankScreen = () => {
   }, [standingsShown]);
 
   // Once per member, room and season, a toast says where the new view is,
-  // when the standings are in view and a re-rank is still open to me. It
-  // waits for the standings to settle, and goes once the member acts on it.
-  const announce = standingsShown && canRerank && pageVisible;
+  // while All picks is in view and a re-rank is still open to me. It waits
+  // for the standings to settle and for any dialog to close, and counts as
+  // said once the member finds the view first.
+  const announce = standingsShown && canRerank && pageVisible && standingsView === "all";
   const arrivalToastId = `rerank-open-${draftKey}`;
   useEffect(() => {
     if (!announce || getRerankTold(draftKey)) return;
-    const timer = setTimeout(() => {
+    let timer: ReturnType<typeof setTimeout>;
+    const say = () => {
+      // Nothing speaks over an open dialog or menu: the details, the share
+      // preview, the account menu and its dialogs.
+      if (overlayOpen()) {
+        timer = setTimeout(say, ARRIVAL_TOAST_DELAY_MS);
+        return;
+      }
       setRerankTold(draftKey);
       dispatch({
         type: "addToast",
@@ -186,38 +225,41 @@ export const RankScreen = () => {
           id: arrivalToastId,
           appearance: "Success",
           showTimeMs: 6000,
-          message: roomOfTwo
-            ? `Both rankings are in. Compare the ${sharedCount} shows you both kept in the Both kept tab.`
-            : `All rankings are in. Compare the ${sharedCount} shows everyone kept in the Everyone kept tab.`,
+          message: `${kept.rankings} are in. Compare the ${sharedCount} shows ${kept.phrase} in the ${kept.tab} tab.`,
         },
       });
-    }, ARRIVAL_TOAST_DELAY_MS);
+    };
+    timer = setTimeout(say, ARRIVAL_TOAST_DELAY_MS);
     return () => clearTimeout(timer);
-  }, [announce, draftKey, arrivalToastId, roomOfTwo, sharedCount, dispatch]);
+  }, [announce, draftKey, arrivalToastId, kept.rankings, kept.phrase, kept.tab, sharedCount, dispatch]);
   const showView = (next: "all" | "shared") => {
-    if (next === "shared") dispatch({ type: "removeToast", payload: { id: arrivalToastId, message: "" } });
+    if (next === "shared") {
+      setRerankTold(draftKey);
+      dispatch({ type: "removeToast", payload: { id: arrivalToastId, message: "" } });
+    }
     setStandingsView(next);
   };
 
-  // A closed round (a new member joined) ends any re-rank in progress, and
-  // the screen falls back to all picks. The draft stays for a reopen.
+  // A round that closes (a new member joined) while I'm on its view or in
+  // its editor, on screen or away on the review peek, says why and hands
+  // focus to the standings; from All picks it only moves the focus its tabs
+  // held. The draft stays for a reopen.
   const roundOpen = round != null;
-  const wasOpen = useRef(roundOpen);
+  const resultsIn = results != null;
+  const wasOpen = useRef(roundOpen || standingsView === "shared" || refining);
   const standingsHeadRef = useRef<HTMLHeadingElement>(null);
-  // Focus moves to the standings headline once no dialog holds it.
-  const [headFocus, setHeadFocus] = useState(false);
+  // The standings headline takes focus once the details dialog closes;
+  // any other open dialog or menu keeps it. Arriving from another screen,
+  // it is scrolled into view; a change in place leaves the scroll alone.
+  const [headFocus, setHeadFocus] = useState<{ scroll: boolean } | null>(null);
   useEffect(() => {
+    if (!resultsIn) return;
     const closed = wasOpen.current && !roundOpen;
     wasOpen.current = roundOpen;
     if (!closed) return;
     // The editor and its confirm open from Both kept and keep the view there.
-    const inside = standingsView === "shared";
-    setRefining(false);
-    setStandingsView("all");
-    setConfirmFor((current) => (current === "refine" ? null : current));
-    if (!inside) {
-      // The tabs went away, and with them any focus they held.
-      if (document.activeElement == null || document.activeElement === document.body) setHeadFocus(true);
+    if (standingsView !== "shared") {
+      if (focusLost()) setHeadFocus({ scroll: false });
       return;
     }
     const joined = (members ?? results?.members ?? []).filter((m) => !m.submitted).map((m) => m.userName);
@@ -231,19 +273,67 @@ export const RankScreen = () => {
         },
       });
     }
-    setHeadFocus(true);
-  }, [roundOpen, standingsView, members, results, dispatch]);
+    setHeadFocus({ scroll: false });
+  }, [resultsIn, roundOpen, standingsView, members, results, dispatch]);
+  // Without a second view (a closed round, or fewer than two shows left)
+  // there is no re-rank, view or arrival toast to keep.
+  useEffect(() => {
+    if (!resultsIn || tabsShown) return;
+    setRefining(false);
+    setStandingsView("all");
+    dispatch({ type: "removeToast", payload: { id: arrivalToastId, message: "" } });
+  }, [resultsIn, tabsShown, arrivalToastId, dispatch]);
   // A re-rank ceremony cannot finish without its round.
   useEffect(() => {
     if (!roundOpen && refineSubmitting) dispatch({ type: "finalizing", payload: null });
   }, [roundOpen, refineSubmitting, dispatch]);
+  // A confirm whose submit already landed (from another device, or an ack
+  // that was lost) has nothing left to confirm. It leaves with its editor,
+  // in the same render, so focus can follow the editor's own handoff.
+  const confirmLive = confirmFor === "refine" ? canRerank : confirmFor === "submit" && !mySubmitted;
+  useEffect(() => {
+    if (confirmFor != null && !confirmLive) setConfirmFor(null);
+  }, [confirmFor, confirmLive]);
+  // The standings that replace the ranking editor (after the ceremony, or a
+  // ranking that landed from elsewhere) take the focus the editor held.
+  const wasRankingDone = useRef<boolean | null>(null);
+  useEffect(() => {
+    if (!results) return;
+    const revealed = wasRankingDone.current === false && rankingDone;
+    wasRankingDone.current = rankingDone;
+    if (revealed && focusLost()) setHeadFocus({ scroll: true });
+  }, [results, rankingDone]);
+  // Said as this member's own order lands, not again when a closed round
+  // reopens.
+  const [orderLanded, setOrderLanded] = useState(false);
+  const wasRefined = useRef<boolean | null>(null);
+  useEffect(() => {
+    if (!roundOpen) {
+      setOrderLanded(false);
+      return;
+    }
+    if (wasRefined.current === false && myRefined) setOrderLanded(true);
+    wasRefined.current = myRefined;
+  }, [roundOpen, myRefined]);
   useEffect(() => {
     if (!headFocus || detailTitleId != null) return;
-    setHeadFocus(false);
-    // Any other open dialog (sharing, the account menu's) gives focus back itself.
-    if (document.querySelector('[aria-modal="true"]')) return;
-    standingsHeadRef.current?.focus({ preventScroll: true });
+    setHeadFocus(null);
+    // Any other open dialog or menu gives focus back itself.
+    if (overlayOpen()) return;
+    standingsHeadRef.current?.focus({ preventScroll: !headFocus.scroll });
   }, [headFocus, detailTitleId]);
+  // Coming back from the review peek, or straight from the lock ceremony,
+  // the screen's heading takes the focus lost on the way. A re-rank editor
+  // that comes back focuses its own heading.
+  const editorHeadRef = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    if (!(returning.current || fromLock) || !results) return;
+    returning.current = false;
+    if (fromLock) onFocusTaken?.();
+    if (!focusLost() || overlayOpen() || editingRefine) return;
+    if (rankingDone) setHeadFocus({ scroll: true });
+    else editorHeadRef.current?.focus();
+  }, [fromLock, results, editingRefine, rankingDone, onFocusTaken]);
 
   // The re-rank order follows a change in the shows everyone kept (the
   // server takes exactly that set), keeping the member's own ordering. A
@@ -262,7 +352,10 @@ export const RankScreen = () => {
   useEffect(() => {
     if (editingRefine === wasEditing.current) return;
     wasEditing.current = editingRefine;
-    (editingRefine ? refineHeadRef.current : sharedTabRef.current)?.focus();
+    if (editingRefine) refineHeadRef.current?.focus();
+    // Without the tab (too few shows left), the standings take it.
+    else if (sharedTabRef.current) sharedTabRef.current.focus();
+    else setHeadFocus({ scroll: false });
   }, [editingRefine]);
 
   // Reconnect staleness is healed by the store, not here: createStore's
@@ -273,10 +366,7 @@ export const RankScreen = () => {
   // Minimum-3s "Submitting..." ceremony (the owner's spec, audit v1.2.0
   // #9) for both one-shot submits: the editor holds until BOTH the ack
   // (mySubmitted, or myRefined for a refine) and the 3s floor have passed.
-  const acked =
-    finalizing?.kind === "submit"
-      ? results?.mySubmitted === true
-      : finalizing?.kind === "refine" && results?.refined?.myRefined === true;
+  const acked = submitting ? mySubmitted : refineSubmitting && myRefined;
   const finalizingStartedAt = finalizing?.startedAt;
   useEffect(() => {
     if (!acked || finalizingStartedAt == null) return;
@@ -293,9 +383,6 @@ export const RankScreen = () => {
   // Editor-vs-standings can't be decided without the payload; hold.
   if (!results) return <Loading />;
 
-  // The editor holds through the submit ceremony so the standings never
-  // flash in early.
-  const submitted = results.mySubmitted && !submitting;
   const view = tabsShown ? standingsView : "all";
 
   const moveIn = (setList: Dispatch<SetStateAction<number[]>>) => (index: number, delta: number) => {
@@ -320,23 +407,20 @@ export const RankScreen = () => {
     setRefining(true);
   };
 
-  // ── Editor pieces (the ranking, and the refine of the shared shows) ──
+  // ── Editor pieces (the ranking, and the re-rank of the shows everyone kept) ──
 
   const editorHeadline = (
     <>
-      <h1 className={styles.headline}>rank your keeps.</h1>
-      <p className={styles.contextLine}>
-        TOP 5 SCORE 12 &middot; 9 &middot; 6 &middot; 3 &middot; 1 &middot; PASSED
-        AND UNSURE ARE DISCARDED
-      </p>
+      <h1 className={styles.headline} ref={editorHeadRef} tabIndex={-1}>
+        rank your keeps.
+      </h1>
+      <p className={styles.contextLine}>{`${TOP_SCORE} · PASSED AND UNSURE ARE DISCARDED`}</p>
     </>
   );
 
   // The scoring that applies to this many shows.
   const scoringLine =
-    sharedCount > RANK_POINTS.length
-      ? `TOP 5 SCORE ${RANK_POINTS.join(" · ")}`
-      : `SCORED ${RANK_POINTS.slice(0, sharedCount).join(" · ")}`;
+    sharedCount > RANK_POINTS.length ? TOP_SCORE : `SCORED ${RANK_POINTS.slice(0, sharedCount).join(" · ")}`;
   const refineHeadline = (
     <>
       <h1 className={styles.headline} ref={refineHeadRef} tabIndex={-1}>
@@ -344,7 +428,7 @@ export const RankScreen = () => {
       </h1>
       <p className={styles.contextLine}>
         <span className={styles.keepTogether}>
-          {`THE ${sharedCount} SHOWS ${roomOfTwo ? "YOU BOTH KEPT" : "EVERYONE KEPT"}`}
+          {`THE ${sharedCount} SHOWS ${kept.phrase.toUpperCase()}`}
         </span>
         {" · "}
         <span className={styles.keepTogether}>{scoringLine}</span>
@@ -411,7 +495,10 @@ export const RankScreen = () => {
                 type="button"
                 className={styles.moveBtn}
                 aria-label={`Move ${titleOf(titleId)} up`}
-                disabled={i === 0 || frozen}
+                // The end of the list leaves the button focusable, so a
+                // move into the top slot keeps keyboard focus here.
+                aria-disabled={i === 0}
+                disabled={frozen}
                 onClick={() => move(i, -1)}
               >
                 <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
@@ -422,7 +509,8 @@ export const RankScreen = () => {
                 type="button"
                 className={styles.moveBtn}
                 aria-label={`Move ${titleOf(titleId)} down`}
-                disabled={i === list.length - 1 || frozen}
+                aria-disabled={i === list.length - 1}
+                disabled={frozen}
                 onClick={() => move(i, 1)}
               >
                 <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
@@ -458,7 +546,12 @@ export const RankScreen = () => {
         type="button"
         className={styles.submitBtn}
         disabled={offline || submitting}
-        onClick={() => openConfirm("submit")}
+        // The second click of a double-click on the button that sat here
+        // (the review peek's way back) opens nothing.
+        onClick={(e) => {
+          if (e.detail > 1) return;
+          openConfirm("submit");
+        }}
         data-test-handle="submit-rankings"
       >
         {submitting ? "Submitting\u2026" : "Submit rankings"}
@@ -473,7 +566,10 @@ export const RankScreen = () => {
         type="button"
         className={styles.submitBtn}
         disabled={offline || refineSubmitting}
-        onClick={() => openConfirm("refine")}
+        onClick={(e) => {
+          if (e.detail > 1) return;
+          openConfirm("refine");
+        }}
         data-test-handle="submit-refine"
       >
         {refineSubmitting ? "Submitting\u2026" : "Submit this order"}
@@ -563,7 +659,7 @@ export const RankScreen = () => {
         { id: "all", label: `All picks ${allStandings.length}`, testHandle: "standings-all" },
         {
           id: "shared",
-          label: `${roomOfTwo ? "Both" : "Everyone"} kept ${sharedCount}`,
+          label: `${kept.tab} ${sharedCount}`,
           testHandle: "standings-shared",
           ref: sharedTabRef,
         },
@@ -600,7 +696,7 @@ export const RankScreen = () => {
   // All picks rows name who ranked them and carry the medals; the rows of
   // the second view are quiet and point back to the room's result.
   const standingsList = (desktop: boolean, rows: RankingStanding[], all: boolean, listKey: string) => {
-    const visible = showAllStandings ? rows : rows.slice(0, STANDINGS_PREVIEW);
+    const visible = showAll[view] ? rows : rows.slice(0, STANDINGS_PREVIEW);
     return (
       <ul className={desktop ? styles.standingsRows : styles.rows} key={desktop ? listKey : undefined}>
         {visible.map((standing) => {
@@ -617,7 +713,12 @@ export const RankScreen = () => {
               <button
                 type="button"
                 className={styles.rowOpen}
-                onClick={() => setDetailTitleId(standing.titleId)}
+                // The second click of a double-click (a dialog's Close above)
+                // opens nothing.
+                onClick={(e) => {
+                  if (e.detail > 1) return;
+                  setDetailTitleId(standing.titleId);
+                }}
                 data-test-handle="standing-details"
               >
                 <span className={styles.standingRank}>{standing.rank}</span>
@@ -639,7 +740,9 @@ export const RankScreen = () => {
             </li>
           );
         })}
-        {rows.length === 0 && <li className={styles.emptyNote}>no rankings yet</li>}
+        {rows.length === 0 && (
+          <li className={styles.emptyNote}>{isFinal ? "nobody kept a show" : "no picks yet"}</li>
+        )}
       </ul>
     );
   };
@@ -673,10 +776,16 @@ export const RankScreen = () => {
       <button
         type="button"
         className={styles.showAllBtn}
-        onClick={() => setShowAllStandings((v) => !v)}
+        onClick={() => setShowAll((open) => ({ ...open, [view]: !open[view] }))}
         data-test-handle="standings-reveal"
       >
-        {showAllStandings ? "SHOW TOP 5" : `SHOW ALL ${rows.length} →`}
+        {showAll[view] ? (
+          `SHOW TOP ${STANDINGS_PREVIEW}`
+        ) : (
+          <>
+            SHOW ALL {rows.length} <span aria-hidden="true">&rarr;</span>
+          </>
+        )}
       </button>
     );
 
@@ -723,6 +832,19 @@ export const RankScreen = () => {
     </DialogScrim>
   );
 
+  // The one-shot submits, said aloud: no focused control reports them.
+  const submitNote = (
+    <p className={styles.srOnly} role="status">
+      {submitting
+        ? "Submitting your ranking…"
+        : refineSubmitting
+          ? "Submitting your order…"
+          : orderLanded && myRefined
+            ? "Your order is in."
+            : ""}
+    </p>
+  );
+
   const shareDialogEl = shareOpen && standingsShown && standingsCard && (
     <SharePreview
       card={standingsCard}
@@ -734,12 +856,10 @@ export const RankScreen = () => {
   );
 
   const confirmIsRefine = confirmFor === "refine";
-  const confirmDialogEl = confirmFor && (
+  const confirmDialogEl = confirmLive && (
     <DialogScrim
       label={
-        confirmIsRefine
-          ? `Submit your order for the shows ${roomOfTwo ? "you both kept" : "everyone kept"}`
-          : "Submit your rankings"
+        confirmIsRefine ? `Submit your order for the shows ${kept.phrase}` : "Submit your rankings"
       }
       onDismiss={() => setConfirmFor(null)}
       backdropClassName={styles.confirmBackdrop}
@@ -748,8 +868,8 @@ export const RankScreen = () => {
         <h2 className={styles.confirmTitle}>no turning back.</h2>
         <p className={styles.confirmText}>
           {confirmIsRefine
-            ? `This sends your order for the ${sharedCount} shows ${roomOfTwo ? "you both kept" : "everyone kept"}. You can't change it after this, and the room's result doesn't change.`
-            : "This submits your final ranking and reveals the standings. You can't reorder after this."}
+            ? `This sends your order for the ${sharedCount} shows ${kept.phrase}. You can't change it after this, and the room's result doesn't change.`
+            : "This submits your final ranking and reveals the standings. You can't change it after this."}
         </p>
         <label className={styles.confirmCheckRow}>
           <input
@@ -766,7 +886,7 @@ export const RankScreen = () => {
             className={styles.confirmCancel}
             onClick={() => setConfirmFor(null)}
           >
-            {confirmIsRefine ? "Keep re-ranking" : "Keep ordering"}
+            {confirmIsRefine ? "Keep re-ranking" : "Keep ranking"}
           </button>
           <button
             type="button"
@@ -804,7 +924,7 @@ export const RankScreen = () => {
             </aside>
             <div className={styles.main}>{refineList}</div>
           </div>
-        ) : submitted ? (
+        ) : rankingDone ? (
           <div className={styles.deskBody}>
             <aside className={styles.rail}>
               {standingsHead}
@@ -825,6 +945,7 @@ export const RankScreen = () => {
             <div className={styles.main}>{editorList}</div>
           </div>
         )}
+        {submitNote}
         {confirmDialogEl}
         {detailDialogEl}
         {shareDialogEl}
@@ -855,7 +976,7 @@ export const RankScreen = () => {
           {refineList}
           <footer className={styles.submitBar}>{refineControls}</footer>
         </>
-      ) : !submitted ? (
+      ) : !rankingDone ? (
         <>
           {editorHeadline}
           {editorList}
@@ -870,6 +991,7 @@ export const RankScreen = () => {
         </>
       )}
 
+      {submitNote}
       {confirmDialogEl}
       {detailDialogEl}
       {shareDialogEl}

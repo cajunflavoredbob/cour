@@ -27,6 +27,7 @@
 }
 
 .retry {
+  composes: solidDisabled from "../shared.module.css";
   font-family: var(--cour-font-ui);
   font-weight: 600;
   font-size: 15px;

@@ -1,3 +1,4 @@
+import { useCallback, useEffect, useRef, useState } from "react";
 import { JoinScreen } from "./Join";
 import { LedgerStalled } from "./LedgerStalled";
 import { Loading } from "./Loading";
@@ -18,6 +19,16 @@ export const HomeScreen = () => {
     "ledgerStalled",
     "finalizing",
   ]);
+  // The lock ceremony hands focus to the ranking editor that follows it.
+  const lockCeremony = finalizing?.kind === "lock";
+  const lockedAt = review?.lockedAt;
+  const wasLockCeremony = useRef(lockCeremony);
+  const [fromLock, setFromLock] = useState(false);
+  useEffect(() => {
+    if (wasLockCeremony.current && !lockCeremony && lockedAt != null) setFromLock(true);
+    wasLockCeremony.current = lockCeremony;
+  }, [lockCeremony, lockedAt]);
+  const focusTaken = useCallback(() => setFromLock(false), []);
   if (!room?.joined) return <JoinScreen />;
   // Joined but the ledger hasn't arrived (post-join fetch in flight or
   // retrying): a joined user shown the join form reads as logged out
@@ -30,5 +41,5 @@ export const HomeScreen = () => {
   // Locked: standings are home, but "my review" stays reachable as a
   // read-only peek (audit 17 UX 6 -- the ledger used to become
   // unreachable forever the moment you locked).
-  return viewLockedReview ? <ReviewScreen /> : <RankScreen />;
+  return viewLockedReview ? <ReviewScreen /> : <RankScreen fromLock={fromLock} onFocusTaken={focusTaken} />;
 };

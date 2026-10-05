@@ -3,8 +3,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 
 const dispatch = vi.fn();
+const { connection } = vi.hoisted(() => ({
+  connection: { current: { connectionStatus: 'connected', rejoining: undefined as boolean | undefined } },
+}));
 vi.mock('../../../../web/app/src/store', () => ({
   useDispatch: () => dispatch,
+  useSelector: () => connection.current,
 }));
 
 import { LedgerStalled } from '../../../../web/app/src/components/screens/LedgerStalled';
@@ -12,6 +16,7 @@ import { LedgerStalled } from '../../../../web/app/src/components/screens/Ledger
 afterEach(() => {
   cleanup();
   dispatch.mockClear();
+  connection.current = { connectionStatus: 'connected', rejoining: undefined };
 });
 
 describe('LedgerStalled', () => {
@@ -26,5 +31,20 @@ describe('LedgerStalled', () => {
     render(<LedgerStalled />);
     fireEvent.click(screen.getByText('try again'));
     expect(dispatch).toHaveBeenCalledWith({ type: 'review' });
+  });
+
+  it('holds the retry until the room is rejoined', () => {
+    connection.current = { connectionStatus: 'connected', rejoining: true };
+    render(<LedgerStalled />);
+    const retry = screen.getByText('try again') as HTMLButtonElement;
+    expect(retry.disabled).toBe(true);
+    fireEvent.click(retry);
+    expect(dispatch).not.toHaveBeenCalled();
+  });
+
+  it('holds the retry while disconnected', () => {
+    connection.current = { connectionStatus: 'disconnected', rejoining: undefined };
+    render(<LedgerStalled />);
+    expect((screen.getByText('try again') as HTMLButtonElement).disabled).toBe(true);
   });
 });

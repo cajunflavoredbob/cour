@@ -83,6 +83,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 
 describe('SharePreview', () => {
@@ -100,7 +101,7 @@ describe('SharePreview', () => {
   it("repeats the card's status, and says which standings once the refine round is open", () => {
     show(ready(), card(), true);
     expect(screen.getByText('ALL PICKS · ALL 2 RANKINGS IN · FINAL')).toBeDefined();
-    expect(screen.queryByText(/standings so far/)).toBeNull();
+    expect(screen.queryByText(/hasn't ranked yet|Not every ranking is in yet/)).toBeNull();
   });
 
   it('warns that live standings are a snapshot, naming who is still out', () => {
@@ -148,7 +149,7 @@ describe('SharePreview', () => {
     await act(async () => {
       fireEvent.click(primary());
     });
-    expect(caption()).toBe("SHARING DIDN'T WORK · SAVE IT INSTEAD");
+    expect(caption()).toBe("COULDN'T SHARE · SAVE IT INSTEAD");
     expect(primary().textContent).toBe('Save image');
     fireEvent.click(primary());
     expect(downloadMock).toHaveBeenCalledWith(blob, 'cour-fall-2026-couch-coop.png');
@@ -202,6 +203,7 @@ describe('SharePreview', () => {
 
   it('keeps offering the download once a share was refused', async () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const now = vi.spyOn(performance, 'now').mockReturnValue(10_000);
     shareMock.mockRejectedValue(new DOMException('no', 'NotAllowedError'));
     show();
     await act(async () => {
@@ -209,9 +211,23 @@ describe('SharePreview', () => {
     });
     fireEvent.click(primary());
     expect(primary().textContent).toBe('Save image');
+    now.mockReturnValue(12_000);
     fireEvent.click(primary());
     expect(downloadMock).toHaveBeenCalledTimes(2);
     expect(shareMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('takes a double-click on Save image as one save, and a later click as another', () => {
+    finePointer = true;
+    const now = vi.spyOn(performance, 'now').mockReturnValue(10_000);
+    show();
+    fireEvent.click(primary());
+    now.mockReturnValue(10_300);
+    fireEvent.click(primary());
+    expect(downloadMock).toHaveBeenCalledTimes(1);
+    now.mockReturnValue(11_000);
+    fireEvent.click(primary());
+    expect(downloadMock).toHaveBeenCalledTimes(2);
   });
 
   it('takes one share at a time while the share sheet is open', async () => {

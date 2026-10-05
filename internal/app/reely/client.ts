@@ -38,7 +38,6 @@ import {
   MAX_USERNAME_LEN,
   MemberLockedError,
   NotLockedError,
-  NotSubmittedError,
   UsernameTakenError as CourUsernameTakenError,
 } from '../cour/store';
 import { refinedFor, refineRound } from '../cour/refine';
@@ -545,7 +544,7 @@ export class Client {
   }
 
   /**
-   * The room's results, built once: the shared standings, the member
+   * The room's results, built once: the room-wide standings, the member
    * states, and the refine round. The returned function adds one member's
    * own state.
    */
@@ -570,7 +569,6 @@ export class Client {
           refine: cour.refined.forUser(m.userId, roomId),
           refined: m.refinedAt != null,
         })),
-        true,
         standings.map((row) => row.titleId),
       )
       : undefined;
@@ -593,7 +591,7 @@ export class Client {
     });
   }
 
-  /** Per-member results payload: shared standings + their own state. */
+  /** Per-member results payload: the room-wide standings + their own state. */
   private buildResults(cour: CourStore, roomId: number, userId: number): RankingResults {
     return this.roomResults(cour, roomId)(userId);
   }
@@ -661,7 +659,7 @@ export class Client {
     }
     this.sendMessage({ type: 'submitRankingsSuccess' });
     // Live standings: every connected room member gets a fresh payload
-    // (their own mySubmitted/myRanking, the shared standings), so open
+    // (their own mySubmitted/myRanking, the room-wide standings), so open
     // results screens update the moment anyone submits.
     this.pushResults(ctx.cour, ctx.roomId);
   }
@@ -673,11 +671,14 @@ export class Client {
     if (!Array.isArray(raw) || !raw.every((id) => typeof id === 'number')) {
       this.sendMessage({
         type: 'submitRefinedRankingsError',
-        payload: { message: 'Invalid rankings payload.' },
+        payload: { message: 'Invalid order payload.' },
       });
       return;
     }
-    const refined = this.buildResults(ctx.cour, ctx.roomId, ctx.user.id).refined;
+    const results = this.buildResults(ctx.cour, ctx.roomId, ctx.user.id);
+    const refined = results.refined;
+    // The screen's own words for the shows every member kept.
+    const keptBy = results.memberCount === 2 ? 'you both kept' : 'everyone kept';
     if (!refined) {
       this.sendMessage({
         type: 'submitRefinedRankingsError',
@@ -689,7 +690,7 @@ export class Client {
     if (shared.size < 2) {
       this.sendMessage({
         type: 'submitRefinedRankingsError',
-        payload: { message: 'Re-ranking needs at least two shows everyone kept.' },
+        payload: { message: `Re-ranking needs at least two shows ${keptBy}.` },
       });
       return;
     }
@@ -698,14 +699,16 @@ export class Client {
     if (submitted.size !== raw.length || submitted.size !== shared.size || !raw.every((id) => shared.has(id))) {
       this.sendMessage({
         type: 'submitRefinedRankingsError',
-        payload: { message: 'The shows everyone kept just changed. Try again.' },
+        payload: { message: `The shows ${keptBy} just changed. Try again.` },
       });
       return;
     }
     try {
       ctx.cour.refined.submit(ctx.user.id, ctx.roomId, raw);
     } catch (err) {
-      const known = err instanceof NotSubmittedError || err instanceof AlreadyRefinedError;
+      // The open round already means this member submitted, so only a
+      // second re-rank is a known refusal.
+      const known = err instanceof AlreadyRefinedError;
       if (!known) logger.error(`submitRefinedRankings failed: ${String(err)}`);
       this.sendMessage({
         type: 'submitRefinedRankingsError',

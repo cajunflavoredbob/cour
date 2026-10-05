@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { renderStandingsCard } from '../../web/app/src/utils/renderStandingsCard';
+import { CARD_USUAL_HEIGHT, renderStandingsCard } from '../../web/app/src/utils/renderStandingsCard';
 import type { StandingsCardData } from '../../web/app/src/utils/standingsCard';
 
 // jsdom has no canvas: a 2D context that records the text drawn and measures
@@ -107,8 +107,27 @@ describe('renderStandingsCard', () => {
   });
 
   it('is complete when every font and poster made it', async () => {
-    const noPosters = card().standings.map((s) => ({ ...s, poster: undefined }));
-    expect((await renderStandingsCard(card({ standings: noPosters }))).complete).toBe(true);
+    Object.defineProperty(document, 'fonts', {
+      configurable: true,
+      value: { load: () => Promise.resolve([]), ready: Promise.resolve() },
+    });
+    // Each poster loads as soon as it is asked for.
+    const loads = vi.spyOn(HTMLImageElement.prototype, 'src', 'set').mockImplementation(function (this: HTMLImageElement) {
+      Promise.resolve().then(() => this.onload?.(new Event('load')));
+    });
+    try {
+      expect((await renderStandingsCard(card())).complete).toBe(true);
+      expect(loads).toHaveBeenCalledTimes(5);
+    } finally {
+      loads.mockRestore();
+      Reflect.deleteProperty(document, 'fonts');
+    }
+  });
+
+  it('takes the usual height, the placeholder\'s, for a full card with a runner title on two lines', async () => {
+    const standings = card().standings.map((s) => (s.rank === 2 ? { ...s, title: 'A Runner Title On Two Lines' } : s));
+    await drawnText(card({ standings }));
+    expect(contexts[0].canvas.height).toBe(CARD_USUAL_HEIGHT);
   });
 
   it('labels the strip with the scoring positions', async () => {

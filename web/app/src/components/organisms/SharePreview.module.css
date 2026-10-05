@@ -1,30 +1,18 @@
-/* The app's dialog grammar: the scrim, panel and pill pair of the confirm
-   dialogs. */
+/* The app's dialog grammar (shared.module.css). */
 .backdrop {
-  position: fixed;
-  inset: 0;
+  composes: scrim from "../shared.module.css";
   z-index: 600;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-  background: rgba(10, 7, 7, 0.7);
 }
 
 /* Every row at its own height except the image's, which takes what is
    left under the cap. Below 180px of image the dialog scrolls instead. */
 .dialog {
-  width: 100%;
+  composes: panel from "../shared.module.css";
   max-width: 400px;
   max-height: 85dvh;
   overflow-y: auto;
-  background: var(--cour-bg-1);
-  border: 1px solid var(--cour-line-strong);
-  border-radius: 20px;
-  padding: 22px 20px 18px;
   display: grid;
   grid-template-rows: auto auto minmax(180px, auto) auto;
-  gap: 12px;
 }
 
 /* Live standings add the sentence above the image. */
@@ -33,10 +21,7 @@
 }
 
 .title {
-  font-family: var(--cour-font-display);
-  font-weight: 600;
-  font-size: 26px;
-  color: var(--cour-text-0);
+  composes: dialogTitle from "../shared.module.css";
 }
 
 .context {
@@ -47,10 +32,7 @@
 }
 
 .text {
-  font-family: var(--cour-font-ui);
-  font-size: 13px;
-  line-height: 1.5;
-  color: var(--cour-text-1);
+  composes: dialogText from "../shared.module.css";
 }
 
 /* The image at its own shape, as large as its row allows. */
@@ -92,13 +74,13 @@
 }
 
 /* The buttons and caption stay in reach when a short screen scrolls the
-   dialog. Sticky offsets count from inside the dialog's padding, so -18px
-   is the footer's own resting place. */
+   dialog. Sticky offsets count from inside the dialog's padding, so the
+   negative end padding is the footer's own resting place. */
 .footer {
   position: sticky;
-  bottom: -18px;
-  margin: 0 -20px -18px;
-  padding: 0 20px 18px;
+  bottom: calc(-1 * var(--panel-pad-end));
+  margin: 0 calc(-1 * var(--panel-pad-x)) calc(-1 * var(--panel-pad-end));
+  padding: 0 var(--panel-pad-x) var(--panel-pad-end);
   background: var(--cour-bg-1);
   display: flex;
   flex-direction: column;
@@ -106,44 +88,15 @@
 }
 
 .actions {
-  display: flex;
-  gap: 10px;
-  margin-top: 2px;
+  composes: pillPair from "../shared.module.css";
 }
 
 .close {
-  flex: 1;
-  padding: 12px;
-  border: 1px solid var(--cour-line-strong);
-  border-radius: 999px;
-  background: transparent;
-  color: var(--cour-text-1);
-  font-family: var(--cour-font-ui);
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
+  composes: pillOutline from "../shared.module.css";
 }
 
 .primary {
-  flex: 1;
-  padding: 12px;
-  border: none;
-  border-radius: 999px;
-  background: var(--cour-accent);
-  color: white;
-  font-family: var(--cour-font-ui);
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  box-shadow: 0 8px 24px -8px var(--cour-accent);
-}
-
-/* Not ready yet: the guide's disabled pill, still focusable. */
-.primary[aria-disabled="true"] {
-  background: var(--cour-bg-2);
-  color: var(--cour-text-2);
-  cursor: default;
-  box-shadow: none;
+  composes: pillAccent from "../shared.module.css";
 }
 
 /* What happened, or what else works: one line, so nothing moves when it
