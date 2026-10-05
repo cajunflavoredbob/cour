@@ -3,6 +3,7 @@ import type { Media } from "../../../../../types/reely";
 import { AccountMenu } from "../organisms/AccountMenu";
 import { AppHeader } from "../organisms/AppHeader";
 import { DialogScrim } from "../molecules/DialogScrim";
+import { ShareStandingsButton } from "../molecules/ShareStandingsButton";
 import { DeckDetails } from "../organisms/DeckDetails";
 import { Loading } from "./Loading";
 import { useDragReorder } from "../../hooks/useDragReorder";
@@ -12,6 +13,8 @@ import { posterSrc } from "../../utils/poster";
 import { reconcileOrder } from "../../utils/rankOrder";
 import { useSeason } from "../../hooks/useSeason";
 import { SEASON_THEMES } from "../../utils/season";
+import { buildStandingsCard } from "../../utils/standingsCard";
+import { rankedByText, rankingsIn, standingsFinal } from "../../utils/standingsText";
 import styles from "./Rank.module.css";
 
 // The couple-profile point values, shown next to the top five slots so
@@ -81,11 +84,13 @@ export const RankScreen = () => {
   // on the loading pulse below until it lands (audit 17 H8) -- rendering
   // the live editor before mySubmitted is known showed it to already-
   // submitted users, whose re-submit then ate their edits.
+  // Only while connected: a tick queued across an outage would reach the
+  // server before the reconnect rejoins the room.
   useEffect(() => {
-    if (results) return;
+    if (results || connectionStatus !== "connected") return;
     const timer = setInterval(() => dispatch({ type: "results" }), 20_000);
     return () => clearInterval(timer);
-  }, [dispatch, results]);
+  }, [dispatch, results, connectionStatus]);
 
   // The ledger can arrive after mount (review fetch on join), and it can
   // CHANGE while this screen is open: the season refreshes daily for its
@@ -98,8 +103,13 @@ export const RankScreen = () => {
     setOrder((current) => reconcileOrder(current, likedIds));
   }, [likedIds]);
 
-  // Hook: must run before the early return below.
-  const { season } = useSeason();
+  // Hooks: must run before the early return below.
+  const { season, year } = useSeason();
+  const roomName = room ? (room.displayName ?? room.name) : "";
+  const standingsCard = useMemo(
+    () => (results && room ? buildStandingsCard({ results, season, year, roomName, mediaById }) : null),
+    [results, room, roomName, season, year, mediaById],
+  );
   const offline = connectionStatus !== "connected";
   const submitting = finalizing?.kind === "submit";
   const kanji = SEASON_THEMES[season].kanji;
@@ -132,7 +142,6 @@ export const RankScreen = () => {
   // The editor holds through the submit ceremony so the standings never
   // flash in early.
   const submitted = results.mySubmitted && !submitting;
-  const roomName = room.displayName ?? room.name;
 
   const move = (index: number, delta: number) => {
     setOrder((current) => {
@@ -182,7 +191,6 @@ export const RankScreen = () => {
             <span
               className={styles.grip}
               aria-hidden="true"
-              data-test-handle="rank-grip"
               data-drag-handle
             >
               <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
@@ -268,17 +276,20 @@ export const RankScreen = () => {
   // FINAL once every member has submitted; otherwise live, naming who is pending.
   const memberStates = members ?? results.members ?? [];
   const waitingOn = memberStates.filter((m) => !m.submitted).map((m) => m.userName);
-  const isFinal = results.memberCount > 0 && results.submittedCount >= results.memberCount;
+  const isFinal = standingsFinal(results.submittedCount, results.memberCount);
   const standingsHeadline = (
     <>
       <h1 className={styles.headline}>{season.toLowerCase()} standings.</h1>
       <p className={styles.contextLine}>
-        {isFinal
-          ? `ALL ${results.memberCount} RANKINGS IN · FINAL`
-          : `${results.submittedCount} OF ${results.memberCount} RANKINGS IN · UPDATES LIVE`}
+        {`${rankingsIn(results.submittedCount, results.memberCount)} · ${isFinal ? "FINAL" : "UPDATES LIVE"}`}
         {!isFinal && waitingOn.length > 0 &&
           ` · WAITING ON ${waitingOn.map((n) => n.toUpperCase()).join(", ")}`}
       </p>
+      {standingsCard && results.standings.length > 0 && (
+        <div className={styles.shareRow}>
+          <ShareStandingsButton card={standingsCard} />
+        </div>
+      )}
     </>
   );
 
@@ -286,6 +297,12 @@ export const RankScreen = () => {
   const visibleStandings = showAllStandings
     ? allStandings
     : allStandings.slice(0, STANDINGS_PREVIEW);
+
+  // " · RANKED BY ..." after a row's points, or nothing.
+  const rankedBySuffix = (names: readonly string[] | undefined, count: number) => {
+    const text = rankedByText(names, count);
+    return text ? ` · ${text}` : "";
+  };
 
   const standingsList = (desktop: boolean) => (
     <ul
@@ -316,12 +333,8 @@ export const RankScreen = () => {
               <span className={styles.rowTitle}>{titleOf(standing.titleId)}</span>
               <span className={styles.rowMeta}>
                 {standing.points} PTS
-                {/* Who ranked it (UX 7): names instead of an anonymous count. */}
-                {standing.rankedByNames?.length
-                  ? ` · RANKED BY ${standing.rankedByNames.map((n) => n.toUpperCase()).join(" + ")}`
-                  : standing.rankedBy > 1
-                    ? ` · RANKED BY ${standing.rankedBy}`
-                    : ""}
+                {/* Who ranked it: names instead of an anonymous count. */}
+                {rankedBySuffix(standing.rankedByNames, standing.rankedBy)}
               </span>
             </span>
           </button>

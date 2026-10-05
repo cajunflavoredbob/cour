@@ -6,6 +6,12 @@
   padding-top: 8px;
 }
 
+/* Offline: the buttons are disabled; dim them so they don't look live. */
+.row[data-offline="true"] button {
+  opacity: 0.5;
+  cursor: default;
+}
+
 /* Press feedback: a slight compress under the finger. */
 .dislikeBtn:active,
 .skipBtn:active,

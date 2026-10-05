@@ -67,6 +67,13 @@ describe('stripHtml', () => {
   it('collapses 3+ newlines and trims', () => {
     expect(stripHtml('  a<br><br><br><br>b  ')).toBe('a\n\nb');
   });
+
+  it('leaves unclosed angle brackets alone, in linear time', () => {
+    const text = '<'.repeat(60_000);
+    const started = performance.now();
+    expect(stripHtml(text)).toBe(text);
+    expect(performance.now() - started).toBeLessThan(250);
+  });
 });
 
 describe('normalizeMedia hostile-input guards (audit 17 M5)', () => {

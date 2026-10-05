@@ -1,91 +1,67 @@
 import { describe, it, expect } from 'vitest';
 import {
-  sanitizeInput,
   sanitizeRoomNameCanonical,
   sanitizeRoomNameDisplay,
+  sanitizeUserName,
 } from '../../internal/app/reely/util/sanitize';
 
-describe('sanitizeInput', () => {
-  it('passes clean strings through unchanged', () => {
-    expect(sanitizeInput('hello')).toBe('hello');
-    expect(sanitizeInput('My Room 123')).toBe('My Room 123');
-    expect(sanitizeInput('movie-night_2')).toBe('movie-night_2');
-  });
-
-  it('strips forward and back slashes', () => {
-    expect(sanitizeInput('foo/bar')).toBe('foobar');
-    expect(sanitizeInput('foo\\bar')).toBe('foobar');
-    expect(sanitizeInput('a/b\\c')).toBe('abc');
-  });
-
-  it('strips path traversal sequences', () => {
-    expect(sanitizeInput('../..')).toBe('');
-    expect(sanitizeInput('../../etc/passwd')).toBe('etcpasswd');
-    expect(sanitizeInput('foo/../bar')).toBe('foobar');
-    expect(sanitizeInput('....//secret')).toBe('secret');
-  });
-
-  it('strips null bytes', () => {
-    expect(sanitizeInput('foo\x00bar')).toBe('foobar');
-    expect(sanitizeInput('\x00')).toBe('');
+describe('sanitizeUserName', () => {
+  it('passes ordinary names through, trimmed', () => {
+    expect(sanitizeUserName('  user1  ')).toBe('user1');
+    expect(sanitizeUserName('AC/DC')).toBe('AC/DC');
+    expect(sanitizeUserName('dot.name')).toBe('dot.name');
+    expect(sanitizeUserName('user3\u{1F525}')).toBe('user3\u{1F525}');
   });
 
   it('strips control characters', () => {
-    expect(sanitizeInput('foo\x01bar')).toBe('foobar');
-    expect(sanitizeInput('foo\x1fbar')).toBe('foobar');
-    expect(sanitizeInput('foo\x7fbar')).toBe('foobar');
-    expect(sanitizeInput('\t\ntest\r')).toBe('test'); // tabs/newlines are control chars; trim handles edges
+    expect(sanitizeUserName('foo\x00bar')).toBe('foobar');
+    expect(sanitizeUserName('foo\x1fbar')).toBe('foobar');
+    expect(sanitizeUserName('foo\x7fbar')).toBe('foobar');
+    expect(sanitizeUserName('\t\ntest\r')).toBe('test');
   });
 
-  // Audit 13 #292: Unicode bidi-override + isolate codepoints can
-  // reverse rendering direction; an attacker can craft a username
-  // that displays as "user1" but stores as something else (or vice
-  // versa). Strip the whole U+202A-202E and U+2066-2069 range.
-  it('strips Unicode bidi-override and isolate characters', () => {
-    expect(sanitizeInput('user1\u{202E}tail')).toBe('user1tail');           // RLO
-    expect(sanitizeInput('\u{202A}lefttoright')).toBe('lefttoright');     // LRE
-    expect(sanitizeInput('\u{202B}righttoleft')).toBe('righttoleft');     // RLE
-    expect(sanitizeInput('\u{202C}pop')).toBe('pop');                     // PDF
-    expect(sanitizeInput('\u{202D}override')).toBe('override');           // LRO
-    expect(sanitizeInput('user1\u{2066}isolate')).toBe('user1isolate');   // LRI
-    expect(sanitizeInput('\u{2067}\u{2068}\u{2069}name')).toBe('name');   // RLI + FSI + PDI
+  it('strips bidi overrides and isolates', () => {
+    expect(sanitizeUserName('user1\u{202E}tail')).toBe('user1tail');
+    expect(sanitizeUserName('\u{202A}\u{202B}\u{202C}\u{202D}name')).toBe('name');
+    expect(sanitizeUserName('user1\u{2066}\u{2067}\u{2068}\u{2069}')).toBe('user1');
   });
 
-  // Zero-width characters and BOMs make "user1" + ZWSP + "extra"
-  // visually identical to "user1" but compare unequal -- the classic
-  // impersonation vector.
-  it('strips zero-width characters and BOM', () => {
-    expect(sanitizeInput('user1\u{200B}extra')).toBe('user1extra');       // ZWSP
-    expect(sanitizeInput('user1\u{200C}')).toBe('user1');                  // ZWNJ
-    expect(sanitizeInput('user1\u{200D}extra')).toBe('user1extra');       // ZWJ
-    expect(sanitizeInput('user1\u{2060}extra')).toBe('user1extra');       // word joiner
-    expect(sanitizeInput('\u{FEFF}user1')).toBe('user1');                  // BOM
+  it('strips zero-width spaces, word joiners and byte-order marks', () => {
+    expect(sanitizeUserName('user1\u{200B}extra')).toBe('user1extra');
+    expect(sanitizeUserName('user1\u{2060}extra')).toBe('user1extra');
+    expect(sanitizeUserName('\u{FEFF}user1')).toBe('user1');
   });
 
-  it('trims surrounding whitespace', () => {
-    expect(sanitizeInput('  hello  ')).toBe('hello');
-    expect(sanitizeInput('  ')).toBe('');
+  it('strips other invisible and formatting characters', () => {
+    expect(sanitizeUserName('user1\u{00AD}')).toBe('user1');
+    expect(sanitizeUserName('\u{200E}user1\u{200F}')).toBe('user1');
+    expect(sanitizeUserName('user1\u{061C}\u{034F}')).toBe('user1');
+    expect(sanitizeUserName('user1\u{0085}')).toBe('user1');
+    expect(sanitizeUserName('user1\u{2061}\u{206A}')).toBe('user1');
+    expect(sanitizeUserName('\u{3164}\u{FFA0}\u{115F}user1\u{180E}')).toBe('user1');
   });
 
-  it('enforces default maxLength of 64', () => {
-    expect(sanitizeInput('a'.repeat(100))).toBe('a'.repeat(64));
-    expect(sanitizeInput('a'.repeat(64))).toBe('a'.repeat(64));
-    expect(sanitizeInput('a'.repeat(63))).toBe('a'.repeat(63));
+  it('keeps the joiners that emoji sequences and scripts need inside a name', () => {
+    const flag = '\u{1F3F3}\u{FE0F}\u{200D}\u{1F308}';
+    expect(sanitizeUserName(flag)).toBe(flag);
+    const zwnj = 'mi\u{200C}name';
+    expect(sanitizeUserName(zwnj)).toBe(zwnj);
   });
 
-  it('enforces a custom maxLength', () => {
-    expect(sanitizeInput('abcdef', 3)).toBe('abc');
-    expect(sanitizeInput('ab', 3)).toBe('ab');
+  it('trims in linear time, whatever runs of spaces sit inside', () => {
+    const name = `a${' '.repeat(60_000)}a`;
+    const started = performance.now();
+    expect(sanitizeUserName(` ${name} `)).toBe(name);
+    expect(performance.now() - started).toBeLessThan(250);
   });
 
-  it('applies maxLength after stripping, not before', () => {
-    // '..abc' -> strip '..' -> 'abc'; slice to 2 -> 'ab'
-    expect(sanitizeInput('..abc', 2)).toBe('ab');
+  it('drops joiners at either end, where they join nothing', () => {
+    expect(sanitizeUserName('\u{200D}user1\u{200C}')).toBe('user1');
+    expect(sanitizeUserName(' \u{200D} user1 \u{200C} ')).toBe('user1');
   });
 
-  it('returns empty string for input composed entirely of stripped characters', () => {
-    expect(sanitizeInput('../../../')).toBe('');
-    expect(sanitizeInput('/\\\x00\x1f')).toBe('');
+  it('returns an empty string for a name made only of stripped characters', () => {
+    expect(sanitizeUserName('\u{202E}\u{200B} \x00')).toBe('');
   });
 });
 
@@ -153,27 +129,5 @@ describe('sanitizeRoomNameCanonical', () => {
 
   it('returns empty for entirely-invalid input', () => {
     expect(sanitizeRoomNameCanonical('###?')).toBe('');
-  });
-});
-
-// Audit 16 #440: the single-pass strip was non-idempotent -- removing a
-// stripped character sitting between two dots reconstructed the literal
-// '..' the pattern exists to remove. sanitizeInput now strips to a
-// fixpoint via the shared stripDangerous helper.
-describe('sanitizeInput strip idempotency (audit 16 #440)', () => {
-  it.each([
-    ['./.', ''],
-    ['.\x00.', ''],
-    // backslash between dots -- the '.\\.' case named in stripDangerous's
-    // own comment (was mistyped '.\.' === '..', which tests dot-collapse
-    // but not separator-between-dots)
-    ['.\\.', ''],
-    ['a./.b', 'ab'],
-    ['a.​.b', 'ab'], // zero-width space between dots
-    ['....//secret', 'secret'],
-  ])('sanitizeInput(%j) contains no ".." (-> %j)', (input, expected) => {
-    const out = sanitizeInput(input);
-    expect(out).not.toContain('..');
-    expect(out).toBe(expected);
   });
 });

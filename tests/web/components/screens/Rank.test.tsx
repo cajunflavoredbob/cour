@@ -85,6 +85,19 @@ describe('RankScreen results gate (audit 17 H8)', () => {
     expect(screen.getByRole('status')).toBeDefined(); // wordmark pulse
     expect(dispatch).toHaveBeenCalledWith({ type: 'results' });
   });
+
+  it('keeps asking for results every 20s, but only while connected', () => {
+    withState({ results: undefined, connectionStatus: 'connecting' });
+    const { rerender } = render(<RankScreen />);
+    dispatch.mockClear();
+    vi.advanceTimersByTime(20_000);
+    expect(dispatch).not.toHaveBeenCalledWith({ type: 'results' });
+    withState({ results: undefined, connectionStatus: 'connected' });
+    rerender(<RankScreen />);
+    dispatch.mockClear();
+    vi.advanceTimersByTime(20_000);
+    expect(dispatch).toHaveBeenCalledWith({ type: 'results' });
+  });
 });
 
 describe('RankScreen editor (before submitting)', () => {
@@ -163,6 +176,19 @@ describe('RankScreen drag auto-scroll on a phone', () => {
   it('scrolls while a row is held just above the submit bar', () => {
     const { container } = render(<RankScreen />);
     dragTo(container, BAR_TOP - 10);
+    expect(document.documentElement.scrollTop).toBeGreaterThan(0);
+  });
+
+  it('ignores a small wobble from a press already inside the zone', () => {
+    const { container } = render(<RankScreen />);
+    (container.querySelector('footer') as HTMLElement).style.position = 'sticky';
+    const grip = container.querySelectorAll('[data-reorder-id] [data-drag-handle]')[1] as HTMLElement;
+    fireEvent.pointerDown(grip, { pointerId: 1, pointerType: 'touch', button: 0, buttons: 1, clientX: 20, clientY: 610 });
+    fireEvent.pointerMove(window, { pointerId: 1, pointerType: 'touch', buttons: 1, clientX: 20, clientY: 615 });
+    frames.shift()?.(0);
+    expect(document.documentElement.scrollTop).toBe(0);
+    fireEvent.pointerMove(window, { pointerId: 1, pointerType: 'touch', buttons: 1, clientX: 20, clientY: 625 });
+    frames.shift()?.(0);
     expect(document.documentElement.scrollTop).toBeGreaterThan(0);
   });
 
@@ -298,6 +324,20 @@ describe('RankScreen standings (after submitting)', () => {
     expect(screen.queryByText('Submit rankings')).toBeNull();
   });
 
+  it('says FINAL for a room of one in the singular', () => {
+    withState({
+      results: {
+        ...standings,
+        submittedCount: 1,
+        memberCount: 1,
+        standings: [{ titleId: 101, points: 12, bestRank: 1, rankedBy: 1, rankedByNames: ['user1'], rank: 1 }],
+      },
+    });
+    render(<RankScreen />);
+    expect(screen.getByText(/1 RANKING IN · FINAL/)).toBeDefined();
+    expect(screen.getByText(/12 PTS · RANKED BY USER1/)).toBeDefined();
+  });
+
   it('says FINAL once everyone is in, and names the rankers (audit 17 UX 7/11)', () => {
     withState({
       results: {
@@ -322,11 +362,11 @@ describe('RankScreen standings (after submitting)', () => {
       results: standings,
       members: [
         { userName: 'user1', locked: true, submitted: true },
-        { userName: 'girlfriend', locked: true, submitted: false },
+        { userName: 'user2', locked: true, submitted: false },
       ],
     });
     render(<RankScreen />);
-    expect(screen.getByText(/UPDATES LIVE · WAITING ON GIRLFRIEND/)).toBeDefined();
+    expect(screen.getByText(/UPDATES LIVE · WAITING ON USER2/)).toBeDefined();
   });
 
   it('a standings row opens the read-only details drawer (audit 17 UX 4)', () => {

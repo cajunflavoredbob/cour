@@ -13,6 +13,40 @@ repository; this changelog starts fresh at 0.1.0.
 
 ---
 
+## [1.4.0] - 2026-10-04
+
+The standings can now be shared as an image, and dragging and coming back
+to cour after leaving the page both work better.
+
+### Added
+- Share the standings as an image card: the top five with their posters
+  and points, whose #1 each show is, and whether every ranking is in.
+  Where the browser can share files it opens the share sheet; elsewhere it
+  saves the image.
+
+### Fixed
+- On phones, holding a dragged row near the top or bottom of the visible
+  list scrolls it. The bottom edge used to sit under the submit button,
+  and the top under the status bar in the installed app.
+- Dragging a row up no longer overshoots several slots at a time.
+- A slight wobble when pressing a row near the edge no longer starts
+  scrolling.
+- If the layout switches between phone and desktop in the middle of a drag,
+  for example by rotating a large phone, the drag ends where it was instead
+  of dropping the row into the last slot.
+- While dragging with a mouse, the grabbing cursor stays on across the page.
+- Coming back to cour with the Back button no longer flashes a red
+  "Disconnected" or other false errors while it reconnects. If it can't
+  reconnect within a few seconds, "Disconnected" shows as before.
+- Losing the connection while cour is opening your room no longer leaves
+  it stuck on the loading screen.
+- Submit, Lock in and the verdict buttons look disabled while cour is
+  offline.
+- A room of one reads "1 RANKING IN" instead of "ALL 1 RANKINGS IN".
+- New names drop invisible characters and text-direction controls, which
+  could make a name look like someone else's or scramble the text around
+  it. Names already in use log in exactly as before.
+
 ## [1.3.13] - 2026-10-02
 
 Dragging to reorder your ranking now works properly with a mouse, and

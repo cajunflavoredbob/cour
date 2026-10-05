@@ -26,6 +26,7 @@ import { loadRoom, resolveRoomSeason, saveRoom } from './roomStore';
 import {
   sanitizeRoomNameCanonical,
   sanitizeRoomNameDisplay,
+  sanitizeUserName,
 } from './util/sanitize';
 import { getConfig } from './config/main';
 import {
@@ -208,7 +209,19 @@ export class Client {
       this.sendMessage({ type: 'loginError', payload: { message: 'Invalid login payload.' } });
       return;
     }
-    const userName = raw.trim();
+    // Far longer than any name, even one carrying invisible characters:
+    // refused before any cleaning or lookup.
+    if (raw.length > MAX_USERNAME_LEN * 8) {
+      this.sendMessage({
+        type: 'loginError',
+        payload: { message: `Names are 1 to ${MAX_USERNAME_LEN} characters.` },
+      });
+      return;
+    }
+    // A name already on file logs in as stored; only a new name is cleaned.
+    const typed = raw.trim();
+    const existing = typed ? cour.users.byName(typed) : undefined;
+    const userName = existing?.username ?? sanitizeUserName(raw);
     if (userName.length < 1 || userName.length > MAX_USERNAME_LEN) {
       this.sendMessage({
         type: 'loginError',
@@ -230,7 +243,7 @@ export class Client {
     }
     // First sight creates the row (case-insensitive: the same name in any
     // casing is the same person); verdicts and locks hang off it forever.
-    let user = cour.users.byName(userName);
+    let user = existing ?? cour.users.byName(userName);
     if (!user) {
       if (cour.users.count() >= MAX_USERS) {
         this.sendMessage({

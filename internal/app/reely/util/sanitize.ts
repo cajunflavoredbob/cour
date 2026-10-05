@@ -1,20 +1,25 @@
-// Server-side sanitizers. Pattern constants live in types/sanitize.ts
-// (audit 15 #392) so the web's per-keystroke sanitizer can share them
-// -- previously each side maintained its own copy and they had drifted
-// on flag use + alternation-vs-sequential strip form.
-import {
-  ROOM_NAME_ALLOWLIST,
-  ROOM_NAME_MAX_LEN,
-  stripDangerous,
-} from '../../../../types/sanitize';
+// Server-side sanitizers. The room-name rules live in types/sanitize.ts.
+import { ROOM_NAME_ALLOWLIST, ROOM_NAME_MAX_LEN } from '../../../../types/sanitize';
 
-// Applied to user input that touches the filesystem or untrusted code
-// paths (usernames). Strips via the shared fixpoint helper (audit 16
-// #440 -- a single pass reconstructed '..' from inputs like './.');
-// trims and length-caps locally (web omits trim because trimming
-// per-keystroke prevents typing spaces).
-export const sanitizeInput = (raw: string, maxLength = 64): string =>
-  stripDangerous(raw).trim().slice(0, maxLength);
+// Characters a new user name must not carry: C0 and C1 controls, bidi
+// formatting characters and marks (they reorder the text drawn around the
+// name), and invisible characters (zero-width space, word joiner, BOM, soft
+// hyphen, combining grapheme joiner, invisible operators, fillers). ZWJ and
+// ZWNJ stay inside a name, since emoji sequences and some scripts need them.
+// biome-ignore lint/suspicious/noControlCharactersInRegex: stripping control characters is the point.
+const USER_NAME_STRIP = /[\x00-\x1f\x7f-\x9f\u{00AD}\u{061C}\u{115F}\u{1160}\u{180E}\u{200B}\u{200E}\u{200F}\u{202A}-\u{202E}\u{2060}-\u{2064}\u{2066}-\u{206F}\u{3164}\u{FEFF}\u{FFA0}]|\u{034F}/gu;
+// Whitespace and joiners, trimmed from either end; a joiner there joins nothing.
+const isNameEdge = (unit: string) => unit === '\u200C' || unit === '\u200D' || /\s/u.test(unit);
+
+// A new user name without those characters, trimmed (in linear time).
+export const sanitizeUserName = (raw: string): string => {
+  const name = raw.replace(USER_NAME_STRIP, '');
+  let start = 0;
+  let end = name.length;
+  while (start < end && isNameEdge(name[start])) start++;
+  while (end > start && isNameEdge(name[end - 1])) end--;
+  return name.slice(start, end);
+};
 
 // Display form of a room name -- what the UI shows. Trim and apply the
 // allowlist but preserve case. Returns the empty string if the input has

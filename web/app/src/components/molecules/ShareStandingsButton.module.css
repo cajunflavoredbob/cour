@@ -1,0 +1,23 @@
+.button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 16px;
+  border: 1px solid var(--cour-line-strong);
+  border-radius: var(--cour-radius-btn);
+  background: transparent;
+  font-family: var(--cour-font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--cour-accent-bright);
+  cursor: pointer;
+}
+
+.button:hover:not([aria-disabled="true"]) {
+  border-color: var(--cour-accent);
+}
+
+.button[aria-disabled="true"] {
+  opacity: 0.6;
+  cursor: default;
+}

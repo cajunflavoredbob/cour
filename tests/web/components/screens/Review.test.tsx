@@ -155,7 +155,7 @@ describe('ReviewScreen (design section 07)', () => {
     withState({
       members: [
         { userName: 'user1', locked: true, submitted: false },
-        { userName: 'girlfriend', locked: false, submitted: false },
+        { userName: 'user2', locked: false, submitted: false },
       ],
     });
     render(<ReviewScreen />);

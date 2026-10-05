@@ -103,6 +103,21 @@ describe('VerdictRow', () => {
     expect(dispatch).not.toHaveBeenCalled();
   });
 
+  it('marks the row offline so the disabled buttons dim', async () => {
+    const { useSelector } = await import('../../../../web/app/src/store');
+    vi.mocked(useSelector).mockReturnValueOnce(
+      // biome-ignore lint/suspicious/noExplicitAny: partial store slice; the component only picks connectionStatus.
+      { connectionStatus: 'connecting' } as any,
+    );
+    const { container } = render(<VerdictRow titleId={101} remaining={12} />);
+    expect((container.firstElementChild as HTMLElement).dataset.offline).toBe('true');
+  });
+
+  it('leaves the row unmarked while connected', () => {
+    const { container } = render(<VerdictRow titleId={101} remaining={12} />);
+    expect((container.firstElementChild as HTMLElement).dataset.offline).toBe('false');
+  });
+
   it('held Enter/Space on the Unsure button fires ONE skip (audit v1.2.0 #10)', () => {
     render(<VerdictRow titleId={101} remaining={12} />);
     const skip = document.querySelector('[data-test-handle="verdict-skip"]') as HTMLElement;

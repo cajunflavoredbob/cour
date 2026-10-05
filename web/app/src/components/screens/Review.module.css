@@ -327,6 +327,13 @@
   box-shadow: 0 8px 24px -8px var(--cour-accent);
 }
 
+/* Ready but offline. */
+.lockBtn[data-complete="true"]:disabled {
+  opacity: 0.5;
+  cursor: default;
+  box-shadow: none;
+}
+
 .lockCaption {
   margin: 8px 0 0;
   text-align: center;

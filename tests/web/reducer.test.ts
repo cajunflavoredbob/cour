@@ -487,7 +487,7 @@ describe('reducer join/rejoin room-state handling', () => {
 describe('reducer roomPulse', () => {
   const members = [
     { userName: 'user1', locked: true, submitted: false },
-    { userName: 'girlfriend', locked: false, submitted: false },
+    { userName: 'user2', locked: false, submitted: false },
   ];
 
   it('updates member state without a toast when the room is not yet locked', () => {

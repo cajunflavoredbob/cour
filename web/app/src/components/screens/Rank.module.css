@@ -192,6 +192,12 @@
   box-shadow: 0 8px 24px -8px var(--cour-accent);
 }
 
+.submitBtn:disabled {
+  opacity: 0.5;
+  cursor: default;
+  box-shadow: none;
+}
+
 .submitCaption {
   margin: 8px 0 0;
   text-align: center;
@@ -439,7 +445,6 @@
 .row[data-dragging="true"] {
   position: relative;
   z-index: 2;
-  cursor: grabbing;
   background: var(--cour-bg-2);
   border-radius: 10px;
   box-shadow: 0 10px 28px -10px rgba(0, 0, 0, 0.6);
@@ -461,6 +466,16 @@
 .standingsHead {
   flex-shrink: 0;
   margin-bottom: 18px;
+}
+
+/* The share button under the standings headline. */
+.shareRow {
+  display: flex;
+  margin-bottom: 20px;
+}
+
+.standingsHead .shareRow {
+  margin-bottom: 0;
 }
 
 /* Only the standings list scrolls; the headline stays put. */

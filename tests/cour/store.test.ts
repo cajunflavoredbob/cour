@@ -1,4 +1,7 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { openDb } from '../../internal/app/cour/db';
 import { createCourStore, type CourStore } from '../../internal/app/cour/store';
 
@@ -12,8 +15,17 @@ beforeEach(() => {
   store = createCourStore(db);
 });
 
+// Temp directories made by the on-disk migration tests, removed after each test.
+const tempDirs: string[] = [];
+const tempDbPath = (prefix: string) => {
+  const dir = mkdtempSync(join(tmpdir(), prefix));
+  tempDirs.push(dir);
+  return join(dir, 'cour.db');
+};
+
 afterEach(() => {
   vi.useRealTimers();
+  for (const dir of tempDirs.splice(0)) rmSync(dir, { recursive: true, force: true });
 });
 
 describe('users', () => {
@@ -53,10 +65,7 @@ describe('schema', () => {
 describe('schema migration v3 (joined_at)', () => {
   it('adds joined_at to a pre-v3 database in place', () => {
     const { DatabaseSync } = require('node:sqlite');
-    const { mkdtempSync } = require('node:fs');
-    const { tmpdir } = require('node:os');
-    const { join } = require('node:path');
-    const path = join(mkdtempSync(join(tmpdir(), 'cour-mig-')), 'cour.db');
+    const path = tempDbPath('cour-mig-');
     // Build a v2-shaped database: room_members WITHOUT joined_at.
     const old = new DatabaseSync(path);
     old.exec(`
@@ -79,16 +88,14 @@ describe('schema migration v3 (joined_at)', () => {
     s2.members.ensure(r.id, u.id);
     // joined_at is written on the migrated column without erroring.
     expect(s2.members.list(r.id)).toHaveLength(1);
+    migrated.close();
   });
 });
 
 describe('schema migration v4 (sessions dropped)', () => {
   it('drops the sessions table from a pre-v4 database', () => {
     const { DatabaseSync } = require('node:sqlite');
-    const { mkdtempSync } = require('node:fs');
-    const { tmpdir } = require('node:os');
-    const { join } = require('node:path');
-    const path = join(mkdtempSync(join(tmpdir(), 'cour-mig4-')), 'cour.db');
+    const path = tempDbPath('cour-mig4-');
     const old = new DatabaseSync(path);
     old.exec(`
       CREATE TABLE users (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT NOT NULL UNIQUE COLLATE NOCASE, password_hash TEXT NOT NULL, role TEXT NOT NULL DEFAULT 'user', sound_pref INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL);
@@ -104,5 +111,6 @@ describe('schema migration v4 (sessions dropped)', () => {
     expect(tables.map((t) => t.name)).not.toContain('sessions');
     const version = migrated.prepare('PRAGMA user_version').get() as { user_version: number };
     expect(version.user_version).toBeGreaterThanOrEqual(4);
+    migrated.close();
   });
 });

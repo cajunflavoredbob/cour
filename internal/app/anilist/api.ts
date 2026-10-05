@@ -91,7 +91,7 @@ query ($season: MediaSeason!, $seasonYear: Int!, $page: Int!, $perPage: Int!) {
 export const stripHtml = (html: string): string =>
   html
     .replace(/<br\s*\/?>/gi, '\n')
-    .replace(/<[^>]+>/g, '')
+    .replace(/<[^<>]+>/g, '')
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
     .replace(/&quot;/g, '"')

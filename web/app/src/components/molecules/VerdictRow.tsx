@@ -31,11 +31,8 @@ const SKIP_ALL_HOLD_MS = 1500;
  */
 export const VerdictRow = ({ titleId, remaining, allowSkipAll = true, currentVerdict }: VerdictRowProps) => {
   const dispatch = useDispatch();
-  // Verdicts tapped while disconnected used to park until the socket
-  // reopened, then fire BEFORE the auto-relogin/rejoin completed -- the
-  // server answered "Set your name first." and the verdict was lost
-  // (audit 17 M7). Disable the controls instead; the Disconnected toast
-  // explains why.
+  // Verdicts are disabled while offline, since one sent before the
+  // reconnect logs back in is lost; the row is dimmed then.
   const { connectionStatus } = useSelector(["connectionStatus"]) ?? {};
   const offline = connectionStatus !== "connected";
   const [holding, setHolding] = useState(false);
@@ -136,7 +133,7 @@ export const VerdictRow = ({ titleId, remaining, allowSkipAll = true, currentVer
   };
 
   return (
-    <div className={styles.row}>
+    <div className={styles.row} data-offline={offline}>
       <button
         type="button"
         className={styles.dislikeBtn}

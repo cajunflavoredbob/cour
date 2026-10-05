@@ -18,6 +18,8 @@ const DRAG_THRESHOLD_PX = 4;
 // Auto-scroll zone at the ends of the visible list, and its top speed per frame.
 const EDGE_PX = 48;
 const MAX_SCROLL_PX = 12;
+// Travel toward an end, past the press point, before that end's auto-scroll arms.
+const EDGE_ARM_PX = 8;
 
 const sameOrder = (a: readonly number[], b: readonly number[]) =>
   a.length === b.length && a.every((x, i) => x === b[i]);
@@ -95,12 +97,12 @@ const visibleBand = (list: HTMLElement, scroller: HTMLElement): (() => Band) => 
 };
 
 // Pixels to scroll this frame toward the end of `band` the pointer is
-// pushing against (it must have moved toward that end since the press),
-// else 0.
+// pushing against (it must have moved more than EDGE_ARM_PX toward that end
+// since the press), else 0.
 const autoScrollStep = ({ top, bottom }: Band, y: number, startY: number): number => {
   let push = 0;
-  if (y < startY && y < top + EDGE_PX) push = -(top + EDGE_PX - y);
-  else if (y > startY && y > bottom - EDGE_PX) push = y - (bottom - EDGE_PX);
+  if (y < startY - EDGE_ARM_PX && y < top + EDGE_PX) push = -(top + EDGE_PX - y);
+  else if (y > startY + EDGE_ARM_PX && y > bottom - EDGE_PX) push = y - (bottom - EDGE_PX);
   if (push === 0) return 0;
   const speed = Math.round((Math.min(EDGE_PX, Math.abs(push)) / EDGE_PX) * MAX_SCROLL_PX);
   return Math.sign(push) * Math.max(1, speed);

@@ -251,14 +251,19 @@ describe('RankScreen desktop editor', () => {
       expect(titles(container)).toEqual(['Iron Bloom', 'Second Show']);
     });
 
-    it('unmounting mid-drag detaches the window listeners', () => {
-      const removed = vi.spyOn(window, 'removeEventListener');
+    it('unmounting mid-drag removes every window listener the drag added', () => {
       const { container, unmount } = render(<RankScreen />);
+      const added = vi.spyOn(window, 'addEventListener');
+      const removed = vi.spyOn(window, 'removeEventListener');
       press(titleOf(rows(container)[0]), 30);
       move(100);
       unmount();
-      const types = removed.mock.calls.map(([type]) => type);
-      expect(types).toEqual(expect.arrayContaining(['pointermove', 'pointerup', 'pointercancel', 'keydown']));
+      const capture = (opts: unknown) =>
+        opts === true || (typeof opts === 'object' && opts !== null && (opts as AddEventListenerOptions).capture === true);
+      expect(added).toHaveBeenCalled();
+      for (const [type, fn, opts] of added.mock.calls) {
+        expect(removed.mock.calls.some(([t, f, o]) => t === type && f === fn && capture(o) === capture(opts))).toBe(true);
+      }
     });
   });
 
@@ -331,6 +336,18 @@ describe('RankScreen desktop standings', () => {
     expect(screen.getByText('user1')).toBeDefined();
     expect(screen.getByText('user6')).toBeDefined();
     expect(picks[0].textContent).toContain('Second Show');
+  });
+
+  it('offers the standings as an image', () => {
+    withState({ results: standings });
+    render(<RankScreen />);
+    expect(document.querySelector('[data-test-handle="share-standings"]')?.textContent).toBe('SAVE IMAGE');
+  });
+
+  it('offers no image while there are no standings yet', () => {
+    withState({ results: { ...standings, standings: [] } });
+    render(<RankScreen />);
+    expect(document.querySelector('[data-test-handle="share-standings"]')).toBeNull();
   });
 
   it('renders the elevated list with #1 as the hero row', () => {

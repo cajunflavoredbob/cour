@@ -113,6 +113,58 @@ describe('login (passwordless identity)', () => {
     expect(cour.users.byName('user1')?.username).toBe('User1');
   });
 
+  it('claims a new name without bidi controls or invisible marks', async () => {
+    const { ws } = makeClient();
+    push(ws, { type: 'login', payload: { userName: 'user1\u{202E}\u{200B}' } });
+    await flush();
+    expect(last(ws, 'loginSuccess')?.payload.userName).toBe('user1');
+    expect(cour.users.byName('user1')?.username).toBe('user1');
+  });
+
+  it('logs a name already on file in as stored, invisible marks and all', async () => {
+    cour.users.create('user1\u{200B}');
+    const { ws } = makeClient();
+    push(ws, { type: 'login', payload: { userName: 'user1\u{200B}' } });
+    await flush();
+    expect(last(ws, 'loginSuccess')?.payload.userName).toBe('user1\u{200B}');
+    expect(cour.users.count()).toBe(1);
+  });
+
+  it('logs in a name on file made only of characters a new name may not carry', async () => {
+    cour.users.create('\u{3164}');
+    const { ws } = makeClient();
+    push(ws, { type: 'login', payload: { userName: '\u{3164}' } });
+    await flush();
+    expect(last(ws, 'loginSuccess')?.payload.userName).toBe('\u{3164}');
+    expect(cour.users.count()).toBe(1);
+  });
+
+  it('refuses an overlong name before cleaning or looking it up', async () => {
+    const { ws } = makeClient();
+    // Cleans down to a valid "ab", but no real name is this long.
+    push(ws, { type: 'login', payload: { userName: `a${'\u{200B}'.repeat(300)}b` } });
+    await flush();
+    expect(last(ws, 'loginError')?.payload.message).toMatch(/1 to \d+ characters/);
+    expect(cour.users.count()).toBe(0);
+  });
+
+  it('reads a look-alike of a name on file as that name', async () => {
+    cour.users.create('user1');
+    const { ws } = makeClient();
+    push(ws, { type: 'login', payload: { userName: 'user1\u{2060}' } });
+    await flush();
+    expect(last(ws, 'loginSuccess')?.payload.userName).toBe('user1');
+    expect(cour.users.count()).toBe(1);
+  });
+
+  it('refuses a name made only of stripped characters', async () => {
+    const { ws } = makeClient();
+    push(ws, { type: 'login', payload: { userName: '\u{202E}\u{200B}' } });
+    await flush();
+    expect(last(ws, 'loginError')?.payload.message).toMatch(/1 to \d+ characters/);
+    expect(cour.users.count()).toBe(0);
+  });
+
   it('re-claims are case-insensitive: USER1 is user1', async () => {
     cour.users.create('User1');
     const { ws } = makeClient();
@@ -318,80 +370,80 @@ describe('verdict / review / lockIn', () => {
 
   it('lockIn seals verdicts; ranking is the post-lock phase', async () => {
     const room = makeWsRoom();
-    const { ws: wsK } = await authedInRoom('user1', room);
-    const { ws: wsG } = await authedInRoom('girlfriend', room);
+    const { ws: ws1 } = await authedInRoom('user1', room);
+    const { ws: ws2 } = await authedInRoom('user0', room);
     // Complete decks: lock-in requires a verdict on every title now.
-    push(wsK, { type: 'verdict', payload: { titleId: 101, verdict: 'like' } });
-    push(wsK, { type: 'verdict', payload: { titleId: 102, verdict: 'skip' } });
-    push(wsG, { type: 'verdict', payload: { titleId: 101, verdict: 'like' } });
-    push(wsG, { type: 'verdict', payload: { titleId: 102, verdict: 'skip' } });
+    push(ws1, { type: 'verdict', payload: { titleId: 101, verdict: 'like' } });
+    push(ws1, { type: 'verdict', payload: { titleId: 102, verdict: 'skip' } });
+    push(ws2, { type: 'verdict', payload: { titleId: 101, verdict: 'like' } });
+    push(ws2, { type: 'verdict', payload: { titleId: 102, verdict: 'skip' } });
     await flush();
 
-    push(wsK, { type: 'lockIn' });
+    push(ws1, { type: 'lockIn' });
     await flush();
-    expect(last(wsK, 'lockInSuccess')?.payload.roomLocked).toBe(false);
+    expect(last(ws1, 'lockInSuccess')?.payload.roomLocked).toBe(false);
 
-    push(wsG, { type: 'lockIn' });
+    push(ws2, { type: 'lockIn' });
     await flush();
-    expect(last(wsG, 'lockInSuccess')?.payload.roomLocked).toBe(true);
+    expect(last(ws2, 'lockInSuccess')?.payload.roomLocked).toBe(true);
 
     // Post-lock verdicts are refused.
-    push(wsK, { type: 'verdict', payload: { titleId: 102, verdict: 'like' } });
+    push(ws1, { type: 'verdict', payload: { titleId: 102, verdict: 'like' } });
     await flush();
-    expect(last(wsK, 'verdictError')?.payload.message).toContain('locked');
+    expect(last(ws1, 'verdictError')?.payload.message).toContain('locked');
   });
 
   it('submitRankings: permutation-gated, one shot, pushes live standings to the room', async () => {
     const room = makeWsRoom();
-    const { ws: wsK } = await authedInRoom('user1', room);
-    const { ws: wsG } = await authedInRoom('girlfriend', room);
-    // user1 likes both titles; girlfriend likes one.
-    push(wsK, { type: 'verdict', payload: { titleId: 101, verdict: 'like' } });
-    push(wsK, { type: 'verdict', payload: { titleId: 102, verdict: 'like' } });
-    push(wsG, { type: 'verdict', payload: { titleId: 101, verdict: 'like' } });
-    push(wsG, { type: 'verdict', payload: { titleId: 102, verdict: 'dislike' } });
+    const { ws: ws1 } = await authedInRoom('user1', room);
+    const { ws: ws2 } = await authedInRoom('user0', room);
+    // user1 likes both titles; user0 likes one.
+    push(ws1, { type: 'verdict', payload: { titleId: 101, verdict: 'like' } });
+    push(ws1, { type: 'verdict', payload: { titleId: 102, verdict: 'like' } });
+    push(ws2, { type: 'verdict', payload: { titleId: 101, verdict: 'like' } });
+    push(ws2, { type: 'verdict', payload: { titleId: 102, verdict: 'dislike' } });
     await flush();
 
     // Before lock-in: refused.
-    push(wsK, { type: 'submitRankings', payload: { rankedTitleIds: [101, 102] } });
+    push(ws1, { type: 'submitRankings', payload: { rankedTitleIds: [101, 102] } });
     await flush();
-    expect(last(wsK, 'submitRankingsError')?.payload.message).toContain('Lock in');
+    expect(last(ws1, 'submitRankingsError')?.payload.message).toContain('Lock in');
 
-    push(wsK, { type: 'lockIn' });
-    push(wsG, { type: 'lockIn' });
+    push(ws1, { type: 'lockIn' });
+    push(ws2, { type: 'lockIn' });
     await flush();
 
-    // Not a permutation of the likes: refused (102 is a dislike for g).
-    push(wsG, { type: 'submitRankings', payload: { rankedTitleIds: [101, 102] } });
+    // Not a permutation of the likes: refused (102 is a dislike for user0).
+    push(ws2, { type: 'submitRankings', payload: { rankedTitleIds: [101, 102] } });
     await flush();
-    expect(last(wsG, 'submitRankingsError')?.payload.message).toContain('Kept titles');
+    expect(last(ws2, 'submitRankingsError')?.payload.message).toContain('Kept titles');
 
     // user1 submits: BOTH members get a live resultsSuccess push.
-    wsG.send.mockClear();
-    push(wsK, { type: 'submitRankings', payload: { rankedTitleIds: [102, 101] } });
+    ws2.send.mockClear();
+    push(ws1, { type: 'submitRankings', payload: { rankedTitleIds: [102, 101] } });
     await flush();
-    expect(last(wsK, 'submitRankingsSuccess')).toBeDefined();
-    const user1Results = last(wsK, 'resultsSuccess')?.payload;
+    expect(last(ws1, 'submitRankingsSuccess')).toBeDefined();
+    const user1Results = last(ws1, 'resultsSuccess')?.payload;
     expect(user1Results?.mySubmitted).toBe(true);
     expect(user1Results?.myRanking).toEqual([102, 101]);
     expect(user1Results?.submittedCount).toBe(1);
-    // "Everyone's #1": user1 ranked 102 first, so his top pick is 102.
+    // "Everyone's #1": user1 ranked 102 first, so user1's top pick is 102.
     expect(user1Results?.topPicks).toEqual([{ userName: 'user1', titleId: 102 }]);
-    const gResults = last(wsG, 'resultsSuccess')?.payload;
-    expect(gResults?.mySubmitted).toBe(false);
-    expect(gResults?.standings[0]).toMatchObject({ titleId: 102, points: 12, rank: 1 });
+    const results2 = last(ws2, 'resultsSuccess')?.payload;
+    expect(results2?.mySubmitted).toBe(false);
+    expect(results2?.standings[0]).toMatchObject({ titleId: 102, points: 12, rank: 1 });
 
     // One shot: a resubmit is refused.
-    push(wsK, { type: 'submitRankings', payload: { rankedTitleIds: [101, 102] } });
+    push(ws1, { type: 'submitRankings', payload: { rankedTitleIds: [101, 102] } });
     await flush();
-    expect(last(wsK, 'submitRankingsError')?.payload.message).toContain('already submitted');
+    expect(last(ws1, 'submitRankingsError')?.payload.message).toContain('already submitted');
 
-    // girlfriend submits her single like; combined standings shift.
-    push(wsG, { type: 'submitRankings', payload: { rankedTitleIds: [101] } });
+    // user0 submits their single like; combined standings shift.
+    push(ws2, { type: 'submitRankings', payload: { rankedTitleIds: [101] } });
     await flush();
-    const combined = last(wsG, 'resultsSuccess')?.payload;
+    const combined = last(ws2, 'resultsSuccess')?.payload;
     expect(combined?.submittedCount).toBe(2);
-    // 101: 9 (user1 #2) + 12 (g #1) = 21; 102: 12.
+    // 101: 9 (user1 #2) + 12 (user0 #1) = 21; 102: 12.
     expect(combined?.standings[0]).toMatchObject({ titleId: 101, points: 21 });
     expect(combined?.standings[1]).toMatchObject({ titleId: 102, points: 12 });
   });
@@ -457,120 +509,120 @@ describe('verdict / review / lockIn', () => {
     expect(last(ws, 'lockInSuccess')?.payload.roomLocked).toBe(false);
   });
 
-  it('a connected partner with zero verdicts holds the room unlocked', async () => {
+  it('a connected member with zero verdicts holds the room unlocked', async () => {
     // Membership rows are lazily created on the first verdict-flow
-    // message; before the fix a partner who had joined but not yet
+    // message; before the fix a member who had joined but not yet
     // verdicted had no row to count and allLocked fired prematurely.
     const room = makeWsRoom();
-    const { ws: wsK } = await authedInRoom('user1', room);
-    await authedInRoom('girlfriend', room); // joined, zero verdicts
-    push(wsK, { type: 'verdict', payload: { titleId: 101, verdict: 'like' } });
-    push(wsK, { type: 'verdict', payload: { titleId: 102, verdict: 'skip' } });
+    const { ws: ws1 } = await authedInRoom('user1', room);
+    await authedInRoom('user0', room); // joined, zero verdicts
+    push(ws1, { type: 'verdict', payload: { titleId: 101, verdict: 'like' } });
+    push(ws1, { type: 'verdict', payload: { titleId: 102, verdict: 'skip' } });
     await flush();
-    push(wsK, { type: 'lockIn' });
+    push(ws1, { type: 'lockIn' });
     await flush();
-    expect(last(wsK, 'lockInSuccess')?.payload.roomLocked).toBe(false);
+    expect(last(ws1, 'lockInSuccess')?.payload.roomLocked).toBe(false);
   });
 
   // ── Member pulse payload + roomPulse push (audit 17 UX 3/7/11) ──
 
   it('review carries per-member lock/submit state', async () => {
     const room = makeWsRoom();
-    const { ws: wsK } = await authedInRoom('user1', room);
-    const { ws: wsG } = await authedInRoom('girlfriend', room);
-    push(wsK, { type: 'verdict', payload: { titleId: 101, verdict: 'like' } });
-    push(wsK, { type: 'verdict', payload: { titleId: 102, verdict: 'skip' } });
-    push(wsG, { type: 'verdict', payload: { titleId: 101, verdict: 'like' } });
+    const { ws: ws1 } = await authedInRoom('user1', room);
+    const { ws: ws2 } = await authedInRoom('user0', room);
+    push(ws1, { type: 'verdict', payload: { titleId: 101, verdict: 'like' } });
+    push(ws1, { type: 'verdict', payload: { titleId: 102, verdict: 'skip' } });
+    push(ws2, { type: 'verdict', payload: { titleId: 101, verdict: 'like' } });
     await flush();
-    push(wsK, { type: 'lockIn' });
+    push(ws1, { type: 'lockIn' });
     await flush();
-    push(wsG, { type: 'review' });
+    push(ws2, { type: 'review' });
     await flush();
-    const members = last(wsG, 'reviewSuccess')?.payload.members;
+    const members = last(ws2, 'reviewSuccess')?.payload.members;
     expect(members).toEqual([
       { userName: 'user1', locked: true, submitted: false },
-      { userName: 'girlfriend', locked: false, submitted: false },
+      { userName: 'user0', locked: false, submitted: false },
     ]);
   });
 
   it('locking in pushes roomPulse to the OTHER members only', async () => {
     const room = makeWsRoom();
-    const { ws: wsK } = await authedInRoom('user1', room);
-    const { ws: wsG } = await authedInRoom('girlfriend', room);
-    for (const ws of [wsK, wsG]) {
+    const { ws: ws1 } = await authedInRoom('user1', room);
+    const { ws: ws2 } = await authedInRoom('user0', room);
+    for (const ws of [ws1, ws2]) {
       push(ws, { type: 'verdict', payload: { titleId: 101, verdict: 'like' } });
       push(ws, { type: 'verdict', payload: { titleId: 102, verdict: 'skip' } });
     }
     await flush();
     // Discard the member-join pulses so the lock assertions below see
     // only lock traffic.
-    wsK.send.mockClear();
-    wsG.send.mockClear();
+    ws1.send.mockClear();
+    ws2.send.mockClear();
 
-    push(wsK, { type: 'lockIn' });
+    push(ws1, { type: 'lockIn' });
     await flush();
-    // The partner sees the pulse; the locker does not (their own state
+    // The other member sees the pulse; the locker does not (their own state
     // rides lockInSuccess, avoiding a duplicate celebration).
-    expect(last(wsK, 'roomPulse')).toBeUndefined();
-    const pulse = last(wsG, 'roomPulse')?.payload;
+    expect(last(ws1, 'roomPulse')).toBeUndefined();
+    const pulse = last(ws2, 'roomPulse')?.payload;
     expect(pulse?.allLocked).toBe(false);
     expect(pulse?.members).toContainEqual({ userName: 'user1', locked: true, submitted: false });
 
-    push(wsG, { type: 'lockIn' });
+    push(ws2, { type: 'lockIn' });
     await flush();
     // The FINAL lock's pulse carries the all-locked edge to the others.
-    expect(last(wsK, 'roomPulse')?.payload.allLocked).toBe(true);
+    expect(last(ws1, 'roomPulse')?.payload.allLocked).toBe(true);
   });
 
   it('a NEW member joining the verdict flow pulses the others (audit v1.2.0 low)', async () => {
     const room = makeWsRoom();
-    const { ws: wsK } = await authedInRoom('user1', room);
-    push(wsK, { type: 'verdict', payload: { titleId: 101, verdict: 'like' } });
+    const { ws: ws1 } = await authedInRoom('user1', room);
+    push(ws1, { type: 'verdict', payload: { titleId: 101, verdict: 'like' } });
     await flush();
-    wsK.send.mockClear();
+    ws1.send.mockClear();
 
     // A second member's FIRST verdict-flow message creates their row --
     // everyone else's "N OF M LOCKED" line updates now, not at the next
     // lock event. allLocked is false by construction, so no celebration.
-    const { ws: wsG } = await authedInRoom('girlfriend', room);
-    push(wsG, { type: 'review' });
+    const { ws: ws2 } = await authedInRoom('user0', room);
+    push(ws2, { type: 'review' });
     await flush();
-    const pulse = last(wsK, 'roomPulse')?.payload;
+    const pulse = last(ws1, 'roomPulse')?.payload;
     expect(pulse?.allLocked).toBe(false);
     expect(pulse?.members).toContainEqual({
-      userName: 'girlfriend', locked: false, submitted: false,
+      userName: 'user0', locked: false, submitted: false,
     });
 
     // Repeat traffic from the SAME member does not re-pulse.
-    wsK.send.mockClear();
-    push(wsG, { type: 'review' });
+    ws1.send.mockClear();
+    push(ws2, { type: 'review' });
     await flush();
-    expect(last(wsK, 'roomPulse')).toBeUndefined();
+    expect(last(ws1, 'roomPulse')).toBeUndefined();
   });
 
   it('standings rows carry who ranked them by name', async () => {
     const room = makeWsRoom();
-    const { ws: wsK } = await authedInRoom('user1', room);
-    const { ws: wsG } = await authedInRoom('girlfriend', room);
-    push(wsK, { type: 'verdict', payload: { titleId: 101, verdict: 'like' } });
-    push(wsK, { type: 'verdict', payload: { titleId: 102, verdict: 'skip' } });
-    push(wsG, { type: 'verdict', payload: { titleId: 101, verdict: 'like' } });
-    push(wsG, { type: 'verdict', payload: { titleId: 102, verdict: 'like' } });
+    const { ws: ws1 } = await authedInRoom('user1', room);
+    const { ws: ws2 } = await authedInRoom('user0', room);
+    push(ws1, { type: 'verdict', payload: { titleId: 101, verdict: 'like' } });
+    push(ws1, { type: 'verdict', payload: { titleId: 102, verdict: 'skip' } });
+    push(ws2, { type: 'verdict', payload: { titleId: 101, verdict: 'like' } });
+    push(ws2, { type: 'verdict', payload: { titleId: 102, verdict: 'like' } });
     await flush();
-    push(wsK, { type: 'lockIn' });
-    push(wsG, { type: 'lockIn' });
+    push(ws1, { type: 'lockIn' });
+    push(ws2, { type: 'lockIn' });
     await flush();
-    push(wsK, { type: 'submitRankings', payload: { rankedTitleIds: [101] } });
-    push(wsG, { type: 'submitRankings', payload: { rankedTitleIds: [101, 102] } });
+    push(ws1, { type: 'submitRankings', payload: { rankedTitleIds: [101] } });
+    push(ws2, { type: 'submitRankings', payload: { rankedTitleIds: [101, 102] } });
     await flush();
-    push(wsK, { type: 'results' });
+    push(ws1, { type: 'results' });
     await flush();
-    const payload = last(wsK, 'resultsSuccess')?.payload;
+    const payload = last(ws1, 'resultsSuccess')?.payload;
     const top = payload?.standings.find((row: { titleId: number }) => row.titleId === 101);
-    expect(top?.rankedByNames).toEqual(['girlfriend', 'user1']);
+    expect(top?.rankedByNames).toEqual(['user0', 'user1']);
     expect(payload?.members).toEqual([
       { userName: 'user1', locked: true, submitted: true },
-      { userName: 'girlfriend', locked: true, submitted: true },
+      { userName: 'user0', locked: true, submitted: true },
     ]);
   });
 
