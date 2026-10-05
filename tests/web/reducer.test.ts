@@ -306,6 +306,8 @@ describe('reducer verdict flow (0.7.0)', () => {
       payload: { skipped: 41 },
     } as Actions);
     expect(next.toasts[0].message).toBe('Marked 41 titles unsure.');
+    const one = reducer(seeded, { type: 'skipRemainingSuccess', payload: { skipped: 1 } } as Actions);
+    expect(one.toasts[0].message).toBe('Marked 1 title unsure.');
   });
 
   it('leaveRoomSuccess clears the ledger with the room', () => {

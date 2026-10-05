@@ -47,12 +47,12 @@ describe('AccountMenu (popover, passwordless)', () => {
     openMenu();
     expect(screen.getByRole('menu')).toBeDefined();
     expect(screen.getByText('user1')).toBeDefined();
-    expect(screen.getByText('Autoplay PVs with sound')).toBeDefined();
-    expect(screen.getByText('Leave room')).toBeDefined();
+    expect(screen.getByText('autoplay PVs with sound')).toBeDefined();
+    expect(screen.getByText('leave room')).toBeDefined();
     // The credential-era rows are gone.
-    expect(screen.queryByText('Change password')).toBeNull();
-    expect(screen.queryByText('Log out')).toBeNull();
-    expect(screen.queryByText('Admin panel')).toBeNull();
+    expect(screen.queryByText(/change password/i)).toBeNull();
+    expect(screen.queryByText(/log out/i)).toBeNull();
+    expect(screen.queryByText(/admin panel/i)).toBeNull();
   });
 
   it('the autoplay toggle dispatches the flipped soundPref', () => {
@@ -68,7 +68,7 @@ describe('AccountMenu (popover, passwordless)', () => {
   it('Leave room dispatches leaveRoom and closes', () => {
     render(<AccountMenu />);
     openMenu();
-    fireEvent.click(screen.getByText('Leave room'));
+    fireEvent.click(screen.getByText('leave room'));
     expect(dispatch).toHaveBeenCalledWith({ type: 'leaveRoom' });
     expect(screen.queryByRole('menu')).toBeNull();
   });
@@ -77,7 +77,7 @@ describe('AccountMenu (popover, passwordless)', () => {
     withState({ rejoining: true });
     render(<AccountMenu />);
     openMenu();
-    const leave = screen.getByText('Leave room') as HTMLButtonElement;
+    const leave = screen.getByText('leave room') as HTMLButtonElement;
     expect(leave.disabled).toBe(true);
     fireEvent.click(leave);
     expect(dispatch).not.toHaveBeenCalledWith({ type: 'leaveRoom' });
@@ -87,7 +87,7 @@ describe('AccountMenu (popover, passwordless)', () => {
     withState({ rejoining: true, rejoinOverdue: true });
     render(<AccountMenu />);
     openMenu();
-    fireEvent.click(screen.getByText('Leave room'));
+    fireEvent.click(screen.getByText('leave room'));
     expect(dispatch).toHaveBeenCalledWith({ type: 'leaveRoom' });
   });
 
@@ -95,7 +95,7 @@ describe('AccountMenu (popover, passwordless)', () => {
     withState({ room: undefined });
     render(<AccountMenu />);
     openMenu();
-    expect(screen.queryByText('Leave room')).toBeNull();
+    expect(screen.queryByText('leave room')).toBeNull();
   });
 
   it('stays open for the second click of the double-click that opened it', () => {
@@ -136,7 +136,7 @@ describe('AccountMenu (popover, passwordless)', () => {
     Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
     render(<AccountMenu />);
     openMenu();
-    fireEvent.click(screen.getByText('Share room'));
+    fireEvent.click(screen.getByText('share room'));
     await Promise.resolve();
     await Promise.resolve();
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('roomName=couch-coop'));
@@ -163,7 +163,7 @@ describe('AccountMenu (popover, passwordless)', () => {
     render(<AccountMenu />);
     openMenu();
     expect(handle('menu-keep-going')).toBeNull();
-    fireEvent.click(screen.getByText('See your review'));
+    fireEvent.click(screen.getByText('see your review'));
     expect(dispatch).toHaveBeenCalledWith({ type: 'navigate', payload: { route: 'home' } });
   });
 
@@ -198,7 +198,7 @@ describe('AccountMenu audit-17 UX additions', () => {
     withState({});
     render(<AccountMenu />);
     openMenu();
-    fireEvent.click(screen.getByText('Share room'));
+    fireEvent.click(screen.getByText('share room'));
     const input = document.querySelector(
       '[data-test-handle="share-link-input"]',
     ) as HTMLInputElement;
@@ -208,7 +208,7 @@ describe('AccountMenu audit-17 UX additions', () => {
     expect(screen.getByRole('dialog').getAttribute('aria-label')).toBe('Share this room');
     expect(screen.getByRole('heading').textContent).toBe('share this room.');
     expect(screen.getByText('Copy the link below. It pre-fills the room on the join form.')).toBeDefined();
-    fireEvent.click(screen.getByText('Done'));
+    fireEvent.click(screen.getByText('done'));
     expect(document.querySelector('[data-test-handle="share-link-input"]')).toBeNull();
   });
 
@@ -220,15 +220,15 @@ describe('AccountMenu audit-17 UX additions', () => {
     render(<AccountMenu />);
     const avatar = screen.getByRole('button', { name: 'Account' });
     openMenu();
-    screen.getByText('How cour works').focus();
+    screen.getByText('how cour works').focus();
     fireEvent.keyDown(window, { key: 'Escape' });
     expect(screen.queryByRole('menu')).toBeNull();
     expect(document.activeElement).toBe(avatar);
     openMenu();
-    screen.getByText('Share room').focus();
-    fireEvent.click(screen.getByText('Share room'));
+    screen.getByText('share room').focus();
+    fireEvent.click(screen.getByText('share room'));
     expect(document.activeElement).toBe(document.querySelector('[data-test-handle="share-link-input"]'));
-    fireEvent.click(screen.getByText('Done'));
+    fireEvent.click(screen.getByText('done'));
     expect(document.activeElement).toBe(avatar);
   });
 
@@ -236,7 +236,7 @@ describe('AccountMenu audit-17 UX additions', () => {
     withState({});
     render(<AccountMenu />);
     openMenu();
-    fireEvent.click(screen.getByText('How cour works'));
+    fireEvent.click(screen.getByText('how cour works'));
     expect(dispatch).toHaveBeenCalledWith({ type: 'tutorial', payload: { open: true } });
   });
 

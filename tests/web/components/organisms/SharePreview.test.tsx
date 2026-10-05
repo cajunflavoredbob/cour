@@ -121,8 +121,9 @@ describe('SharePreview', () => {
 
   it('shares from a touch screen that can share, and closes once shared', async () => {
     show();
-    expect(primary().textContent).toBe('Share');
-    expect(caption()).toBe('OR PRESS AND HOLD THE IMAGE');
+    expect(primary().textContent).toBe('share');
+    expect(caption()).toBe('Image ready.');
+    expect(screen.getByRole('status').firstElementChild?.className).toMatch(/srOnly/);
     await act(async () => {
       fireEvent.click(primary());
     });
@@ -138,7 +139,7 @@ describe('SharePreview', () => {
       fireEvent.click(primary());
     });
     expect(onClose).not.toHaveBeenCalled();
-    expect(primary().textContent).toBe('Share');
+    expect(primary().textContent).toBe('share');
     expect(primary().getAttribute('aria-disabled')).toBe('false');
   });
 
@@ -150,7 +151,7 @@ describe('SharePreview', () => {
       fireEvent.click(primary());
     });
     expect(caption()).toBe("COULDN'T SHARE · SAVE IT INSTEAD");
-    expect(primary().textContent).toBe('Save image');
+    expect(primary().textContent).toBe('save image');
     fireEvent.click(primary());
     expect(downloadMock).toHaveBeenCalledWith(blob, 'cour-fall-2026-couch-coop.png');
   });
@@ -158,8 +159,8 @@ describe('SharePreview', () => {
   it('saves with a mouse, and points to the downloads without claiming the file arrived', () => {
     finePointer = true;
     show();
-    expect(primary().textContent).toBe('Save image');
-    expect(caption()).toBe('OR RIGHT-CLICK THE IMAGE TO COPY IT');
+    expect(primary().textContent).toBe('save image');
+    expect(caption()).toBe('Image ready.');
     fireEvent.click(primary());
     expect(downloadMock).toHaveBeenCalledWith(blob, 'cour-fall-2026-couch-coop.png');
     expect(caption()).toBe('CHECK YOUR DOWNLOADS');
@@ -169,8 +170,8 @@ describe('SharePreview', () => {
   it('saves on a touch screen that cannot share files', () => {
     canShareMock.mockReturnValue(false);
     show();
-    expect(primary().textContent).toBe('Save image');
-    expect(caption()).toBe('OR PRESS AND HOLD THE IMAGE');
+    expect(primary().textContent).toBe('save image');
+    expect(caption()).toBe('Image ready.');
   });
 
   it('holds the action while the image is made', () => {
@@ -196,7 +197,7 @@ describe('SharePreview', () => {
     show(state);
     expect(caption()).toBe("COULDN'T MAKE THE IMAGE");
     expect(document.querySelector('img[data-state="failed"]')).not.toBeNull();
-    expect(primary().textContent).toBe('Try again');
+    expect(primary().textContent).toBe('try again');
     fireEvent.click(primary());
     expect(state.retry).toHaveBeenCalledTimes(1);
   });
@@ -210,7 +211,7 @@ describe('SharePreview', () => {
       fireEvent.click(primary());
     });
     fireEvent.click(primary());
-    expect(primary().textContent).toBe('Save image');
+    expect(primary().textContent).toBe('save image');
     now.mockReturnValue(12_000);
     fireEvent.click(primary());
     expect(downloadMock).toHaveBeenCalledTimes(2);
@@ -251,8 +252,8 @@ describe('SharePreview', () => {
     view.rerender(preview(ready({ making: true })));
     expect(caption()).toBe('UPDATING THE IMAGE…');
     view.rerender(preview(newer()));
-    expect(caption()).toBe('OR RIGHT-CLICK THE IMAGE TO COPY IT');
-    expect(primary().textContent).toBe('Save image');
+    expect(caption()).toBe('Image ready.');
+    expect(primary().textContent).toBe('save image');
   });
 
   it('ties the refusal caption to its image, and still saves the newer one', async () => {
@@ -263,13 +264,13 @@ describe('SharePreview', () => {
       fireEvent.click(primary());
     });
     view.rerender(preview(newer()));
-    expect(caption()).toBe('OR PRESS AND HOLD THE IMAGE');
-    expect(primary().textContent).toBe('Save image');
+    expect(caption()).toBe('Image ready.');
+    expect(primary().textContent).toBe('save image');
   });
 
   it('closes with Close or Escape', () => {
     show();
-    fireEvent.click(screen.getByText('Close'));
+    fireEvent.click(screen.getByText('close'));
     fireEvent.keyDown(window, { key: 'Escape' });
     expect(onClose).toHaveBeenCalledTimes(2);
   });

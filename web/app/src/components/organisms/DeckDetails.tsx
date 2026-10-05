@@ -288,7 +288,7 @@ export const DeckDetails = ({ media }: DeckDetailsProps) => {
               target="_blank"
               rel="noreferrer"
             >
-              Watch directly on YouTube
+              watch directly on YouTube
             </a>
           </div>
         ) : activeTile?.kind === "pv" && media.trailer ? (

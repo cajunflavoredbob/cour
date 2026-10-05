@@ -291,7 +291,7 @@ describe('RankScreen desktop editor', () => {
     fireEvent.pointerDown(title, { pointerId: 1, pointerType: 'mouse', button: 0, buttons: 1, clientY: 30 });
     fireEvent.pointerMove(window, { pointerId: 1, pointerType: 'mouse', buttons: 1, clientY: 100 });
     fireEvent.pointerUp(document.body, { pointerId: 1, pointerType: 'mouse', button: 0, clientY: 100 });
-    fireEvent.click(screen.getByText('Submit rankings'));
+    fireEvent.click(screen.getByText('submit rankings'));
     fireEvent.click(screen.getByText('This is my final ranking'));
     fireEvent.click(document.querySelector('[data-test-handle="confirm-submit"]') as HTMLElement);
     expect(dispatch).toHaveBeenCalledWith({
@@ -378,6 +378,6 @@ describe('RankScreen desktop standings', () => {
     // #2 is not a hero row.
     const rows = container.querySelectorAll('[data-rank]');
     expect(rows[1].getAttribute('data-hero')).not.toBe('true');
-    expect(screen.queryByText('Submit rankings')).toBeNull();
+    expect(screen.queryByText('submit rankings')).toBeNull();
   });
 });

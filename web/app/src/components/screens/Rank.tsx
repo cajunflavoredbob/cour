@@ -23,7 +23,7 @@ import { SEASON_THEMES } from "../../utils/season";
 import { buildStandingsCard, listOf } from "../../utils/standingsCard";
 import {
   groupTopPicks,
-  keptWords,
+  KEPT_WORDS,
   RANK_POINTS,
   rankedByText,
   rankingsIn,
@@ -52,7 +52,7 @@ const ARRIVAL_TOAST_DELAY_MS = 1500;
  *
  * Once every ranking is in and two or more shows were kept by everyone,
  * tabs over the list add a second view: the standings over just those
- * shows (Both kept), and an optional one-shot re-rank of them. The head
+ * shows (All kept), and an optional one-shot re-rank of them. The head
  * above the tabs, and All picks, stay the room's result.
  *
  * Desktop (docs/DESKTOP.md): every state is a rail beside a main column.
@@ -191,7 +191,6 @@ export const RankScreen = ({ fromLock = false, onFocusTaken }: RankScreenProps =
   useEffect(() => {
     keepPlace(draftKey, { view: standingsView, showAll, refining: editingRefine });
   }, [draftKey, standingsView, showAll, editingRefine]);
-  const kept = keptWords(results?.memberCount ?? 0);
 
   // The share image is made in the background only while the standings are
   // on screen, never behind an editor.
@@ -225,13 +224,13 @@ export const RankScreen = ({ fromLock = false, onFocusTaken }: RankScreenProps =
           id: arrivalToastId,
           appearance: "Success",
           showTimeMs: 6000,
-          message: `${kept.rankings} are in. Compare the ${sharedCount} shows ${kept.phrase} in the ${kept.tab} tab.`,
+          message: `${KEPT_WORDS.rankings} are in. Compare the ${sharedCount} shows ${KEPT_WORDS.phrase} in the ${KEPT_WORDS.tab} tab.`,
         },
       });
     };
     timer = setTimeout(say, ARRIVAL_TOAST_DELAY_MS);
     return () => clearTimeout(timer);
-  }, [announce, draftKey, arrivalToastId, kept.rankings, kept.phrase, kept.tab, sharedCount, dispatch]);
+  }, [announce, draftKey, arrivalToastId, sharedCount, dispatch]);
   const showView = (next: "all" | "shared") => {
     if (next === "shared") {
       setRerankTold(draftKey);
@@ -257,7 +256,7 @@ export const RankScreen = ({ fromLock = false, onFocusTaken }: RankScreenProps =
     const closed = wasOpen.current && !roundOpen;
     wasOpen.current = roundOpen;
     if (!closed) return;
-    // The editor and its confirm open from Both kept and keep the view there.
+    // The editor and its confirm open from All kept and keep the view there.
     if (standingsView !== "shared") {
       if (focusLost()) setHeadFocus({ scroll: false });
       return;
@@ -428,7 +427,7 @@ export const RankScreen = ({ fromLock = false, onFocusTaken }: RankScreenProps =
       </h1>
       <p className={styles.contextLine}>
         <span className={styles.keepTogether}>
-          {`THE ${sharedCount} SHOWS ${kept.phrase.toUpperCase()}`}
+          {`THE ${sharedCount} SHOWS ${KEPT_WORDS.phrase.toUpperCase()}`}
         </span>
         {" · "}
         <span className={styles.keepTogether}>{scoringLine}</span>
@@ -554,7 +553,7 @@ export const RankScreen = ({ fromLock = false, onFocusTaken }: RankScreenProps =
         }}
         data-test-handle="submit-rankings"
       >
-        {submitting ? "Submitting\u2026" : "Submit rankings"}
+        {submitting ? "submitting\u2026" : "submit rankings"}
       </button>
       <p className={styles.submitCaption}>STANDINGS COMBINE ONCE RANKINGS COME IN</p>
     </>
@@ -572,7 +571,7 @@ export const RankScreen = ({ fromLock = false, onFocusTaken }: RankScreenProps =
         }}
         data-test-handle="submit-refine"
       >
-        {refineSubmitting ? "Submitting\u2026" : "Submit this order"}
+        {refineSubmitting ? "submitting\u2026" : "submit this order"}
       </button>
       <p className={styles.submitCaption}>OPTIONAL &middot; ONE SHOT &middot; THE RESULT WON&apos;T CHANGE</p>
     </>
@@ -659,7 +658,7 @@ export const RankScreen = ({ fromLock = false, onFocusTaken }: RankScreenProps =
         { id: "all", label: `All picks ${allStandings.length}`, testHandle: "standings-all" },
         {
           id: "shared",
-          label: `${kept.tab} ${sharedCount}`,
+          label: `${KEPT_WORDS.tab} ${sharedCount}`,
           testHandle: "standings-shared",
           ref: sharedTabRef,
         },
@@ -671,7 +670,7 @@ export const RankScreen = ({ fromLock = false, onFocusTaken }: RankScreenProps =
 
   // Who has re-ranked, said as it happened, never as a count still to go.
   const rerankedBy = rerankedByText(memberStates.filter((m) => m.refined).map((m) => m.userName));
-  const bothKeptHead = view === "shared" && (
+  const allKeptHead = view === "shared" && (
     <div className={styles.panelHead}>
       <p className={styles.sharedNote}>
         scored as if these {sharedCount} were all you kept. the room&apos;s result doesn&apos;t change.
@@ -779,13 +778,7 @@ export const RankScreen = ({ fromLock = false, onFocusTaken }: RankScreenProps =
         onClick={() => setShowAll((open) => ({ ...open, [view]: !open[view] }))}
         data-test-handle="standings-reveal"
       >
-        {showAll[view] ? (
-          `SHOW TOP ${STANDINGS_PREVIEW}`
-        ) : (
-          <>
-            SHOW ALL {rows.length} <span aria-hidden="true">&rarr;</span>
-          </>
-        )}
+        {showAll[view] ? `SHOW TOP ${STANDINGS_PREVIEW}` : `SHOW ALL ${rows.length}`}
       </button>
     );
 
@@ -794,7 +787,7 @@ export const RankScreen = ({ fromLock = false, onFocusTaken }: RankScreenProps =
   const viewRows = sharedView ? round.standings : allStandings;
   const standingsPanel = (desktop: boolean) => (
     <div className={styles.standingsPanel} {...(tabsShown ? tabPanelProps("standings", view) : {})}>
-      {bothKeptHead}
+      {allKeptHead}
       {standingsList(
         desktop,
         viewRows,
@@ -859,7 +852,7 @@ export const RankScreen = ({ fromLock = false, onFocusTaken }: RankScreenProps =
   const confirmDialogEl = confirmLive && (
     <DialogScrim
       label={
-        confirmIsRefine ? `Submit your order for the shows ${kept.phrase}` : "Submit your rankings"
+        confirmIsRefine ? `Submit your order for the shows ${KEPT_WORDS.phrase}` : "Submit your rankings"
       }
       onDismiss={() => setConfirmFor(null)}
       backdropClassName={styles.confirmBackdrop}
@@ -868,7 +861,7 @@ export const RankScreen = ({ fromLock = false, onFocusTaken }: RankScreenProps =
         <h2 className={styles.confirmTitle}>no turning back.</h2>
         <p className={styles.confirmText}>
           {confirmIsRefine
-            ? `This sends your order for the ${sharedCount} shows ${kept.phrase}. You can't change it after this, and the room's result doesn't change.`
+            ? `This sends your order for the ${sharedCount} shows ${KEPT_WORDS.phrase}. You can't change it after this, and the room's result doesn't change.`
             : "This submits your final ranking and reveals the standings. You can't change it after this."}
         </p>
         <label className={styles.confirmCheckRow}>
@@ -886,7 +879,7 @@ export const RankScreen = ({ fromLock = false, onFocusTaken }: RankScreenProps =
             className={styles.confirmCancel}
             onClick={() => setConfirmFor(null)}
           >
-            {confirmIsRefine ? "Keep re-ranking" : "Keep ranking"}
+            {confirmIsRefine ? "keep re-ranking" : "keep ranking"}
           </button>
           <button
             type="button"
@@ -904,7 +897,7 @@ export const RankScreen = ({ fromLock = false, onFocusTaken }: RankScreenProps =
             }}
             data-test-handle={confirmIsRefine ? "confirm-refine" : "confirm-submit"}
           >
-            Submit
+            submit
           </button>
         </div>
     </DialogScrim>

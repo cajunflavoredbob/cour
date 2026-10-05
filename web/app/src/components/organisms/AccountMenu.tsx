@@ -118,7 +118,7 @@ export const AccountMenu = () => {
             </div>
 
             <div className={styles.row}>
-              <span className={styles.rowLabel}>Autoplay PVs with sound</span>
+              <span className={styles.rowLabel}>autoplay PVs with sound</span>
               <button
                 type="button"
                 className={styles.togglePill}
@@ -141,7 +141,7 @@ export const AccountMenu = () => {
                 onClick={() => navigate("room")}
                 data-test-handle="menu-keep-going"
               >
-                Keep picking <span className={styles.keepGoingCount}>&middot; {remaining} left</span>
+                keep picking <span className={styles.keepGoingCount}>&middot; {remaining} left</span>
               </button>
             )}
 
@@ -152,7 +152,7 @@ export const AccountMenu = () => {
                 onClick={() => navigate("home")}
                 data-test-handle="menu-review"
               >
-                See your review
+                see your review
               </button>
             )}
 
@@ -166,7 +166,7 @@ export const AccountMenu = () => {
                 }}
                 data-test-handle="menu-locked-review"
               >
-                See your review
+                see your review
               </button>
             )}
 
@@ -177,7 +177,7 @@ export const AccountMenu = () => {
                 onClick={shareRoom}
                 data-test-handle="menu-share"
               >
-                Share room
+                share room
               </button>
             )}
 
@@ -190,7 +190,7 @@ export const AccountMenu = () => {
               }}
               data-test-handle="menu-tutorial"
             >
-              How cour works
+              how cour works
             </button>
 
             {inRoom && (
@@ -203,7 +203,7 @@ export const AccountMenu = () => {
                   close();
                 }}
               >
-                Leave room
+                leave room
               </button>
             )}
 
@@ -242,7 +242,7 @@ export const AccountMenu = () => {
             className={styles.shareClose}
             onClick={() => setShareLink(null)}
           >
-            Done
+            done
           </button>
         </DialogScrim>
       )}

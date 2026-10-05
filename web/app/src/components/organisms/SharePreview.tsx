@@ -83,10 +83,10 @@ export const SharePreview = ({ card, image: state, allPicks, waitingOn, onClose 
   };
 
   const primary = failed
-    ? { label: "Try again", run: retry }
+    ? { label: "try again", run: retry }
     : offerShare
-      ? { label: "Share", run: () => void share() }
-      : { label: "Save image", run: download };
+      ? { label: "share", run: () => void share() }
+      : { label: "save image", run: download };
   const busy = !failed && (!ready || sharing);
 
   const caption = failed
@@ -97,7 +97,7 @@ export const SharePreview = ({ card, image: state, allPicks, waitingOn, onClose 
         ? { tone: "error", text: "COULDN'T SHARE · SAVE IT INSTEAD" }
         : outcome === "downloaded"
           ? { tone: "quiet", text: "CHECK YOUR DOWNLOADS" }
-          : { tone: "quiet", text: finePointer ? "OR RIGHT-CLICK THE IMAGE TO COPY IT" : "OR PRESS AND HOLD THE IMAGE" };
+          : { tone: "quiet", text: "", spoken: "Image ready." };
   const missing =
     waitingOn.length === 0
       ? "Not every ranking is in yet."
@@ -135,7 +135,7 @@ export const SharePreview = ({ card, image: state, allPicks, waitingOn, onClose 
       <div className={styles.footer}>
         <div className={styles.actions}>
           <button type="button" className={styles.close} onClick={onClose}>
-            Close
+            close
           </button>
           <button
             type="button"
@@ -151,6 +151,7 @@ export const SharePreview = ({ card, image: state, allPicks, waitingOn, onClose 
         </div>
         <p className={styles.caption} role="status" data-tone={caption.tone}>
           {caption.text}
+          {caption.spoken && <span className={styles.srOnly}>{caption.spoken}</span>}
         </p>
       </div>
     </DialogScrim>

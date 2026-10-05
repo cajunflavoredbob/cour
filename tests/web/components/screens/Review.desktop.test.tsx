@@ -84,7 +84,7 @@ describe('ReviewScreen desktop (rail + main)', () => {
     const { container } = render(<ReviewScreen />);
     expect(container.querySelector('[class*="rail"]')).not.toBeNull();
     expect(container.querySelector('[class*="main"]')).not.toBeNull();
-    expect(screen.getByText('your summer review')).toBeDefined();
+    expect(screen.getByText('your summer review.')).toBeDefined();
     // The lock control lives in the rail, not a sticky footer.
     const rail = container.querySelector('[class*="rail"]') as HTMLElement;
     expect(rail.querySelector('[data-test-handle="lock-in"]')).not.toBeNull();
@@ -125,7 +125,7 @@ describe('ReviewScreen desktop (rail + main)', () => {
     });
   });
 
-  it('shows every ledger row on desktop -- no "+N MORE" truncation', () => {
+  it('shows every ledger row on desktop -- no "SHOW ALL" truncation', () => {
     const manyLikes = Array.from({ length: 15 }, (_, i) => ({
       titleId: 200 + i,
       verdict: 'like' as const,
@@ -136,7 +136,7 @@ describe('ReviewScreen desktop (rail + main)', () => {
     // 15 rows all present; no overflow reveal.
     const main = container.querySelector('[class*="main"]') as HTMLElement;
     expect(main.querySelectorAll('li[class*="row"]').length).toBe(15);
-    expect(screen.queryByText(/MORE/)).toBeNull();
+    expect(screen.queryByText(/SHOW ALL/)).toBeNull();
   });
 
   it('says the lock ceremony aloud in the rail layout too', () => {

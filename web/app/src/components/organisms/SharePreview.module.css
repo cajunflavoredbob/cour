@@ -99,8 +99,8 @@
   composes: pillAccent from "../shared.module.css";
 }
 
-/* What happened, or what else works: one line, so nothing moves when it
-   changes. */
+/* What happened: one line, so nothing moves when it changes. Silent once
+   the image is ready, except to a screen reader. */
 .caption {
   min-height: 1.5em;
   margin: 0;
@@ -114,4 +114,8 @@
 
 .caption[data-tone="error"] {
   color: var(--cour-negative);
+}
+
+.srOnly {
+  composes: srOnly from "../shared.module.css";
 }

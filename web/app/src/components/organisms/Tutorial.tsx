@@ -26,7 +26,7 @@ export const Tutorial = () => {
       backdropClassName={styles.backdrop}
       dialogClassName={styles.dialog}
     >
-      <h2 className={styles.title}>how cour works</h2>
+      <h2 className={styles.title}>how cour works.</h2>
       <ol className={styles.steps}>
         <li className={styles.step}>
           <span className={styles.stepKicker}>VERDICT THE SEASON</span>

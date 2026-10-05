@@ -421,9 +421,9 @@
   white-space: nowrap;
 }
 
-/* Share the standings: the screen's mono accent link (as REVIEW ALL and
-   SHOW ALL), 12px under the status line, with a 44px target. It ends the
-   head, which sets the space after it. */
+/* Share the standings: a mono accent link (as REVIEW ALL on the review),
+   12px under the status line, with a 44px target. It ends the head, which
+   sets the space after it. */
 .shareLink {
   composes: hitRow from "../shared.module.css";
   position: relative;
@@ -524,12 +524,12 @@
   font-family: var(--cour-font-mono);
   font-size: 11px;
   letter-spacing: 0.08em;
-  color: var(--cour-accent-bright);
+  color: var(--cour-text-2);
   cursor: pointer;
 }
 
 .showAllBtn:hover {
-  filter: brightness(1.15);
+  color: var(--cour-text-0);
 }
 
 /* "Everyone's #1" -- each member's top pick (the owner's ask). Static
@@ -705,14 +705,14 @@
   margin-left: 7px;
 }
 
-/* All picks / Both kept: the review piles' pill tabs, right above the
+/* All picks / All kept: the review piles' pill tabs, right above the
    list they switch. */
 .viewTabs {
   flex-shrink: 0;
   margin: 0 0 14px;
 }
 
-/* Both kept: the note, who re-ranked, and the way into the re-rank. */
+/* All kept: the note, who re-ranked, and the way into the re-rank. */
 .panelHead {
   flex-shrink: 0;
   display: flex;

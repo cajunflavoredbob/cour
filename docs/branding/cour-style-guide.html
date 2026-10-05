@@ -232,6 +232,7 @@
     <div class="rules" style="margin-top: 18px;">
       <div class="rule"><span class="k2">--accent</span><span class="v2">The live season's color. Derived per season: <code>--accent-soft</code> = accent at 16% alpha (fills, active tabs) · <code>--accent-hi</code> = accent raised ~0.10 lightness (text/links on dark; summer: oklch(0.75 0.13 278)).</span></div>
       <div class="rule"><span class="k2">links</span><span class="v2">Text links are <code>--accent-hi</code>, no underline; hover → text-0. Defined globally even where no links exist yet.</span></div>
+      <div class="rule"><span class="k2">expanders</span><span class="v2">A control that reveals more rows in place reads SHOW ALL N in mono text-2 (hover text-0), with no arrow. An arrow marks a control that goes somewhere: REVIEW ALL 21 KEPT →.</span></div>
       <div class="rule"><span class="k2">--neg · clay</span><span class="v2"><span style="display: inline-block; width: 12px; height: 12px; border-radius: 4px; background: var(--neg); vertical-align: -1px; margin-right: 6px;"></span>oklch(0.62 0.13 35) — Dislike, log out, destructive confirms. Fixed year-round.</span></div>
       <div class="rule"><span class="k2">rotation scope</span><span class="v2">Accent, season kanji chip, and auth watermark rotate together server-side. The app mark does NOT rotate (all four seasons are in it).</span></div>
       <div class="rule"><span class="k2 dont">never</span><span class="v2">The reely pink→amber gradient is retired. No gradients as brand color anywhere; the only gradients are photographic scrims.</span></div>
@@ -314,13 +315,13 @@
 
     <h3>Verdict row — Dislike −1 · Skip 0 · Like +1</h3>
     <div class="demo">
-      <button class="btn-dis"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="var(--neg)" stroke-width="2.5" stroke-linecap="round"></path></svg>Dislike</button>
-      <button class="btn-skip">Skip</button>
-      <button class="btn-like"><svg width="15" height="15" viewBox="0 0 24 24" fill="white"><path d="M12 21s-7.5-4.7-10-9.3C.5 8 2.4 4.5 6 4.5c2.2 0 3.7 1.2 4.5 2.6.8-1.4 2.3-2.6 4.5-2.6 3.6 0 5.5 3.5 4 7.2C19.5 16.3 12 21 12 21z"></path></svg>Like</button>
+      <button class="btn-dis"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="var(--neg)" stroke-width="2.5" stroke-linecap="round"></path></svg>dislike</button>
+      <button class="btn-skip">skip</button>
+      <button class="btn-like"><svg width="15" height="15" viewBox="0 0 24 24" fill="white"><path d="M12 21s-7.5-4.7-10-9.3C.5 8 2.4 4.5 6 4.5c2.2 0 3.7 1.2 4.5 2.6.8-1.4 2.3-2.6 4.5-2.6 3.6 0 5.5 3.5 4 7.2C19.5 16.3 12 21 12 21z"></path></svg>like</button>
     </div>
     <div class="rules" style="margin-top: 14px;">
       <div class="rule"><span class="k2">order & size</span><span class="v2">Always Dislike → Skip → Like, 52px tall, max 116px wide each, 10px gap, centered. Never adjacent Like/Dislike.</span></div>
-      <div class="rule"><span class="k2">skip states</span><span class="v2">Rest: text only. Pressed: bg-2 ghost pill fades in, text brightens to text-0. Held 1.5s: accent-soft fill bar sweeps → skip all remaining; release cancels.</span></div>
+      <div class="rule"><span class="k2">skip states</span><span class="v2">Rest: text only. Pressed: bg-2 ghost pill fades in, text brightens to text-0. Held 1.5s: accent-soft fill bar sweeps → skip all remaining; release cancels. With one title left, a hold is a single skip.</span></div>
       <div class="rule"><span class="k2">icons</span><span class="v2">Dislike: X in clay, stroke 2.5, round caps. Like: solid heart, white. Skip: none. 14–15px inside 52px buttons.</span></div>
       <div class="rule"><span class="k2">placement</span><span class="v2">Inside the drawer lip on the deck; pinned at drawer foot when expanded. Bottom padding 34px (home indicator).</span></div>
     </div>
@@ -328,7 +329,7 @@
     <h3>Buttons</h3>
     <div class="demo">
       <button class="btn-primary">sign in<svg width="16" height="13" viewBox="0 0 20 14" fill="none"><path d="M1 7h17m0 0l-6-6m6 6l-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg></button>
-      <button class="btn-disabled">Lock in · 58 to go</button>
+      <button class="btn-disabled">lock in · 58 to go</button>
       <span class="note">primary = accent pill · disabled = bg-2 fill, text-2 — no opacity tricks</span>
     </div>
 
@@ -432,7 +433,7 @@
         <div class="rules">
           <div class="rule" style="grid-template-columns: 1fr;"><span class="v2">Serif headlines in lowercase: <span style="font-family: var(--serif); color: var(--text-0);">"the season is waiting."</span></span></div>
           <div class="rule" style="grid-template-columns: 1fr;"><span class="v2">Mono system messages in caps: <span style="font-family: var(--mono); font-size: 11px; letter-spacing: 0.08em;">SCORES ARE TALLIED ONCE EVERYONE LOCKS IN</span></span></div>
-          <div class="rule" style="grid-template-columns: 1fr;"><span class="v2">Verbs on buttons: sign in, lock in, keep picking.</span></div>
+          <div class="rule" style="grid-template-columns: 1fr;"><span class="v2">Verbs on buttons and links, every label lowercase: sign in, lock in, keep picking. Mono controls stay uppercase, like all mono: SHOW ALL 12, REVIEW ALL 21 KEPT →. Labels that name content keep their capital: the pile tabs (Kept 12), the deck lip (Synopsis · PV · Links), brand names (AniList, MAL). Screen-reader names and checkbox labels are sentence case.</span></div>
         </div>
       </div>
       <div>

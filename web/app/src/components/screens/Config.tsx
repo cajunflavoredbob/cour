@@ -9,7 +9,7 @@ import styles from "./Config.module.css";
 export const ConfigScreen = () => (
   <Layout>
     <div className={styles.notice}>
-      <h1 className={styles.heading}>cour isn't set up yet</h1>
+      <h1 className={styles.heading}>cour isn't set up yet.</h1>
       <p className={styles.body}>
         This cour server hasn't been configured. Check back once it's ready.
       </p>

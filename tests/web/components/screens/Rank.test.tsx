@@ -166,7 +166,7 @@ describe('RankScreen editor (before submitting)', () => {
   it('submits through the no-turning-back dialog, in the chosen order', () => {
     render(<RankScreen />);
     fireEvent.click(screen.getByLabelText('Move Second Show up'));
-    fireEvent.click(screen.getByText('Submit rankings'));
+    fireEvent.click(screen.getByText('submit rankings'));
     expect(dispatch).not.toHaveBeenCalledWith(
       expect.objectContaining({ type: 'submitRankings' }),
     );
@@ -184,11 +184,11 @@ describe('RankScreen editor (before submitting)', () => {
   it('states the scoring and the ranking confirm in the screen\'s own verb', () => {
     render(<RankScreen />);
     expect(screen.getByText('TOP 5 SCORE 12 · 9 · 6 · 3 · 1 · PASSED AND UNSURE ARE DISCARDED')).toBeDefined();
-    fireEvent.click(screen.getByText('Submit rankings'));
+    fireEvent.click(screen.getByText('submit rankings'));
     expect(
       screen.getByText("This submits your final ranking and reveals the standings. You can't change it after this."),
     ).toBeDefined();
-    expect(screen.getByText('Keep ranking')).toBeDefined();
+    expect(screen.getByText('keep ranking')).toBeDefined();
   });
 
   it('keeps keyboard focus on a move button that reaches the end of the list', () => {
@@ -386,7 +386,7 @@ describe('RankScreen submit guards', () => {
 
   it('closes a ranking confirm whose ranking already landed from elsewhere, and hands focus to the standings', () => {
     const { rerender } = render(<RankScreen />);
-    fireEvent.click(screen.getByText('Submit rankings'));
+    fireEvent.click(screen.getByText('submit rankings'));
     expect(screen.getByText('no turning back.')).toBeDefined();
     withState({
       results: { submittedCount: 1, memberCount: 2, mySubmitted: true, myRanking: [101, 102], standings: [], members: [] },
@@ -398,7 +398,7 @@ describe('RankScreen submit guards', () => {
 
   it('does not bring back a confirm whose ranking landed', () => {
     const { rerender } = render(<RankScreen />);
-    fireEvent.click(screen.getByText('Submit rankings'));
+    fireEvent.click(screen.getByText('submit rankings'));
     withState({
       results: { submittedCount: 1, memberCount: 2, mySubmitted: true, myRanking: [101, 102], standings: [], members: [] },
     });
@@ -425,7 +425,7 @@ describe('RankScreen submit ceremony', () => {
     const btn = document.querySelector('[data-test-handle="submit-rankings"]') as HTMLButtonElement;
     expect(btn).not.toBeNull();
     expect(btn.disabled).toBe(true);
-    expect(btn.textContent).toContain('Submitting');
+    expect(btn.textContent).toContain('submitting');
   });
 
   it('ends the ceremony once the ack is in and the 3s floor has passed', () => {
@@ -561,7 +561,7 @@ describe('RankScreen standings (after submitting)', () => {
     expect(screen.getByText('Iron Bloom')).toBeDefined();
     expect(screen.getByText('12 PTS')).toBeDefined();
     // No editor, no submit button.
-    expect(screen.queryByText('Submit rankings')).toBeNull();
+    expect(screen.queryByText('submit rankings')).toBeNull();
   });
 
   it('says so when the rankings in kept nothing', () => {

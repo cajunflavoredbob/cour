@@ -11,11 +11,8 @@ export const rerankOpen = (results: RankingResults | undefined): boolean => {
   return round != null && round.sharedTitleIds.length >= 2 && !round.myRefined;
 };
 
-/** How the shows every member kept are named, for a couple and for a group. */
-export const keptWords = (memberCount: number) =>
-  memberCount === 2
-    ? { tab: "Both kept", phrase: "you both kept", rankings: "Both rankings" }
-    : { tab: "Everyone kept", phrase: "everyone kept", rankings: "All rankings" };
+/** How the shows every member kept are named, in a room of any size. */
+export const KEPT_WORDS = { tab: "All kept", phrase: "everyone kept", rankings: "All rankings" } as const;
 
 /** Whether every member has submitted, so the standings are final. */
 export const standingsFinal = (submittedCount: number, memberCount: number): boolean =>

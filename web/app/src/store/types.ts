@@ -46,7 +46,7 @@ export interface DeckScope {
 // The one-shot finalizers: lock-in, the ranking submit, the refine submit.
 export type FinalizingKind = "lock" | "submit" | "refine";
 
-// The review page's open pile and "+N MORE" reveal. Kept in the store so
+// The review page's open pile and "SHOW ALL" reveal. Kept in the store so
 // a trip to the deck and back lands on the same list. scroll is where the
 // ledger stood when that trip began (desktop scrolls the list, mobile the
 // page), restored once on return if the layout still matches; focusId is

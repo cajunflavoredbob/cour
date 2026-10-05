@@ -104,9 +104,10 @@ export const VerdictRow = ({ titleId, remaining, allowSkipAll = true, currentVer
     clearTimeout(holdTimer.current);
     holdFired.current = false;
     pressActive.current = true;
-    // Without skip-all the press is a plain tap: no timer, no hold UI,
-    // but pressActive still arms endHold's tap-skip path.
-    if (!allowSkipAll) return;
+    // Without skip-all, or with only this title left, the press is a plain
+    // tap: no timer, no hold UI, but pressActive still arms endHold's
+    // tap-skip path.
+    if (!allowSkipAll || remaining < 2) return;
     setHolding(true);
     holdTimer.current = setTimeout(() => {
       holdFired.current = true;
@@ -151,7 +152,7 @@ export const VerdictRow = ({ titleId, remaining, allowSkipAll = true, currentVer
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
           <path d="m3.5 3.5 9 9m0-9-9 9" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
         </svg>
-        Pass
+        pass
       </button>
 
       <button
@@ -180,7 +181,7 @@ export const VerdictRow = ({ titleId, remaining, allowSkipAll = true, currentVer
       >
         <span className={styles.skipFill} aria-hidden="true" />
         <span className={styles.skipLabel}>
-          {holding ? `all ${remaining} unsure\u2026` : "Unsure"}
+          {holding ? `all ${remaining} unsure\u2026` : "unsure"}
         </span>
       </button>
 
@@ -202,7 +203,7 @@ export const VerdictRow = ({ titleId, remaining, allowSkipAll = true, currentVer
             fill="currentColor"
           />
         </svg>
-        Keep
+        keep
       </button>
     </div>
   );

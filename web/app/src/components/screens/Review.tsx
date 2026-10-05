@@ -15,8 +15,7 @@ import { rerankOpen } from "../../utils/standingsText";
 import { posterSrc } from "../../utils/poster";
 import styles from "./Review.module.css";
 
-// Rows shown per pile before the overflow reveal (design shows a
-// truncated ledger with a "+9 MORE" marker).
+// Rows shown per pile on a phone before the SHOW ALL reveal.
 const ROWS_BEFORE_OVERFLOW = 12;
 
 const NEXT_VERDICT: Record<VerdictValue, VerdictValue> = {
@@ -160,7 +159,7 @@ export const ReviewScreen = () => {
     .filter((v) => v.verdict === pile)
     .map((v) => ({ ...v, media: mediaById.get(v.titleId) }));
   // Desktop scrolls the ledger internally, so there's no reason to
-  // truncate -- show every row. Mobile keeps the "+N MORE" reveal.
+  // truncate -- show every row. Mobile keeps the "SHOW ALL" reveal.
   const visibleRows = isDesktop || showAll ? pileRows : pileRows.slice(0, ROWS_BEFORE_OVERFLOW);
   const overflow = pileRows.length - visibleRows.length;
 
@@ -177,7 +176,7 @@ export const ReviewScreen = () => {
 
   const headlineBlock = (
     <div className={styles.headlineBlock}>
-      <h1 className={styles.headline}>your {season.toLowerCase()} review</h1>
+      <h1 className={styles.headline}>your {season.toLowerCase()} review.</h1>
       <p className={styles.contextLine}>
         {roomName.toUpperCase()} &middot; {done} / {total} VERDICTS
         {/* Room pulse (audit 17 UX 3): pre-lock the room used to be
@@ -206,9 +205,9 @@ export const ReviewScreen = () => {
         )}
       </span>
       <span className={styles.resumeText}>
-        <span className={styles.resumeTitle}>Keep picking</span>
+        <span className={styles.resumeTitle}>keep picking</span>
         <span className={styles.resumeMeta}>
-          {remaining} TITLES LEFT &middot; NEXT: {nextUp.title.toUpperCase()}
+          {remaining} {remaining === 1 ? "TITLE" : "TITLES"} LEFT &middot; NEXT: {nextUp.title.toUpperCase()}
         </span>
       </span>
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true" className={styles.resumeArrow}>
@@ -238,7 +237,8 @@ export const ReviewScreen = () => {
       onClick={() => openOnDeck(pileRows.map((r) => r.titleId))}
       data-test-handle="review-pile"
     >
-      REVIEW ALL {pileRows.length} {PILE_LABELS[pile].toUpperCase()} &rarr;
+      {pileRows.length === 1 ? "REVIEW 1" : `REVIEW ALL ${pileRows.length}`} {PILE_LABELS[pile].toUpperCase()}{" "}
+      <span aria-hidden="true">&rarr;</span>
     </button>
   );
 
@@ -303,7 +303,7 @@ export const ReviewScreen = () => {
             className={styles.overflowBtn}
             onClick={() => dispatch({ type: "reviewView", payload: { pile, showAll: true } })}
           >
-            +{overflow} MORE
+            SHOW ALL {pileRows.length}
           </button>
         </li>
       )}
@@ -316,7 +316,7 @@ export const ReviewScreen = () => {
   const rerankWaits =
     rerankOpen(results) && placeOf(placeKey(user?.userName, room.name, season, year))?.refining === true;
   const backLabel =
-    results?.mySubmitted === false ? "Back to ranking" : rerankWaits ? "Back to re-ranking" : "Back to standings";
+    results?.mySubmitted === false ? "back to ranking" : rerankWaits ? "back to re-ranking" : "back to standings";
 
   // The lock ceremony, said aloud: its button goes disabled under focus.
   const lockNote = (
@@ -354,10 +354,10 @@ export const ReviewScreen = () => {
         data-test-handle="lock-in"
       >
         {lockingIn
-          ? "Locking in\u2026"
+          ? "locking in\u2026"
           : remaining > 0
-            ? `Lock in · ${remaining} to go`
-            : "Lock in"}
+            ? `lock in · ${remaining} to go`
+            : "lock in"}
       </button>
       <p className={styles.lockCaption}>NEXT: RANK YOUR KEEPS · PASSED AND UNSURE ARE DISCARDED</p>
     </>
@@ -390,7 +390,7 @@ export const ReviewScreen = () => {
             className={styles.confirmCancel}
             onClick={() => setConfirmOpen(false)}
           >
-            Not yet
+            not yet
           </button>
           <button
             type="button"
@@ -403,7 +403,7 @@ export const ReviewScreen = () => {
             }}
             data-test-handle="confirm-lock"
           >
-            Lock it in
+            lock it in
           </button>
         </div>
     </DialogScrim>

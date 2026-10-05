@@ -477,7 +477,7 @@ export class Client {
           this.sendMessage({
             type: 'lockInError',
             payload: {
-              message: `${remaining} title${remaining === 1 ? '' : 's'} still need a verdict before you can lock in.`,
+              message: `${remaining} ${remaining === 1 ? 'title still needs' : 'titles still need'} a verdict before you can lock in.`,
             },
           });
           return;
@@ -678,7 +678,7 @@ export class Client {
     const results = this.buildResults(ctx.cour, ctx.roomId, ctx.user.id);
     const refined = results.refined;
     // The screen's own words for the shows every member kept.
-    const keptBy = results.memberCount === 2 ? 'you both kept' : 'everyone kept';
+    const keptBy = 'everyone kept';
     if (!refined) {
       this.sendMessage({
         type: 'submitRefinedRankingsError',

@@ -318,7 +318,7 @@ const reduce = (state: Store, action: Actions): Store => {
           {
             id: mintToastId(state.toastCounter + 1),
             appearance: "Success" as const,
-            message: `Marked ${action.payload.skipped} titles unsure.`,
+            message: `Marked ${action.payload.skipped} ${action.payload.skipped === 1 ? "title" : "titles"} unsure.`,
             showTimeMs: 4000,
           },
         ],

@@ -17,7 +17,7 @@ import type { ReelyProvider } from '../../internal/app/reely/providers/types';
 import type { Room } from '../../internal/app/reely/room';
 import { logger } from '../../internal/app/reely/logger';
 import { makeWs, push, sent, flush } from '../helpers';
-import { keptWords } from '../../web/app/src/utils/standingsText';
+import { KEPT_WORDS } from '../../web/app/src/utils/standingsText';
 
 // End-to-end handler tests over a real :memory: cour store: the
 // passwordless identity (0.12.0) and the verdict flow -- verdicts,
@@ -488,7 +488,7 @@ describe('verdict / review / lockIn', () => {
       push(ws1, { type: 'submitRefinedRankings', payload: { rankedTitleIds } });
       await flush();
       expect(last(ws1, 'submitRefinedRankingsError')?.payload.message).toBe(
-        `The shows ${keptWords(2).phrase} just changed. Try again.`,
+        `The shows ${KEPT_WORDS.phrase} just changed. Try again.`,
       );
       expect(last(ws1, 'submitRefinedRankingsSuccess')).toBeUndefined();
     }
@@ -568,7 +568,7 @@ describe('verdict / review / lockIn', () => {
     await flush();
     // The screen's own words for the shows, pinned to the server's copy.
     expect(last(ws1, 'submitRefinedRankingsError')?.payload.message).toBe(
-      `Re-ranking needs at least two shows ${keptWords(2).phrase}.`,
+      `Re-ranking needs at least two shows ${KEPT_WORDS.phrase}.`,
     );
   });
 
@@ -589,7 +589,7 @@ describe('verdict / review / lockIn', () => {
     push(sockets[0], { type: 'submitRefinedRankings', payload: { rankedTitleIds: [101] } });
     await flush();
     expect(last(sockets[0], 'submitRefinedRankingsError')?.payload.message).toBe(
-      `Re-ranking needs at least two shows ${keptWords(3).phrase}.`,
+      `Re-ranking needs at least two shows ${KEPT_WORDS.phrase}.`,
     );
   });
 
@@ -805,11 +805,14 @@ describe('verdict / review / lockIn', () => {
   it('lockIn is refused while titles remain unverdicted', async () => {
     const room = makeWsRoom();
     const { ws } = await authedInRoom('user1', room);
+    push(ws, { type: 'lockIn' });
+    await flush();
+    expect(last(ws, 'lockInError')?.payload.message).toBe('2 titles still need a verdict before you can lock in.');
     push(ws, { type: 'verdict', payload: { titleId: 101, verdict: 'like' } });
     await flush();
     push(ws, { type: 'lockIn' });
     await flush();
-    expect(last(ws, 'lockInError')?.payload.message).toContain('still need a verdict');
+    expect(last(ws, 'lockInError')?.payload.message).toBe('1 title still needs a verdict before you can lock in.');
     const user = cour.users.byName('user1');
     const courRoom = cour.rooms.byName('couch-club');
     expect(cour.members.get(courRoom?.id as number, user?.id as number)?.lockedAt).toBeNull();

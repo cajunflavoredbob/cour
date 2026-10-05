@@ -26,12 +26,12 @@ afterEach(() => {
 describe('VerdictRow', () => {
   it('Keep and Pass dispatch their verdicts for the given title', () => {
     render(<VerdictRow titleId={101} remaining={12} />);
-    fireEvent.click(screen.getByText('Keep'));
+    fireEvent.click(screen.getByText('keep'));
     expect(dispatch).toHaveBeenCalledWith({
       type: 'verdict',
       payload: { titleId: 101, verdict: 'like' },
     });
-    fireEvent.click(screen.getByText('Pass'));
+    fireEvent.click(screen.getByText('pass'));
     expect(dispatch).toHaveBeenCalledWith({
       type: 'verdict',
       payload: { titleId: 101, verdict: 'dislike' },
@@ -41,7 +41,7 @@ describe('VerdictRow', () => {
   it('a quick Skip press-and-release is a single skip', () => {
     vi.useFakeTimers();
     render(<VerdictRow titleId={101} remaining={12} />);
-    const skip = screen.getByText('Unsure');
+    const skip = screen.getByText('unsure');
     fireEvent.pointerDown(skip);
     vi.advanceTimersByTime(500); // released well before the 1.5s hold
     fireEvent.pointerUp(skip);
@@ -55,7 +55,7 @@ describe('VerdictRow', () => {
   it('holding Skip for 1.5s fires skipRemaining exactly once (design section 04)', () => {
     vi.useFakeTimers();
     render(<VerdictRow titleId={101} remaining={12} />);
-    const skip = screen.getByText('Unsure');
+    const skip = screen.getByText('unsure');
     fireEvent.pointerDown(skip);
     // Mid-hold the label counts down against the remaining total.
     vi.advanceTimersByTime(100);
@@ -99,7 +99,7 @@ describe('VerdictRow', () => {
       const btn = document.querySelector(`[data-test-handle="${handle}"]`) as HTMLButtonElement;
       expect(btn.disabled).toBe(true);
     }
-    fireEvent.click(screen.getByText('Keep'));
+    fireEvent.click(screen.getByText('keep'));
     expect(dispatch).not.toHaveBeenCalled();
   });
 
@@ -121,7 +121,7 @@ describe('VerdictRow', () => {
     );
     const { container } = render(<VerdictRow titleId={101} remaining={12} />);
     expect((container.firstElementChild as HTMLElement).dataset.offline).toBe('true');
-    fireEvent.click(screen.getByText('Keep'));
+    fireEvent.click(screen.getByText('keep'));
     expect(dispatch).not.toHaveBeenCalled();
   });
 
@@ -156,7 +156,7 @@ describe('VerdictRow', () => {
   it('dragging the pointer away cancels the hold with no dispatch', () => {
     vi.useFakeTimers();
     render(<VerdictRow titleId={101} remaining={12} />);
-    const skip = screen.getByText('Unsure');
+    const skip = screen.getByText('unsure');
     fireEvent.pointerDown(skip);
     fireEvent.pointerLeave(skip);
     vi.advanceTimersByTime(3000);
@@ -165,7 +165,7 @@ describe('VerdictRow', () => {
 
   it('keyboard Skip is always a single skip (hold is pointer-only)', () => {
     render(<VerdictRow titleId={101} remaining={12} />);
-    fireEvent.keyDown(screen.getByText('Unsure').closest('button') as HTMLElement, { key: 'Enter' });
+    fireEvent.keyDown(screen.getByText('unsure').closest('button') as HTMLElement, { key: 'Enter' });
     expect(dispatch).toHaveBeenCalledWith({
       type: 'verdict',
       payload: { titleId: 101, verdict: 'skip' },
@@ -177,9 +177,26 @@ describe('VerdictRow with skip-all disabled (scoped passes)', () => {
   it('a long hold is just a single skip -- no skipRemaining', () => {
     vi.useFakeTimers();
     render(<VerdictRow titleId={101} remaining={12} allowSkipAll={false} />);
-    const skip = screen.getByText('Unsure');
+    const skip = screen.getByText('unsure');
     fireEvent.pointerDown(skip);
     vi.advanceTimersByTime(3000);
+    fireEvent.pointerUp(skip);
+    expect(dispatch).toHaveBeenCalledTimes(1);
+    expect(dispatch).toHaveBeenCalledWith({
+      type: 'verdict',
+      payload: { titleId: 101, verdict: 'skip' },
+    });
+  });
+});
+
+describe('VerdictRow on the last unverdicted title', () => {
+  it('a long hold is just a single skip, with no "all 1" countdown', () => {
+    vi.useFakeTimers();
+    render(<VerdictRow titleId={101} remaining={1} />);
+    const skip = screen.getByText('unsure');
+    fireEvent.pointerDown(skip);
+    vi.advanceTimersByTime(3000);
+    expect(screen.queryByText(/all 1/)).toBeNull();
     fireEvent.pointerUp(skip);
     expect(dispatch).toHaveBeenCalledTimes(1);
     expect(dispatch).toHaveBeenCalledWith({
@@ -196,7 +213,7 @@ describe('current-verdict halo (re-review passes)', () => {
     const like = document.querySelector('[data-test-handle="verdict-like"]') as HTMLElement;
     const skip = document.querySelector('[data-test-handle="verdict-skip"]') as HTMLElement;
     expect(dislike.getAttribute('data-current')).toBe('true');
-    expect(dislike.getAttribute('aria-label')).toContain('your current pick');
+    expect(dislike.getAttribute('aria-label')).toBe('Pass (your current pick)');
     expect(like.getAttribute('data-current')).toBe('false');
     expect(skip.getAttribute('data-current')).toBe('false');
   });

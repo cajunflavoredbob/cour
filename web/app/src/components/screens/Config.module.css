@@ -10,8 +10,10 @@
 }
 
 .heading {
-  font-size: 1.5rem;
+  font-family: var(--cour-font-display);
+  font-size: 26px;
   font-weight: 600;
+  color: var(--cour-text-0);
 }
 
 .body {

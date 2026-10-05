@@ -105,7 +105,7 @@ describe('RankScreen sharing the standings', () => {
     expect(screen.getByRole('dialog').getAttribute('aria-label')).toBe('Share the standings');
     await settle(400);
     expect(screen.getByRole('img')).toBeDefined();
-    fireEvent.click(screen.getByText('Close'));
+    fireEvent.click(screen.getByText('close'));
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(document.activeElement).toBe(link());
   });
@@ -139,7 +139,7 @@ describe('RankScreen sharing the standings', () => {
       }),
     });
     render(<RankScreen />);
-    fireEvent.click(screen.getByText('Both kept 2'));
+    fireEvent.click(screen.getByText('All kept 2'));
     fireEvent.click(document.querySelector('[data-test-handle="open-refine"]') as HTMLElement);
     await settle(2000);
     expect(renderMock).not.toHaveBeenCalled();

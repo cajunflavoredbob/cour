@@ -120,14 +120,14 @@ const editorTitles = () =>
 const toasts = () =>
   dispatch.mock.calls.filter(([a]) => a.type === 'addToast').map(([a]) => a.payload.message as string);
 const notes = () => [...document.querySelectorAll('[role="status"]')].map((el) => el.textContent).join('|');
-const openBothKept = () => fireEvent.click(handle('standings-shared') as HTMLElement);
+const openAllKept = () => fireEvent.click(handle('standings-shared') as HTMLElement);
 // The arrival toast waits for the revealed standings to settle.
 const settle = () =>
   act(() => {
     vi.advanceTimersByTime(1500);
   });
 const openEditor = () => {
-  openBothKept();
+  openAllKept();
   fireEvent.click(handle('open-refine') as HTMLElement);
 };
 
@@ -160,15 +160,15 @@ describe('RankScreen re-rank round', () => {
     expect(rowTitles()).toEqual(['Third Show', 'Iron Bloom', 'Second Show']);
   });
 
-  it('opens on All picks, with Both kept one tab away under the head that stays the result', () => {
+  it('opens on All picks, with All kept one tab away under the head that stays the result', () => {
     render(<RankScreen />);
     const tabs = screen.getAllByRole('tab');
     expect(tabs.map((t) => [t.textContent, t.getAttribute('aria-selected')])).toEqual([
       ['All picks 3', 'true'],
-      ['Both kept 2', 'false'],
+      ['All kept 2', 'false'],
     ]);
     expect(screen.getByRole('tabpanel').getAttribute('aria-labelledby')).toBe(tabs[0].id);
-    openBothKept();
+    openAllKept();
     expect(screen.getByRole('tabpanel').getAttribute('aria-labelledby')).toBe(tabs[1].id);
     expect(screen.getByText('fall standings.')).toBeDefined();
     expect(rowTitles()).toEqual(['Iron Bloom', 'Third Show']);
@@ -188,7 +188,7 @@ describe('RankScreen re-rank round', () => {
   it('keeps the medals on All picks, and the second view quiet', () => {
     render(<RankScreen />);
     expect(document.querySelector('[data-medal="1"]')?.textContent).toContain('Third Show');
-    openBothKept();
+    openAllKept();
     expect(document.querySelector('[data-medal]')).toBeNull();
   });
 
@@ -204,10 +204,10 @@ describe('RankScreen re-rank round', () => {
     expect(all.getAttribute('aria-selected')).toBe('true');
   });
 
-  it('says everyone in a room of three or more', () => {
+  it('says the same in a room of three or more', () => {
     withState({ results: results({ memberCount: 3, submittedCount: 3 }) });
     render(<RankScreen />);
-    expect(screen.getByText('Everyone kept 2')).toBeDefined();
+    expect(screen.getByText('All kept 2')).toBeDefined();
     openEditor();
     expect(screen.getByText('THE 2 SHOWS EVERYONE KEPT')).toBeDefined();
   });
@@ -231,7 +231,7 @@ describe('RankScreen re-rank round', () => {
     render(<RankScreen />);
     openEditor();
     expect(screen.getByText('re-rank these 2.')).toBeDefined();
-    expect(screen.getByText('THE 2 SHOWS YOU BOTH KEPT')).toBeDefined();
+    expect(screen.getByText('THE 2 SHOWS EVERYONE KEPT')).toBeDefined();
     expect(screen.getByText('SCORED 12 · 9')).toBeDefined();
     // Seeded with this member's own order, each row saying where it was.
     expect(editorTitles()).toEqual(['Iron Bloom', 'Third Show']);
@@ -241,11 +241,11 @@ describe('RankScreen re-rank round', () => {
     fireEvent.click(handle('submit-refine') as HTMLElement);
     expect(
       screen.getByText(
-        "This sends your order for the 2 shows you both kept. You can't change it after this, and the room's result doesn't change.",
+        "This sends your order for the 2 shows everyone kept. You can't change it after this, and the room's result doesn't change.",
       ),
     ).toBeDefined();
     expect(screen.getByRole('alertdialog').getAttribute('aria-label')).toBe(
-      'Submit your order for the shows you both kept',
+      'Submit your order for the shows everyone kept',
     );
     const confirm = handle('confirm-refine') as HTMLButtonElement;
     expect(confirm.disabled).toBe(true);
@@ -256,7 +256,7 @@ describe('RankScreen re-rank round', () => {
     expect(dispatch).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'submitRankings' }));
   });
 
-  it('goes back to Both kept without submitting, and keeps the draft for next time', () => {
+  it('goes back to All kept without submitting, and keeps the draft for next time', () => {
     render(<RankScreen />);
     openEditor();
     fireEvent.click(screen.getByLabelText('Move Third Show up'));
@@ -286,7 +286,7 @@ describe('RankScreen re-rank round', () => {
     });
     render(<RankScreen />);
     const btn = handle('submit-refine') as HTMLButtonElement;
-    expect(btn.textContent).toContain('Submitting');
+    expect(btn.textContent).toContain('submitting');
     expect(btn.disabled).toBe(true);
     expect((handle('refine-back') as HTMLButtonElement).disabled).toBe(true);
     act(() => {
@@ -316,7 +316,7 @@ describe('RankScreen re-rank round', () => {
       }),
     });
     render(<RankScreen />);
-    openBothKept();
+    openAllKept();
     expect(screen.getByText('RE-RANKED BY USER1').getAttribute('role')).toBe('status');
     expect(screen.queryByText(/ OF 2/)).toBeNull();
     expect(handle('open-refine')).toBeNull();
@@ -330,7 +330,7 @@ describe('RankScreen re-rank round', () => {
       }),
     });
     render(<RankScreen />);
-    openBothKept();
+    openAllKept();
     expect(screen.getByText('RE-RANKED BY USER2')).toBeDefined();
     expect(handle('open-refine')?.textContent).toBe('RE-RANK THESE 2 →');
   });
@@ -422,14 +422,14 @@ describe('RankScreen re-rank round', () => {
     expect(editorTitles()).toEqual(['Third Show', 'Iron Bloom']);
   });
 
-  it('comes back to Both kept with its reveal open after a trip away from the screen', () => {
+  it('comes back to All kept with its reveal open after a trip away from the screen', () => {
     withState({
       results: results({
         refined: sevenKept(),
       }),
     });
     const first = render(<RankScreen />);
-    openBothKept();
+    openAllKept();
     fireEvent.click(handle('standings-reveal') as HTMLElement);
     first.unmount();
     render(<RankScreen />);
@@ -447,8 +447,8 @@ describe('RankScreen re-rank round', () => {
     render(<RankScreen />);
     fireEvent.click(handle('standings-reveal') as HTMLElement);
     expect(handle('standings-reveal')?.textContent).toBe('SHOW TOP 5');
-    openBothKept();
-    expect(handle('standings-reveal')?.textContent).toBe('SHOW ALL 7 →');
+    openAllKept();
+    expect(handle('standings-reveal')?.textContent).toBe('SHOW ALL 7');
     fireEvent.click(screen.getAllByRole('tab')[0]);
     expect(handle('standings-reveal')?.textContent).toBe('SHOW TOP 5');
   });
@@ -466,7 +466,7 @@ describe('RankScreen re-rank round', () => {
     first.unmount();
     const back = render(<RankScreen />);
     expect(focus).toHaveBeenLastCalledWith({ preventScroll: false });
-    openBothKept();
+    openAllKept();
     (document.activeElement as HTMLElement).blur();
     withState({ results: closed() });
     back.rerender(<RankScreen />);
@@ -531,9 +531,9 @@ describe('RankScreen re-rank round', () => {
       }),
     });
     render(<RankScreen />);
-    openBothKept();
-    expect(handle('standings-reveal')?.textContent).toBe('SHOW ALL 7 →');
-    // The arrow is decoration, as on the screen's other links.
+    openAllKept();
+    expect(handle('standings-reveal')?.textContent).toBe('SHOW ALL 7');
+    // Named by its words alone.
     expect(screen.getByRole('button', { name: 'SHOW ALL 7' })).toBe(handle('standings-reveal'));
   });
 });
@@ -549,7 +549,7 @@ describe('RankScreen re-rank round opening and closing', () => {
     act(() => {
       vi.advanceTimersByTime(1);
     });
-    expect(toasts()).toEqual(['Both rankings are in. Compare the 2 shows you both kept in the Both kept tab.']);
+    expect(toasts()).toEqual(['All rankings are in. Compare the 2 shows everyone kept in the All kept tab.']);
     unmount();
     render(<RankScreen />);
     settle();
@@ -568,12 +568,12 @@ describe('RankScreen re-rank round opening and closing', () => {
     expect(toasts()).toHaveLength(2);
   });
 
-  it('takes the toast back once the member opens Both kept', () => {
+  it('takes the toast back once the member opens All kept', () => {
     withState({ room: { name: 'told-and-acted', joined: true, media } });
     render(<RankScreen />);
     settle();
     const id = dispatch.mock.calls.find(([a]) => a.type === 'addToast')?.[0].payload.id;
-    openBothKept();
+    openAllKept();
     expect(dispatch).toHaveBeenCalledWith({ type: 'removeToast', payload: { id, message: '' } });
   });
 
@@ -611,11 +611,11 @@ describe('RankScreen re-rank round opening and closing', () => {
     expect(toasts()).toHaveLength(3);
   });
 
-  it('says everyone in a room of three or more', () => {
+  it('says the same in a room of three or more', () => {
     withState({ room: { name: 'told-three', joined: true, media }, results: results({ memberCount: 3, submittedCount: 3 }) });
     render(<RankScreen />);
     settle();
-    expect(toasts()).toEqual(['All rankings are in. Compare the 2 shows everyone kept in the Everyone kept tab.']);
+    expect(toasts()).toEqual(['All rankings are in. Compare the 2 shows everyone kept in the All kept tab.']);
   });
 
   it('waits until the page is in view', () => {
@@ -634,10 +634,10 @@ describe('RankScreen re-rank round opening and closing', () => {
     spy.mockRestore();
   });
 
-  it('counts the view as found when the member opens Both kept before the toast', () => {
+  it('counts the view as found when the member opens All kept before the toast', () => {
     withState({ room: { name: 'found-first', joined: true, media } });
     render(<RankScreen />);
-    openBothKept();
+    openAllKept();
     settle();
     fireEvent.click(handle('standings-all') as HTMLElement);
     settle();
@@ -661,7 +661,7 @@ describe('RankScreen re-rank round opening and closing', () => {
     fireEvent.click(handle('share-standings') as HTMLElement);
     settle();
     expect(toasts()).toEqual([]);
-    fireEvent.click(screen.getByText('Close'));
+    fireEvent.click(screen.getByText('close'));
     settle();
     expect(toasts()).toHaveLength(1);
   });
@@ -706,7 +706,7 @@ describe('RankScreen re-rank round opening and closing', () => {
 
   it('falls back to All picks when the round closes', () => {
     const { rerender } = render(<RankScreen />);
-    openBothKept();
+    openAllKept();
     withState({ results: closed() });
     rerender(<RankScreen />);
     expect(screen.queryByRole('tab')).toBeNull();
@@ -772,7 +772,7 @@ describe('RankScreen re-rank round opening and closing', () => {
 
   it('says why when the round closed while the screen was away on its view', () => {
     const first = render(<RankScreen />);
-    openBothKept();
+    openAllKept();
     first.unmount();
     dispatch.mockClear();
     withState({ results: closed() });
@@ -862,9 +862,9 @@ describe('RankScreen re-rank round opening and closing', () => {
     expect(document.activeElement?.textContent).toBe('fall standings.');
   });
 
-  it('says why when the round closes under Both kept, outside the editor', () => {
+  it('says why when the round closes under All kept, outside the editor', () => {
     const { rerender } = render(<RankScreen />);
-    openBothKept();
+    openAllKept();
     dispatch.mockClear();
     withState({ results: closed() });
     rerender(<RankScreen />);
@@ -898,7 +898,7 @@ describe('RankScreen re-rank round opening and closing', () => {
 
   it('waits for the details dialog before moving focus to the standings, and does it once', () => {
     const { rerender } = render(<RankScreen />);
-    openBothKept();
+    openAllKept();
     fireEvent.click(document.querySelectorAll('[data-test-handle="standing-details"]')[0] as HTMLElement);
     expect(screen.getByRole('dialog')).toBeDefined();
     withState({ results: closed() });
@@ -916,11 +916,11 @@ describe('RankScreen re-rank round opening and closing', () => {
 
   it('leaves focus with an open share dialog, which gives it back itself', () => {
     const { rerender } = render(<RankScreen />);
-    openBothKept();
+    openAllKept();
     const link = handle('share-standings') as HTMLElement;
     link.focus();
     fireEvent.click(link);
-    const close = screen.getByText('Close');
+    const close = screen.getByText('close');
     close.focus();
     withState({ results: closed() });
     rerender(<RankScreen />);
@@ -971,7 +971,7 @@ describe('RankScreen re-rank editor and submit', () => {
     expect(notes()).not.toContain('Your order is in.');
   });
 
-  it('closes the editor once the re-rank is in and the ceremony is over, focusing Both kept', () => {
+  it('closes the editor once the re-rank is in and the ceremony is over, focusing All kept', () => {
     const { rerender } = render(<RankScreen />);
     openEditor();
     expect(document.activeElement?.textContent).toBe('re-rank these 2.');
@@ -984,7 +984,7 @@ describe('RankScreen re-rank editor and submit', () => {
     rerender(<RankScreen />);
     expect(screen.queryByText('re-rank these 2.')).toBeNull();
     expect(screen.getByText('RE-RANKED BY USER1')).toBeDefined();
-    expect(document.activeElement?.textContent).toBe('Both kept 2');
+    expect(document.activeElement?.textContent).toBe('All kept 2');
   });
 
   it('follows a change in the shows everyone kept while re-ranking', () => {
@@ -1023,7 +1023,7 @@ describe('RankScreen re-rank editor and submit', () => {
     openEditor();
     fireEvent.click(handle('submit-refine') as HTMLElement);
     fireEvent.click(screen.getByText('This is my order'));
-    fireEvent.click(screen.getByText('Keep re-ranking'));
+    fireEvent.click(screen.getByText('keep re-ranking'));
     fireEvent.click(handle('submit-refine') as HTMLElement);
     expect((handle('confirm-refine') as HTMLButtonElement).disabled).toBe(true);
   });
@@ -1052,7 +1052,7 @@ describe('RankScreen re-rank round on desktop', () => {
     expect(rail.textContent).toContain("EVERYONE'S #1");
     expect(rail.querySelector('[role="tablist"]')).toBeNull();
     expect(document.querySelector('[data-hero="true"]')?.textContent).toContain('Third Show');
-    openBothKept();
+    openAllKept();
     expect(document.querySelector('[data-hero="true"]')).toBeNull();
     expect(document.querySelector('[data-medal]')).toBeNull();
   });

@@ -441,7 +441,7 @@ describe('DeckSheet media box', () => {
     // Embed gone, card up, direct link out, and the 7s bar is running
     // (an errored video is an ordinary rotation citizen).
     expect(document.querySelector('iframe')).toBeNull();
-    const link = screen.getByText('Watch directly on YouTube') as HTMLAnchorElement;
+    const link = screen.getByText('watch directly on YouTube') as HTMLAnchorElement;
     expect(link.href).toBe('https://www.youtube.com/watch?v=pv-x');
     expect(container.querySelector('[class*="holdBar"]')).not.toBeNull();
     act(() => vi.advanceTimersByTime(7100));

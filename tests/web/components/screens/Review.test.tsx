@@ -77,15 +77,15 @@ afterEach(() => {
 describe('ReviewScreen (design section 07)', () => {
   it('renders the headline, context line, and progress', () => {
     render(<ReviewScreen />);
-    expect(screen.getByText('your summer review')).toBeDefined();
+    expect(screen.getByText('your summer review.')).toBeDefined();
     expect(screen.getByText(/COUCH-CLUB · 2 \/ 3 VERDICTS/)).toBeDefined();
     expect(screen.getByRole('progressbar').getAttribute('aria-valuenow')).toBe('2');
   });
 
   it('resume banner names the next unverdicted title and routes to the deck', () => {
     render(<ReviewScreen />);
-    expect(screen.getByText(/1 TITLES LEFT · NEXT: THIRD SHOW/)).toBeDefined();
-    fireEvent.click(screen.getByText('Keep picking'));
+    expect(screen.getByText(/1 TITLE LEFT · NEXT: THIRD SHOW/)).toBeDefined();
+    fireEvent.click(screen.getByText('keep picking'));
     expect(dispatch).toHaveBeenCalledWith({ type: 'navigate', payload: { route: 'room' } });
   });
 
@@ -113,7 +113,7 @@ describe('ReviewScreen (design section 07)', () => {
     expect(dispatch).toHaveBeenCalledWith({ type: 'reviewView', payload: { pile: 'dislike', showAll: false } });
   });
 
-  it('switching piles folds the +N MORE reveal back up', () => {
+  it('switching piles folds the SHOW ALL reveal back up', () => {
     withState({ reviewView: { pile: 'like', showAll: true } });
     render(<ReviewScreen />);
     fireEvent.click(screen.getByText('Unsure 1'));
@@ -147,7 +147,7 @@ describe('ReviewScreen (design section 07)', () => {
 
   it('lock bar is disabled with a countdown until every title has a verdict', () => {
     render(<ReviewScreen />);
-    const lock = screen.getByText(/Lock in · 1 to go/).closest('button') as HTMLButtonElement;
+    const lock = screen.getByText(/lock in · 1 to go/).closest('button') as HTMLButtonElement;
     expect(lock.disabled).toBe(true);
     fireEvent.click(lock);
     expect(dispatch).not.toHaveBeenCalledWith({ type: 'lockIn' });
@@ -165,7 +165,7 @@ describe('ReviewScreen (design section 07)', () => {
       }),
     });
     render(<ReviewScreen />);
-    const lock = screen.getByText('Lock in').closest('button') as HTMLButtonElement;
+    const lock = screen.getByText('lock in').closest('button') as HTMLButtonElement;
     expect(lock.disabled).toBe(false);
     // 0.12.0: the button opens the no-take-backsies dialog; lockIn only
     // fires after the explicit checkbox + confirm.
@@ -182,7 +182,7 @@ describe('ReviewScreen (design section 07)', () => {
     fireEvent.click(confirm);
     expect(dispatch).toHaveBeenCalledWith({ type: 'lockIn' });
     // Complete ledger also means no resume banner.
-    expect(screen.queryByText('Keep picking')).toBeNull();
+    expect(screen.queryByText('keep picking')).toBeNull();
   });
 
   it('shows the room pulse when member state is known (audit 17 UX 3)', () => {
@@ -247,7 +247,7 @@ describe('ReviewScreen (design section 07)', () => {
     expect(dispatch).toHaveBeenCalledWith({ type: 'lockIn' });
   });
 
-  it('shows "Locking in..." disabled while the ceremony runs', () => {
+  it('shows "locking in..." disabled while the ceremony runs', () => {
     withState({
       review: reviewState(),
       finalizing: { kind: 'lock', startedAt: Date.now() },
@@ -255,13 +255,13 @@ describe('ReviewScreen (design section 07)', () => {
     render(<ReviewScreen />);
     const lock = document.querySelector('[data-test-handle="lock-in"]') as HTMLButtonElement;
     expect(lock.disabled).toBe(true);
-    expect(lock.textContent).toContain('Locking in');
+    expect(lock.textContent).toContain('locking in');
   });
 
   it('the locked peek offers a way back to the standings (audit 17 UX 6)', () => {
     withState({ review: { ...reviewState(), lockedAt: 12345 } });
     render(<ReviewScreen />);
-    fireEvent.click(screen.getByText('Back to standings'));
+    fireEvent.click(screen.getByText('back to standings'));
     expect(dispatch).toHaveBeenCalledWith({
       type: 'viewLockedReview',
       payload: { open: false },
@@ -280,13 +280,13 @@ describe('ReviewScreen (design section 07)', () => {
       }),
     });
     render(<ReviewScreen />);
-    expect(screen.getByText('Back to standings')).toBeDefined();
+    expect(screen.getByText('back to standings')).toBeDefined();
     const pill = screen.getByText('KEPT') as HTMLButtonElement;
     expect(pill.disabled).toBe(true);
     expect(pill.getAttribute('data-offline')).toBe('false');
   });
 
-  it('collapses a long pile behind a +N MORE reveal', () => {
+  it('collapses a long pile behind a SHOW ALL reveal', () => {
     const many = Array.from({ length: 15 }, (_, i) => ({
       titleId: 200 + i,
       verdict: 'like' as const,
@@ -294,9 +294,9 @@ describe('ReviewScreen (design section 07)', () => {
     }));
     withState({ review: { ...reviewState({ verdicts: many }), total: 20 } });
     render(<ReviewScreen />);
-    expect(screen.getByText('+3 MORE')).toBeDefined();
+    expect(screen.getByText('SHOW ALL 15')).toBeDefined();
     expect(document.querySelectorAll('li[class*="row"]')).toHaveLength(12);
-    fireEvent.click(screen.getByText('+3 MORE'));
+    fireEvent.click(screen.getByText('SHOW ALL 15'));
     expect(dispatch).toHaveBeenCalledWith({ type: 'reviewView', payload: { pile: 'like', showAll: true } });
     cleanup();
     withState({
@@ -304,7 +304,7 @@ describe('ReviewScreen (design section 07)', () => {
       reviewView: { pile: 'like', showAll: true },
     });
     render(<ReviewScreen />);
-    expect(screen.queryByText('+3 MORE')).toBeNull();
+    expect(screen.queryByText('SHOW ALL 15')).toBeNull();
     expect(document.querySelectorAll('li[class*="row"]')).toHaveLength(15);
   });
 });
@@ -375,10 +375,10 @@ describe('ReviewScreen lock-in hold and handoffs', () => {
     withState({ user: { userName: 'user1' }, review: peek, results });
     const { rerender } = render(<ReviewScreen />);
     const back = () => document.querySelector('[data-test-handle="back-to-standings"]')?.textContent;
-    expect(back()).toBe('Back to standings');
+    expect(back()).toBe('back to standings');
     keepPlace(placeKey('user1', 'couch-club', 'SUMMER', 2026), { view: 'shared', showAll: { all: false, shared: false }, refining: true });
     rerender(<ReviewScreen />);
-    expect(back()).toBe('Back to re-ranking');
+    expect(back()).toBe('back to re-ranking');
   });
 
   it('holds Lock in while a title lacks a verdict', () => {
@@ -393,24 +393,24 @@ describe('ReviewScreen lock-in hold and handoffs', () => {
     const round = (over = {}) => ({ sharedTitleIds: [101, 102], myRefined: false, ...over });
     withState({ review: peek, results: { mySubmitted: false } });
     const { rerender } = render(<ReviewScreen />);
-    expect(back()).toBe('Back to ranking');
+    expect(back()).toBe('back to ranking');
     withState({ review: peek, results: { mySubmitted: true, refined: round() } });
     rerender(<ReviewScreen />);
-    expect(back()).toBe('Back to standings');
+    expect(back()).toBe('back to standings');
     keepPlace(placeKey(undefined, 'couch-club', 'SUMMER', 2026), { view: 'shared', showAll: { all: false, shared: false }, refining: true });
     rerender(<ReviewScreen />);
-    expect(back()).toBe('Back to re-ranking');
+    expect(back()).toBe('back to re-ranking');
     // The round closed, or my order landed, while I was here.
     withState({ review: peek, results: { mySubmitted: true } });
     rerender(<ReviewScreen />);
-    expect(back()).toBe('Back to standings');
+    expect(back()).toBe('back to standings');
     withState({ review: peek, results: { mySubmitted: true, refined: round({ myRefined: true }) } });
     rerender(<ReviewScreen />);
-    expect(back()).toBe('Back to standings');
+    expect(back()).toBe('back to standings');
     // An order that landed during its ceremony goes back to the standings.
     withState({ review: peek, results: { mySubmitted: true, refined: round({ myRefined: true }) }, finalizing: { kind: 'refine', startedAt: 1 } });
     rerender(<ReviewScreen />);
-    expect(back()).toBe('Back to standings');
+    expect(back()).toBe('back to standings');
   });
 
   it('opens no deck trip for the second click of a double-click on a row', () => {
@@ -525,6 +525,20 @@ describe('ReviewScreen re-review passes (0.10.0)', () => {
     });
   });
 
+  it('names a pile of one without "all"', () => {
+    withState({
+      review: reviewState({
+        verdicts: [
+          { titleId: 101, verdict: 'like', updatedAt: 1 },
+          { titleId: 102, verdict: 'skip', updatedAt: 2 },
+        ],
+      }),
+    });
+    render(<ReviewScreen />);
+    expect(document.querySelector('[data-test-handle="review-pile"]')?.textContent).toBe('REVIEW 1 KEPT →');
+    expect(screen.getByRole('button', { name: 'REVIEW 1 KEPT' })).toBeDefined();
+  });
+
   it('locked rooms get neither row navigation nor the pile CTA', () => {
     withState({
       review: reviewState({
@@ -537,7 +551,7 @@ describe('ReviewScreen re-review passes (0.10.0)', () => {
       }),
     });
     render(<ReviewScreen />);
-    expect(screen.queryByText(/REVIEW ALL/)).toBeNull();
+    expect(document.querySelector('[data-test-handle="review-pile"]')).toBeNull();
     const rowBtn = screen.getByText('Iron Bloom').closest('button') as HTMLButtonElement;
     expect(rowBtn.disabled).toBe(true);
     fireEvent.click(rowBtn);
