@@ -16,6 +16,7 @@ vi.mock('../../../../web/app/src/components/organisms/AccountMenu', () => ({
 }));
 
 import { RankScreen } from '../../../../web/app/src/components/screens/Rank';
+import { forgetDrafts } from '../../../../web/app/src/utils/drafts';
 import { makeMedia } from '../../../helpers';
 
 const media = [
@@ -85,6 +86,7 @@ const stubRowGeometry = () =>
   });
 
 beforeEach(() => {
+  forgetDrafts();
   dispatch = vi.fn();
   useStoreMock.mockReset();
   withState();
@@ -106,8 +108,15 @@ describe('RankScreen desktop editor', () => {
     const rail = container.querySelector('[class*="rail"]') as HTMLElement;
     expect(rail).not.toBeNull();
     expect(rail.textContent).toContain('rank your keeps.');
-    // The point legend lives in the rail.
-    expect(rail.querySelector('[class*="legend"]')).not.toBeNull();
+    // The point legend lives in the rail: the five scoring slots, then the rest.
+    expect([...(rail.querySelector('[class*="legend"]') as HTMLElement).querySelectorAll('li')].map((li) => li.textContent)).toEqual([
+      '#112 PTS',
+      '#29 PTS',
+      '#36 PTS',
+      '#43 PTS',
+      '#51 PTS',
+      '#6+0 PTS',
+    ]);
     expect(rail.querySelector('[data-test-handle="submit-rankings"]')).not.toBeNull();
     // The sortable list is in the main column with grab handles.
     expect(container.querySelectorAll('[data-rank-row]').length).toBe(2);

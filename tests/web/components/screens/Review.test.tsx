@@ -98,6 +98,19 @@ describe('ReviewScreen (design section 07)', () => {
     expect(dispatch).toHaveBeenCalledWith({ type: 'reviewView', payload: { pile: 'skip', showAll: false } });
   });
 
+  it('pile tabs are one tab stop that labels the ledger panel, moved with the arrows', () => {
+    render(<ReviewScreen />);
+    const tabs = screen.getAllByRole('tab');
+    expect(screen.getByRole('tablist').getAttribute('aria-label')).toBe('Piles');
+    expect(tabs.map((t) => t.tabIndex)).toEqual([0, -1, -1]);
+    const panel = screen.getByRole('tabpanel');
+    expect(panel.getAttribute('aria-labelledby')).toBe(tabs[0].id);
+    expect(panel.textContent).toContain('Iron Bloom');
+    // Kept, Passed, Unsure: the arrow moves to Passed.
+    fireEvent.keyDown(tabs[0], { key: 'ArrowRight' });
+    expect(dispatch).toHaveBeenCalledWith({ type: 'reviewView', payload: { pile: 'dislike', showAll: false } });
+  });
+
   it('switching piles folds the +N MORE reveal back up', () => {
     withState({ reviewView: { pile: 'like', showAll: true } });
     render(<ReviewScreen />);

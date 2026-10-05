@@ -22,6 +22,7 @@ vi.mock('../../../../web/app/src/components/organisms/AccountMenu', () => ({
 }));
 
 import { RankScreen } from '../../../../web/app/src/components/screens/Rank';
+import { forgetDrafts } from '../../../../web/app/src/utils/drafts';
 import { makeMedia } from '../../../helpers';
 
 const media = [
@@ -62,6 +63,7 @@ const withState = (slice: any = {}) => {
 };
 
 beforeEach(() => {
+  forgetDrafts();
   dispatch = vi.fn();
   useStoreMock.mockReset();
   withState();
@@ -118,6 +120,15 @@ describe('RankScreen editor (before submitting)', () => {
     fireEvent.click(screen.getByLabelText('Move Second Show up'));
     const titles = screen.getAllByText(/Iron Bloom|Second Show/).map((el) => el.textContent);
     expect(titles[0]).toBe('Second Show');
+  });
+
+  it('keeps the order across a trip away from the screen', () => {
+    const first = render(<RankScreen />);
+    fireEvent.click(screen.getByLabelText('Move Second Show up'));
+    first.unmount();
+    render(<RankScreen />);
+    const titles = screen.getAllByText(/Iron Bloom|Second Show/).map((el) => el.textContent);
+    expect(titles).toEqual(['Second Show', 'Iron Bloom']);
   });
 
   it('submits through the no-turning-back dialog, in the chosen order', () => {

@@ -696,10 +696,10 @@ describe('review rejection-path retry + stall affordance', () => {
       const mod = await loadCreateStore();
       mod.createStore();
       clientMock.results.mockClear();
-      emit({ type, payload: { message: 'Refining opens once every ranking is in.' } });
+      emit({ type, payload: { message: 'Re-ranking opens once every ranking is in.' } });
       await new Promise((resolve) => setTimeout(resolve, 0));
       expect(clientMock.results).toHaveBeenCalledTimes(1);
-      expect(mod.useZustandStore.getState().toasts.at(-1)?.message).toBe('Refining opens once every ranking is in.');
+      expect(mod.useZustandStore.getState().toasts.at(-1)?.message).toBe('Re-ranking opens once every ranking is in.');
     },
   );
 

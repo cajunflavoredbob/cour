@@ -146,3 +146,13 @@ droppable without blocking the rest).
 Mobile standings podium/redesign; drag-reorder on touch (up/down stays
 the mobile path); any wire/server change (100% client); tablet tuning
 480-900px.
+
+# Standings: rail + main (the refine round)
+
+The refine round put tabs over the standings list, which left the list a
+few rows tall in the centered column. The standings now use the same
+rail + main shell as Review and the editor: the rail holds the headline,
+the status line, SHARE THE STANDINGS and everyone's #1; the main column
+holds the All picks / Both kept tabs and the elevated list (#1 hero row,
+medal ranks), which keeps its own height so SHOW ALL sits right under
+it. The elevated-list call above stands; only the shell changed.

@@ -33,6 +33,11 @@
   margin-bottom: 6px;
 }
 
+/* Headlines take focus to orient a screen change; they are not controls. */
+.headline:focus {
+  outline: none;
+}
+
 .contextLine {
   font-family: var(--cour-font-mono);
   font-size: 11px;
@@ -89,9 +94,9 @@
   color: var(--cour-text-2);
 }
 
-/* The top standing gets the accent number -- podium treatment proper
-   stays for a design pass. */
-.row[data-rank="1"] .standingRank {
+/* The room's #1 gets the accent number. Medals are set only on All picks
+   rows, so the second view's ranks stay quiet. */
+.row[data-medal="1"] .standingRank {
   color: var(--cour-accent-bright);
 }
 
@@ -134,7 +139,7 @@
   font-family: var(--cour-font-mono);
   font-size: 10px;
   letter-spacing: 0.04em;
-  color: var(--cour-text-3);
+  color: var(--cour-text-2);
 }
 
 .moveButtons {
@@ -206,7 +211,7 @@
   font-family: var(--cour-font-mono);
   font-size: 9.5px;
   letter-spacing: 0.1em;
-  color: var(--cour-text-3);
+  color: var(--cour-text-2);
 }
 
 /* Same dialog grammar as the lock-in confirm. */
@@ -452,22 +457,28 @@
   box-shadow: 0 10px 28px -10px rgba(0, 0, 0, 0.6);
 }
 
-/* Standings: centered column, #1 as a hero row, medal ranks. */
-.standingsBody {
+/* Standings: the head and everyone's #1 in the rail; the tabs and the
+   elevated list (#1 as a hero row, medal ranks) in the main column. */
+.standingsHead {
+  flex-shrink: 0;
+  margin-bottom: 18px;
+}
+
+.rail .standingsHead {
+  margin-bottom: 0;
+}
+
+/* What the tabs switch; on desktop only its list scrolls. */
+.standingsPanel {
   flex: 1;
   min-height: 0;
-  overflow: hidden;
-  width: 100%;
-  max-width: 760px;
-  margin: 0 auto;
-  padding: 8px 24px 24px;
   display: flex;
   flex-direction: column;
 }
 
-.standingsHead {
-  flex-shrink: 0;
-  margin-bottom: 18px;
+/* A fact that wraps whole, never one number onto its own line. */
+.keepTogether {
+  white-space: nowrap;
 }
 
 /* Share the standings: the screen's mono accent link (as REVIEW ALL and
@@ -515,6 +526,12 @@
   animation: cour-standings-in 260ms ease-out;
 }
 
+/* In the main column the list keeps its own height, so SHOW ALL sits
+   right under it. */
+.main .standingsRows {
+  flex: 0 1 auto;
+}
+
 @keyframes cour-standings-in {
   from { opacity: 0; transform: translateY(4px); }
   to { opacity: 1; transform: none; }
@@ -526,11 +543,11 @@
   }
 }
 
-.standingsRows .row[data-rank="2"] .standingRank {
+.standingsRows .row[data-medal="2"] .standingRank {
   color: var(--cour-text-0);
 }
 
-.standingsRows .row[data-rank="3"] .standingRank {
+.standingsRows .row[data-medal="3"] .standingRank {
   color: var(--cour-text-1);
 }
 
@@ -556,13 +573,16 @@
   font-size: 20px;
 }
 
+/* On the accent-soft fill, text-2 falls short of 4.5:1. */
 .standingsRows .row[data-hero="true"] .rowMeta {
   font-size: 12px;
+  color: var(--cour-text-1);
 }
 
 /* The standings top-5 reveal (the owner: we mainly care about the top 5;
    the rest hides by default). Static below the (scrolling) list. */
 .showAllBtn {
+  position: relative;
   align-self: center;
   flex-shrink: 0;
   display: block;
@@ -575,6 +595,13 @@
   letter-spacing: 0.08em;
   color: var(--cour-accent-bright);
   cursor: pointer;
+}
+
+/* A 44px target around the 35px link. */
+.showAllBtn::after {
+  content: "";
+  position: absolute;
+  inset: -5px 0;
 }
 
 .showAllBtn:hover {
@@ -593,7 +620,7 @@
   font-family: var(--cour-font-mono);
   font-size: 10px;
   letter-spacing: 0.12em;
-  color: var(--cour-text-3);
+  color: var(--cour-text-2);
 }
 
 .topPicksRow {
@@ -624,15 +651,29 @@
   object-fit: cover;
 }
 
+/* Members who share a #1 share the card, so the names wrap, every one shown. */
 .pickName {
   font-family: var(--cour-font-mono);
   font-size: 11px;
+  line-height: 1.35;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--cour-accent-bright);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+}
+
+/* Three cards across the 300px rail. */
+.rail .topPicks {
+  margin-bottom: 0;
+}
+
+.rail .topPicksRow {
+  gap: 12px;
+}
+
+.rail .pickCard,
+.rail .pickPoster {
+  width: 92px;
 }
 
 .pickTitle {
@@ -752,51 +793,48 @@
   margin-left: 7px;
 }
 
-/* All picks / shared shows once the refine round opens: the same pill
-   tabs as the review piles. */
+/* All picks / Both kept: the review piles' pill tabs, right above the
+   list they switch. */
 .viewTabs {
-  display: flex;
-  gap: 8px;
+  flex-shrink: 0;
   margin: 0 0 14px;
 }
 
-.standingsHead .viewTabs {
-  margin-top: 18px;
-}
-
-.viewTab {
-  padding: 8px 14px;
-  border-radius: 999px;
-  border: 1px solid var(--cour-line);
-  background: var(--cour-bg-1);
-  color: var(--cour-text-2);
-  font-family: var(--cour-font-ui);
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.viewTab[data-active="true"] {
-  background: var(--cour-accent-soft);
-  border-color: var(--cour-accent);
-  color: var(--cour-text-0);
-}
-
-/* The shared view's status line and refine link. */
-.sharedHead {
+/* Both kept: the note, who re-ranked, and the way into the re-rank. */
+.panelHead {
+  flex-shrink: 0;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  margin-bottom: 14px;
+  gap: 4px;
+  margin-bottom: 10px;
 }
 
-.sharedHead .contextLine {
-  margin-bottom: 2px;
+.sharedNote {
+  margin: 0;
+  font-family: var(--cour-font-ui);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--cour-text-2);
 }
 
-/* Mono accent links, as REVIEW ALL on the review page. */
-.refineBtn,
-.refineBack {
+.panelFacts {
+  margin: 0;
+  font-family: var(--cour-font-mono);
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  color: var(--cour-text-2);
+}
+
+/* Nobody has re-ranked yet: the announcer stays, taking no room. */
+.panelFacts:empty {
+  margin-top: -4px;
+}
+
+/* Mono accent link, as REVIEW ALL on the review page, with a 44px target. */
+.refineBtn {
+  position: relative;
+  margin: 0;
   padding: 8px 0;
   border: none;
   background: transparent;
@@ -807,30 +845,71 @@
   cursor: pointer;
 }
 
-.refineBtn {
-  margin: 0;
+.refineBtn::after {
+  content: "";
+  position: absolute;
+  inset: -6px 0;
 }
 
-.refineBack {
-  display: block;
-  margin: 10px auto 0;
-}
-
-.refineBtn:hover:not(:disabled),
-.refineBack:hover:not(:disabled) {
+.refineBtn:hover {
   filter: brightness(1.15);
 }
 
-.refineBtn:disabled,
-.refineBack:disabled {
+/* The way back from the re-rank: the deck's flat scope-back chip, with a
+   44px target. */
+.backChip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 13px;
+  border-radius: 999px;
+  border: 1px solid var(--cour-line-strong);
+  background: var(--cour-bg-1);
+  font-family: var(--cour-font-mono);
+  font-size: 11px;
+  color: var(--cour-text-1);
+  cursor: pointer;
+}
+
+.backChip::after {
+  content: "";
+  position: absolute;
+  inset: -7px;
+}
+
+.backChip:hover:not(:disabled) {
+  border-color: var(--cour-text-3);
+}
+
+.backChip:disabled {
+  border-color: var(--cour-line);
+  background: var(--cour-bg-2);
   color: var(--cour-text-2);
   cursor: default;
 }
 
-/* A short note under the shared status line. */
-.sharedNote {
-  margin: 0 0 4px;
-  font-family: var(--cour-font-ui);
-  font-size: 13px;
-  color: var(--cour-text-2);
+/* The scoped header, as the deck's: the way back, the room centered, the
+   avatar. The room label gets less room beside the chip. */
+.topBar[data-scoped] {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: 8px;
 }
+
+.topBar[data-scoped] > :first-child {
+  justify-self: start;
+}
+
+.topBar[data-scoped] > :last-child {
+  justify-self: end;
+}
+
+.topBar[data-scoped] .roomStack {
+  align-items: center;
+}
+
+.topBar[data-scoped] .roomLabel {
+  max-width: 40vw;
+}
+

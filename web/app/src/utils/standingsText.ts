@@ -11,11 +11,9 @@ export const rankingsIn = (submittedCount: number, memberCount: number): string 
   return memberCount === 1 ? `1 ${noun} IN` : `ALL ${memberCount} ${noun} IN`;
 };
 
-/** "1 OF 2 REFINED", or "ALL 2 REFINED" once every member has refined. */
-export const refinedIn = (refinedCount: number, memberCount: number): string =>
-  memberCount > 0 && refinedCount >= memberCount
-    ? `ALL ${memberCount} REFINED`
-    : `${refinedCount} OF ${memberCount} REFINED`;
+/** "RE-RANKED BY USER1 + USER2", or "" while nobody has. */
+export const rerankedByText = (names: readonly string[]): string =>
+  names.length > 0 ? `RE-RANKED BY ${names.map((n) => n.toUpperCase()).join(" + ")}` : "";
 
 /** "RANKED BY USER1 + USER2", a count when the names are missing, or "" for a single ranker. */
 export const rankedByText = (names: readonly string[] | undefined, rankedBy: number): string =>
@@ -24,3 +22,16 @@ export const rankedByText = (names: readonly string[] | undefined, rankedBy: num
     : rankedBy > 1
       ? `RANKED BY ${rankedBy}`
       : "";
+
+/** Each member's #1 grouped by show, in the order the shows first appear. */
+export const groupTopPicks = (
+  picks: readonly { userName: string; titleId: number }[],
+): { titleId: number; names: string[] }[] => {
+  const groups = new Map<number, string[]>();
+  for (const pick of picks) {
+    const names = groups.get(pick.titleId);
+    if (names) names.push(pick.userName);
+    else groups.set(pick.titleId, [pick.userName]);
+  }
+  return [...groups].map(([titleId, names]) => ({ titleId, names }));
+};

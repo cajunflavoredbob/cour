@@ -119,7 +119,7 @@
   font-family: var(--cour-font-mono);
   font-size: 10px;
   letter-spacing: 0.04em;
-  color: var(--cour-text-3);
+  color: var(--cour-text-2);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -130,28 +130,12 @@
   flex-shrink: 0;
 }
 
-.pileTabs {
+/* The ledger and its review link: what the pile tabs switch. */
+.pilePanel {
+  flex: 1;
+  min-height: 0;
   display: flex;
-  gap: 8px;
-  margin-bottom: 4px;
-}
-
-.pileTab {
-  padding: 8px 14px;
-  border-radius: 999px;
-  border: 1px solid var(--cour-line);
-  background: var(--cour-bg-1);
-  color: var(--cour-text-2);
-  font-family: var(--cour-font-ui);
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.pileTab[data-active="true"] {
-  background: var(--cour-accent-soft);
-  border-color: var(--cour-accent);
-  color: var(--cour-text-0);
+  flex-direction: column;
 }
 
 .rows {
@@ -197,6 +181,7 @@
 }
 
 .pileReviewBtn {
+  position: relative;
   align-self: flex-start;
   margin: 6px 0 2px;
   padding: 8px 0;
@@ -207,6 +192,13 @@
   letter-spacing: 0.08em;
   color: var(--cour-accent-bright);
   cursor: pointer;
+}
+
+/* A 44px target around the 32px link. */
+.pileReviewBtn::after {
+  content: "";
+  position: absolute;
+  inset: -6px 0;
 }
 
 .pileReviewBtn:hover {
@@ -250,7 +242,7 @@
   font-family: var(--cour-font-mono);
   font-size: 10px;
   letter-spacing: 0.04em;
-  color: var(--cour-text-3);
+  color: var(--cour-text-2);
 }
 
 /* Tap-to-change verdict pill: LIKED carries the accent border. */
@@ -347,7 +339,7 @@
   font-family: var(--cour-font-mono);
   font-size: 9.5px;
   letter-spacing: 0.1em;
-  color: var(--cour-text-3);
+  color: var(--cour-text-2);
 }
 
 /* The no-take-backsies dialog (0.12.0): lock-in is final, so it takes a

@@ -35,6 +35,21 @@
   overflow-wrap: anywhere;
 }
 
+/* Desktop: the actions live in the rails and the tabs sit at the top of
+   the main column, so system messages take the bottom-left corner of the
+   content, which every desktop screen leaves empty. */
+@media (min-width: 900px) {
+  .toastList {
+    top: auto;
+    bottom: 24px;
+    left: max(24px, calc((100vw - 1120px) / 2 + 24px));
+    right: auto;
+    padding: 0;
+    align-items: flex-start;
+    width: 22rem;
+  }
+}
+
 @keyframes toast-in {
   from { opacity: 0; transform: translateY(-8px); }
   to   { opacity: 1; transform: none; }

@@ -76,3 +76,16 @@ export const getStoredTutorialSeen = (): boolean =>
 export const setStoredTutorialSeen = (): void => {
   writeItem(TUTORIAL_KEY, "1");
 };
+
+// The re-rank round's opening toast: once per browser, room and season.
+// Remembered in memory too, so blocked storage still means once per page.
+const RERANK_TOLD_PREFIX = "courRerankTold:";
+const rerankTold = new Set<string>();
+
+export const getRerankTold = (key: string): boolean =>
+  rerankTold.has(key) || readItem(`${RERANK_TOLD_PREFIX}${key}`) === "1";
+
+export const setRerankTold = (key: string): void => {
+  rerankTold.add(key);
+  writeItem(`${RERANK_TOLD_PREFIX}${key}`, "1");
+};

@@ -1,0 +1,32 @@
+/* The guide's pill tabs: active = accent-soft fill + accent border. */
+.tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.tab {
+  position: relative;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--cour-line);
+  background: var(--cour-bg-1);
+  color: var(--cour-text-2);
+  font-family: var(--cour-font-ui);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* A 44px target around the 37px pill. */
+.tab::after {
+  content: "";
+  position: absolute;
+  inset: -4px 0;
+}
+
+.tab[data-active="true"] {
+  background: var(--cour-accent-soft);
+  border-color: var(--cour-accent);
+  color: var(--cour-text-0);
+}

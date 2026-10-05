@@ -19,6 +19,7 @@ vi.mock('../../../../web/app/src/components/organisms/AccountMenu', () => ({
 }));
 
 import { RankScreen } from '../../../../web/app/src/components/screens/Rank';
+import { forgetDrafts } from '../../../../web/app/src/utils/drafts';
 import { makeMedia } from '../../../helpers';
 
 const media = [
@@ -27,7 +28,7 @@ const media = [
   makeMedia({ id: '103', anilistId: 103, title: 'Third Show' }),
 ];
 
-// Two members, both submitted: 101 and 103 are shared, 102 is user1's alone.
+// Two members, both submitted: 101 and 103 were kept by both, 102 is user1's alone.
 const standings = [
   { titleId: 103, points: 18, bestRank: 1, rankedBy: 2, rankedByNames: ['user1', 'user2'], rank: 1 },
   { titleId: 101, points: 18, bestRank: 2, rankedBy: 2, rankedByNames: ['user1', 'user2'], rank: 2 },
@@ -48,10 +49,11 @@ const refined = (over = {}) => ({
   ],
   ...over,
 });
+const member = (userName: string, over = {}) => ({ userName, locked: true, submitted: true, refined: false, ...over });
 const results = (over = {}) => ({
   submittedCount: 2,
   memberCount: 2,
-  members: [],
+  members: [member('user1'), member('user2')],
   mySubmitted: true,
   myRanking: [102, 101, 103],
   standings,
@@ -62,6 +64,14 @@ const results = (over = {}) => ({
   refined: refined(),
   ...over,
 });
+// user3 joined and has not ranked, so the round is closed.
+const closed = () =>
+  results({
+    refined: undefined,
+    memberCount: 3,
+    submittedCount: 2,
+    members: [member('user1'), member('user2'), member('user3', { submitted: false })],
+  });
 
 // biome-ignore lint/suspicious/noExplicitAny: store slice shape in tests is loose.
 const withState = (slice: any = {}) => {
@@ -91,13 +101,30 @@ const stubDesktop = (matches: boolean) => {
 };
 
 const handle = (name: string) => document.querySelector(`[data-test-handle="${name}"]`) as HTMLButtonElement | null;
-const rowTitles = () => [...document.querySelectorAll('[data-test-handle="standing-details"] [class*="rowTitle"]')].map((el) => el.textContent);
+const rowTitles = () =>
+  [...document.querySelectorAll('[data-test-handle="standing-details"] [class*="rowTitle"]')].map((el) => el.textContent);
+const editorTitles = () =>
+  [...document.querySelectorAll('[data-rank-row] [class*="rowTitle"]')].map((el) => el.textContent);
+const toasts = () =>
+  dispatch.mock.calls.filter(([a]) => a.type === 'addToast').map(([a]) => a.payload.message as string);
+const openBothKept = () => fireEvent.click(handle('standings-shared') as HTMLElement);
+// The arrival toast waits for the revealed standings to settle.
+const settle = () =>
+  act(() => {
+    vi.advanceTimersByTime(1500);
+  });
+const openEditor = () => {
+  openBothKept();
+  fireEvent.click(handle('open-refine') as HTMLElement);
+};
 
 beforeEach(() => {
+  forgetDrafts();
   dispatch = vi.fn();
   useStoreMock.mockReset();
   withState();
   stubDesktop(false);
+  localStorage.clear();
   vi.useFakeTimers();
   vi.setSystemTime(new Date('2026-10-05T12:00:00'));
 });
@@ -108,60 +135,135 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe('RankScreen refine round', () => {
-  it('offers no shared view until the round opens', () => {
+describe('RankScreen re-rank round', () => {
+  it('offers no second view until the round opens', () => {
     withState({ results: results({ refined: undefined }) });
     render(<RankScreen />);
     expect(screen.queryByRole('tab')).toBeNull();
+    expect(screen.queryByRole('tabpanel')).toBeNull();
     expect(rowTitles()).toEqual(['Third Show', 'Iron Bloom', 'Second Show']);
   });
 
-  it('opens on all picks, with the shared shows one tab away', () => {
+  it('opens on All picks, with Both kept one tab away under the head that stays the result', () => {
     render(<RankScreen />);
     const tabs = screen.getAllByRole('tab');
     expect(tabs.map((t) => [t.textContent, t.getAttribute('aria-selected')])).toEqual([
       ['All picks 3', 'true'],
-      ['Shared shows 2', 'false'],
+      ['Both kept 2', 'false'],
     ]);
-    expect(screen.getByText("EVERYONE'S #1")).toBeDefined();
-    fireEvent.click(tabs[1]);
+    expect(screen.getByRole('tabpanel').getAttribute('aria-labelledby')).toBe(tabs[0].id);
+    openBothKept();
+    expect(screen.getByRole('tabpanel').getAttribute('aria-labelledby')).toBe(tabs[1].id);
+    expect(screen.getByText('fall standings.')).toBeDefined();
     expect(rowTitles()).toEqual(['Iron Bloom', 'Third Show']);
-    expect(screen.getByText(/SHOWS EVERYONE KEPT · 0 OF 2 REFINED/)).toBeDefined();
-    expect(screen.getByText("EVERYONE'S SHARED #1")).toBeDefined();
-    // Every member ranked every shared show: no names on the rows.
+    expect(screen.getByText("scored as if these 2 were all you kept. the room's result doesn't change.")).toBeDefined();
+    // Each row points back to the room's result instead of naming rankers.
+    expect(screen.getByText('21 PTS · #2 IN ALL PICKS')).toBeDefined();
+    expect(screen.getByText('21 PTS · #1 IN ALL PICKS')).toBeDefined();
     expect(screen.queryByText(/RANKED BY/)).toBeNull();
-    expect(screen.getAllByText('21 PTS')).toHaveLength(2);
+    expect(screen.queryByText(/RE-RANKED BY/)).toBeNull();
+    // The strip stays the room's: each member's all-picks #1.
+    expect([...document.querySelectorAll('[data-test-handle="top-pick"]')].map((el) => el.textContent)).toEqual([
+      'user1Second Show',
+      'user2Third Show',
+    ]);
   });
 
-  it('refines the shared shows through the no-turning-back dialog', () => {
+  it('keeps the medals on All picks, and the second view quiet', () => {
     render(<RankScreen />);
-    fireEvent.click(screen.getByText('Shared shows 2'));
-    fireEvent.click(handle('open-refine') as HTMLElement);
-    expect(screen.getByText('refine your order.')).toBeDefined();
-    // Seeded with this member's order over the shared shows.
-    expect(screen.getAllByText(/Iron Bloom|Third Show/).map((el) => el.textContent)).toEqual(['Iron Bloom', 'Third Show']);
+    expect(document.querySelector('[data-medal="1"]')?.textContent).toContain('Third Show');
+    openBothKept();
+    expect(document.querySelector('[data-medal]')).toBeNull();
+  });
+
+  it('moves between the tabs with the arrow keys', () => {
+    render(<RankScreen />);
+    const [all, kept] = screen.getAllByRole('tab');
+    expect(all.tabIndex).toBe(0);
+    expect(kept.tabIndex).toBe(-1);
+    fireEvent.keyDown(all, { key: 'ArrowRight' });
+    expect(kept.getAttribute('aria-selected')).toBe('true');
+    expect(document.activeElement).toBe(kept);
+    fireEvent.keyDown(kept, { key: 'Home' });
+    expect(all.getAttribute('aria-selected')).toBe('true');
+  });
+
+  it('says everyone in a room of three or more', () => {
+    withState({ results: results({ memberCount: 3, submittedCount: 3 }) });
+    render(<RankScreen />);
+    expect(screen.getByText('Everyone kept 2')).toBeDefined();
+    openEditor();
+    expect(screen.getByText('THE 2 SHOWS EVERYONE KEPT')).toBeDefined();
+  });
+
+  it('puts members with the same #1 under one poster', () => {
+    withState({
+      results: results({
+        topPicks: [
+          { userName: 'user1', titleId: 103 },
+          { userName: 'user2', titleId: 103 },
+        ],
+      }),
+    });
+    render(<RankScreen />);
+    expect([...document.querySelectorAll('[data-test-handle="top-pick"]')].map((el) => el.textContent)).toEqual([
+      'user1 +\u00a0user2Third Show',
+    ]);
+  });
+
+  it('re-ranks the shows through the no-turning-back dialog', () => {
+    render(<RankScreen />);
+    openEditor();
+    expect(screen.getByText('re-rank these 2.')).toBeDefined();
+    expect(screen.getByText('THE 2 SHOWS YOU BOTH KEPT')).toBeDefined();
+    expect(screen.getByText('SCORED 12 · 9')).toBeDefined();
+    // Seeded with this member's own order, each row saying where it was.
+    expect(editorTitles()).toEqual(['Iron Bloom', 'Third Show']);
+    expect(screen.getByText('YOU HAD IT #2')).toBeDefined();
+    expect(screen.getByText('YOU HAD IT #3')).toBeDefined();
     fireEvent.click(screen.getByLabelText('Move Third Show up'));
     fireEvent.click(handle('submit-refine') as HTMLElement);
-    expect(screen.getByText(/the all-picks standings stay the room's result/)).toBeDefined();
+    expect(
+      screen.getByText(
+        "This sends your order for the 2 shows you both kept. You can't change it after this, and the room's result doesn't change.",
+      ),
+    ).toBeDefined();
+    expect(screen.getByRole('alertdialog').getAttribute('aria-label')).toBe(
+      'Submit your order for the shows you both kept',
+    );
     const confirm = handle('confirm-refine') as HTMLButtonElement;
     expect(confirm.disabled).toBe(true);
-    fireEvent.click(screen.getByText('This is my refined order'));
+    fireEvent.click(screen.getByText('This is my order'));
     fireEvent.click(confirm);
     expect(dispatch).toHaveBeenCalledWith({ type: 'finalizing', payload: { kind: 'refine' } });
     expect(dispatch).toHaveBeenCalledWith({ type: 'submitRefinedRankings', payload: { rankedTitleIds: [103, 101] } });
     expect(dispatch).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'submitRankings' }));
   });
 
-  it('goes back to the standings without submitting', () => {
+  it('goes back to Both kept without submitting, and keeps the draft for next time', () => {
     render(<RankScreen />);
-    fireEvent.click(screen.getByText('Shared shows 2'));
-    fireEvent.click(handle('open-refine') as HTMLElement);
+    openEditor();
+    fireEvent.click(screen.getByLabelText('Move Third Show up'));
+    expect(handle('refine-back')?.getAttribute('aria-label')).toBe('Back to standings');
     fireEvent.click(handle('refine-back') as HTMLElement);
-    expect(screen.queryByText('refine your order.')).toBeNull();
-    expect(screen.getByText(/SHOWS EVERYONE KEPT/)).toBeDefined();
+    expect(screen.queryByText('re-rank these 2.')).toBeNull();
+    expect(screen.getAllByRole('tab')[1].getAttribute('aria-selected')).toBe('true');
+    fireEvent.click(handle('open-refine') as HTMLElement);
+    expect(editorTitles()).toEqual(['Third Show', 'Iron Bloom']);
   });
 
-  it('holds the refine editor through the ceremony, then ends it after the 3s floor', () => {
+  it('scores only the slots the shows can fill', () => {
+    withState({
+      results: results({
+        refined: refined({ sharedTitleIds: [101, 102, 103], myOrder: [102, 101, 103] }),
+      }),
+    });
+    render(<RankScreen />);
+    openEditor();
+    expect(screen.getByText('SCORED 12 · 9 · 6')).toBeDefined();
+  });
+
+  it('holds the editor through the ceremony, then ends it after the 3s floor', () => {
     withState({
       results: results({ refined: refined({ myRefined: true, refinedCount: 1 }) }),
       finalizing: { kind: 'refine', startedAt: Date.now() },
@@ -181,7 +283,7 @@ describe('RankScreen refine round', () => {
     expect(dispatch).toHaveBeenCalledWith({ type: 'finalizing', payload: null });
   });
 
-  it('keeps the ceremony going until the refine is acknowledged', () => {
+  it('keeps the ceremony going until the re-rank is acknowledged', () => {
     withState({ finalizing: { kind: 'refine', startedAt: Date.now() } });
     render(<RankScreen />);
     act(() => {
@@ -190,22 +292,34 @@ describe('RankScreen refine round', () => {
     expect(dispatch).not.toHaveBeenCalledWith({ type: 'finalizing', payload: null });
   });
 
-  it('says so once this member has refined, and offers no second refine', () => {
-    withState({ results: results({ refined: refined({ myRefined: true, refinedCount: 1 }) }) });
+  it('names who re-ranked, never a count still to go, and offers no second re-rank', () => {
+    withState({
+      results: results({
+        members: [member('user1', { refined: true }), member('user2')],
+        refined: refined({ myRefined: true, refinedCount: 1 }),
+      }),
+    });
     render(<RankScreen />);
-    fireEvent.click(screen.getByText('Shared shows 2'));
-    expect(screen.getByText(/1 OF 2 REFINED · YOURS IS IN/)).toBeDefined();
+    openBothKept();
+    expect(screen.getByText('RE-RANKED BY USER1').getAttribute('role')).toBe('status');
+    expect(screen.queryByText(/ OF 2/)).toBeNull();
     expect(handle('open-refine')).toBeNull();
   });
 
-  it('says ALL once every member has refined', () => {
-    withState({ results: results({ refined: refined({ myRefined: true, refinedCount: 2 }) }) });
+  it('still offers the re-rank to a member whose partner already did', () => {
+    withState({
+      results: results({
+        members: [member('user1'), member('user2', { refined: true })],
+        refined: refined({ refinedCount: 1 }),
+      }),
+    });
     render(<RankScreen />);
-    fireEvent.click(screen.getByText('Shared shows 2'));
-    expect(screen.getByText(/ALL 2 REFINED/)).toBeDefined();
+    openBothKept();
+    expect(screen.getByText('RE-RANKED BY USER2')).toBeDefined();
+    expect(handle('open-refine')?.textContent).toBe('RE-RANK THESE 2 →');
   });
 
-  it('has nothing to refine with one shared show', () => {
+  it('offers no second view, link or toast for one show kept by all, or none', () => {
     withState({
       results: results({
         refined: refined({
@@ -215,126 +329,76 @@ describe('RankScreen refine round', () => {
         }),
       }),
     });
-    render(<RankScreen />);
-    fireEvent.click(screen.getByText('Shared shows 1'));
-    expect(screen.getByText('only one show in common, so there is nothing to refine.')).toBeDefined();
-    expect(handle('open-refine')).toBeNull();
-  });
-
-  it('says when no show is shared', () => {
-    withState({
-      results: results({ refined: refined({ sharedTitleIds: [], myOrder: [], standings: [], topPicks: [] }) }),
-    });
-    render(<RankScreen />);
-    fireEvent.click(screen.getByText('Shared shows 0'));
-    expect(screen.getByText('no shows in common this season.')).toBeDefined();
-    expect(handle('open-refine')).toBeNull();
-  });
-
-  it('disables the refine while disconnected', () => {
-    withState({ connectionStatus: 'disconnected' });
-    render(<RankScreen />);
-    fireEvent.click(screen.getByText('Shared shows 2'));
-    expect((handle('open-refine') as HTMLButtonElement).disabled).toBe(true);
-  });
-
-  it('falls back to all picks when the round closes', () => {
-    withState();
     const { rerender } = render(<RankScreen />);
-    fireEvent.click(screen.getByText('Shared shows 2'));
-    withState({ results: results({ refined: undefined, memberCount: 3, submittedCount: 2 }) });
+    expect(screen.queryByRole('tab')).toBeNull();
+    expect(handle('open-refine')).toBeNull();
+    withState({ results: results({ refined: refined({ sharedTitleIds: [], myOrder: [], standings: [], topPicks: [] }) }) });
     rerender(<RankScreen />);
     expect(screen.queryByRole('tab')).toBeNull();
-    expect(rowTitles()).toEqual(['Third Show', 'Iron Bloom', 'Second Show']);
-  });
-});
-
-describe('RankScreen refine round lifecycle', () => {
-  const openEditor = () => {
-    fireEvent.click(screen.getByText('Shared shows 2'));
-    fireEvent.click(handle('open-refine') as HTMLElement);
-  };
-
-  it('closes the editor when the round closes, and does not reopen it by itself', () => {
-    const { rerender } = render(<RankScreen />);
-    openEditor();
-    expect(screen.getByText('refine your order.')).toBeDefined();
-    withState({ results: results({ refined: undefined, memberCount: 3, submittedCount: 2 }) });
-    rerender(<RankScreen />);
-    expect(screen.queryByText('refine your order.')).toBeNull();
-    withState({ results: results({ memberCount: 3, submittedCount: 3 }) });
-    rerender(<RankScreen />);
-    expect(screen.queryByText('refine your order.')).toBeNull();
-    expect(screen.getAllByRole('tab').map((t) => t.getAttribute('aria-selected'))).toEqual(['true', 'false']);
+    expect(toasts()).toEqual([]);
   });
 
-  it('closes an open refine dialog when the round closes', () => {
-    const { rerender } = render(<RankScreen />);
-    openEditor();
-    fireEvent.click(handle('submit-refine') as HTMLElement);
-    expect(handle('confirm-refine')).not.toBeNull();
-    withState({ results: results({ refined: undefined, memberCount: 3, submittedCount: 2 }) });
-    rerender(<RankScreen />);
-    expect(handle('confirm-refine')).toBeNull();
-  });
-
-  it('ends a refine ceremony whose round closed', () => {
-    withState({
-      results: results({ refined: undefined, memberCount: 3, submittedCount: 2 }),
-      finalizing: { kind: 'refine', startedAt: Date.now() },
-    });
+  it('opens the editor offline, and only the submit waits for the connection', () => {
+    withState({ connectionStatus: 'disconnected' });
     render(<RankScreen />);
-    expect(dispatch).toHaveBeenCalledWith({ type: 'finalizing', payload: null });
-  });
-
-  it('closes the editor once the refine is in and the ceremony is over', () => {
-    const { rerender } = render(<RankScreen />);
     openEditor();
-    withState({ results: results({ refined: refined({ myRefined: true, refinedCount: 1 }) }) });
-    rerender(<RankScreen />);
-    expect(screen.queryByText('refine your order.')).toBeNull();
-    expect(screen.getByText(/1 OF 2 REFINED · YOURS IS IN/)).toBeDefined();
-  });
-
-  it('follows a change in the shared shows while refining', () => {
-    withState({
-      results: results({
-        refined: refined({ sharedTitleIds: [103, 101, 102], myOrder: [101, 102, 103] }),
-      }),
-    });
-    const { rerender } = render(<RankScreen />);
-    fireEvent.click(screen.getByText('Shared shows 3'));
-    fireEvent.click(handle('open-refine') as HTMLElement);
+    expect(screen.getByText('re-rank these 2.')).toBeDefined();
     fireEvent.click(screen.getByLabelText('Move Third Show up'));
-    // Second Show is no longer shared.
-    withState({ results: results({ refined: refined({ sharedTitleIds: [103, 101], myOrder: [101, 103] }) }) });
-    rerender(<RankScreen />);
-    expect(screen.getAllByText(/Iron Bloom|Second Show|Third Show/).map((el) => el.textContent)).toEqual([
-      'Iron Bloom',
-      'Third Show',
-    ]);
+    expect((handle('submit-refine') as HTMLButtonElement).disabled).toBe(true);
   });
 
-  it('moves focus into the editor and back to the shared tab', () => {
+  it('scores a long list as the top 5, the rest at zero', () => {
+    const ids = [201, 202, 203, 204, 205, 206, 207];
+    withState({ results: results({ refined: refined({ sharedTitleIds: ids, myOrder: ids }) }) });
+    stubDesktop(true);
     render(<RankScreen />);
     openEditor();
-    expect(document.activeElement?.textContent).toBe('refine your order.');
-    fireEvent.click(handle('refine-back') as HTMLElement);
-    expect(document.activeElement?.textContent).toBe('Shared shows 2');
+    expect(screen.getByText('TOP 5 SCORE 12 · 9 · 6 · 3 · 1')).toBeDefined();
+    const legend = [...(document.querySelector('aside') as HTMLElement).querySelectorAll('li')].map((li) => li.textContent);
+    expect(legend.at(-1)).toBe('#6+0 PTS');
   });
 
-  it('shows the shared #1s, not the all-picks ones', () => {
+  it('gives medals to the top three of All picks only', () => {
+    const four = [
+      ...standings,
+      { titleId: 104, points: 3, bestRank: 4, rankedBy: 1, rankedByNames: ['user1'], rank: 4 },
+    ];
+    withState({ results: results({ standings: four }) });
     render(<RankScreen />);
-    fireEvent.click(screen.getByText('Shared shows 2'));
-    expect([...document.querySelectorAll('[data-test-handle="top-pick"]')].map((el) => el.textContent)).toEqual([
-      'user1Iron Bloom',
-      'user2Third Show',
-    ]);
+    const rows = [...document.querySelectorAll('[data-rank]')];
+    expect(rows.map((r) => r.getAttribute('data-medal'))).toEqual(['1', '2', '3', null]);
   });
 
-  it('counts the shared rows in the reveal', () => {
+  it("keeps each member's draft to themselves", () => {
+    withState({ user: { userName: 'user1' } });
+    const first = render(<RankScreen />);
+    openEditor();
+    fireEvent.click(screen.getByLabelText('Move Third Show up'));
+    first.unmount();
+    withState({ user: { userName: 'user2' } });
+    render(<RankScreen />);
+    openEditor();
+    expect(editorTitles()).toEqual(['Iron Bloom', 'Third Show']);
+  });
+
+  it('keeps both editors\' drafts across a trip away from the screen', () => {
+    const first = render(<RankScreen />);
+    openEditor();
+    fireEvent.click(screen.getByLabelText('Move Third Show up'));
+    first.unmount();
+    render(<RankScreen />);
+    openEditor();
+    expect(editorTitles()).toEqual(['Third Show', 'Iron Bloom']);
+  });
+
+  it('counts the rows in the reveal', () => {
     const many = Array.from({ length: 7 }, (_, i) => ({
-      titleId: 200 + i, points: 30 - i, bestRank: 1, rankedBy: 2, rankedByNames: ['user1', 'user2'], rank: i + 1,
+      titleId: 200 + i,
+      points: 30 - i,
+      bestRank: 1,
+      rankedBy: 2,
+      rankedByNames: ['user1', 'user2'],
+      rank: i + 1,
     }));
     withState({
       results: results({
@@ -342,20 +406,264 @@ describe('RankScreen refine round lifecycle', () => {
       }),
     });
     render(<RankScreen />);
-    fireEvent.click(screen.getByText('Shared shows 7'));
+    openBothKept();
     expect(handle('standings-reveal')?.textContent).toBe('SHOW ALL 7 →');
   });
+});
 
-  it('says nothing about a single show when none are shared', () => {
-    withState({
-      results: results({ refined: refined({ sharedTitleIds: [], myOrder: [], standings: [], topPicks: [] }) }),
+describe('RankScreen re-rank round opening and closing', () => {
+  it('says once per member, room and season where the new view is, after the standings settle', () => {
+    withState({ room: { name: 'told-once', joined: true, media }, user: { userName: 'user1' } });
+    const { unmount } = render(<RankScreen />);
+    act(() => {
+      vi.advanceTimersByTime(1499);
     });
+    expect(toasts()).toEqual([]);
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(toasts()).toEqual(['Both rankings are in. Compare the 2 shows you both kept in the Both kept tab.']);
+    unmount();
     render(<RankScreen />);
-    fireEvent.click(screen.getByText('Shared shows 0'));
-    expect(screen.queryByText(/only one show in common/)).toBeNull();
+    settle();
+    expect(toasts()).toHaveLength(1);
   });
 
-  it('freezes the refine list while the ceremony runs', () => {
+  it('tells each member on a shared device', () => {
+    const room = { name: 'told-per-member', joined: true, media };
+    withState({ room, user: { userName: 'user1' } });
+    render(<RankScreen />).unmount();
+    settle();
+    withState({ room, user: { userName: 'user2' } });
+    render(<RankScreen />);
+    settle();
+    expect(toasts()).toHaveLength(1);
+  });
+
+  it('takes the toast back once the member opens Both kept', () => {
+    withState({ room: { name: 'told-and-acted', joined: true, media } });
+    render(<RankScreen />);
+    settle();
+    const id = dispatch.mock.calls.find(([a]) => a.type === 'addToast')?.[0].payload.id;
+    openBothKept();
+    expect(dispatch).toHaveBeenCalledWith({ type: 'removeToast', payload: { id, message: '' } });
+  });
+
+  it('tells nobody who already re-ranked, and waits out the submit ceremony', () => {
+    const room = { name: 'told-after-ceremony', joined: true, media };
+    withState({ room, results: results({ refined: refined({ myRefined: true, refinedCount: 1 }) }) });
+    const { rerender } = render(<RankScreen />);
+    settle();
+    expect(toasts()).toEqual([]);
+    withState({ room, finalizing: { kind: 'submit', startedAt: Date.now() } });
+    rerender(<RankScreen />);
+    settle();
+    expect(toasts()).toEqual([]);
+    withState({ room });
+    rerender(<RankScreen />);
+    settle();
+    expect(toasts()).toHaveLength(1);
+  });
+
+  it('tells again in another room, or another season', () => {
+    const room = { name: 'told-per-room', joined: true, media };
+    withState({ room });
+    const first = render(<RankScreen />);
+    settle();
+    first.unmount();
+    withState({ room: { ...room, name: 'told-per-room-2' } });
+    const second = render(<RankScreen />);
+    settle();
+    second.unmount();
+    expect(toasts()).toHaveLength(2);
+    vi.setSystemTime(new Date('2027-01-20T12:00:00'));
+    withState({ room });
+    render(<RankScreen />);
+    settle();
+    expect(toasts()).toHaveLength(3);
+  });
+
+  it('says everyone in a room of three or more', () => {
+    withState({ room: { name: 'told-three', joined: true, media }, results: results({ memberCount: 3, submittedCount: 3 }) });
+    render(<RankScreen />);
+    settle();
+    expect(toasts()).toEqual(['All rankings are in. Compare the 2 shows everyone kept in the Everyone kept tab.']);
+  });
+
+  it('waits until the page is in view', () => {
+    let state: DocumentVisibilityState = 'hidden';
+    const spy = vi.spyOn(document, 'visibilityState', 'get').mockImplementation(() => state);
+    withState({ room: { name: 'told-when-visible', joined: true, media } });
+    render(<RankScreen />);
+    settle();
+    expect(toasts()).toEqual([]);
+    state = 'visible';
+    act(() => {
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    settle();
+    expect(toasts()).toHaveLength(1);
+    spy.mockRestore();
+  });
+
+  it('falls back to All picks when the round closes', () => {
+    const { rerender } = render(<RankScreen />);
+    openBothKept();
+    withState({ results: closed() });
+    rerender(<RankScreen />);
+    expect(screen.queryByRole('tab')).toBeNull();
+    expect(rowTitles()).toEqual(['Third Show', 'Iron Bloom', 'Second Show']);
+  });
+
+  it('says why the view went away, and moves focus to the standings', () => {
+    const { rerender } = render(<RankScreen />);
+    dispatch.mockClear();
+    openEditor();
+    withState({ results: closed() });
+    rerender(<RankScreen />);
+    expect(toasts()).toEqual(['user3 joined, so the standings are live again.']);
+    expect(document.activeElement?.textContent).toBe('fall standings.');
+  });
+
+  it('says nothing to a member who was on All picks', () => {
+    const { rerender } = render(<RankScreen />);
+    dispatch.mockClear();
+    withState({ results: closed() });
+    rerender(<RankScreen />);
+    expect(toasts()).toEqual([]);
+  });
+
+  it('closes the editor when the round closes, keeps the draft, and does not reopen by itself', () => {
+    const { rerender } = render(<RankScreen />);
+    openEditor();
+    fireEvent.click(screen.getByLabelText('Move Third Show up'));
+    withState({ results: closed() });
+    rerender(<RankScreen />);
+    expect(screen.queryByText('re-rank these 2.')).toBeNull();
+    withState({ results: results({ memberCount: 3, submittedCount: 3 }) });
+    rerender(<RankScreen />);
+    expect(screen.queryByText('re-rank these 2.')).toBeNull();
+    expect(screen.getAllByRole('tab').map((t) => t.getAttribute('aria-selected'))).toEqual(['true', 'false']);
+    openEditor();
+    expect(editorTitles()).toEqual(['Third Show', 'Iron Bloom']);
+  });
+
+  it('closes an open re-rank dialog when the round closes, then focuses the standings', () => {
+    const { rerender } = render(<RankScreen />);
+    openEditor();
+    fireEvent.click(handle('submit-refine') as HTMLElement);
+    expect(handle('confirm-refine')).not.toBeNull();
+    withState({ results: closed() });
+    rerender(<RankScreen />);
+    expect(handle('confirm-refine')).toBeNull();
+    expect(document.activeElement?.textContent).toBe('fall standings.');
+  });
+
+  it('says why when the round closes under Both kept, outside the editor', () => {
+    const { rerender } = render(<RankScreen />);
+    openBothKept();
+    dispatch.mockClear();
+    withState({ results: closed() });
+    rerender(<RankScreen />);
+    expect(toasts()).toEqual(['user3 joined, so the standings are live again.']);
+  });
+
+  it('ends the trip once the re-rank lands, so a later close on All picks says nothing', () => {
+    const { rerender } = render(<RankScreen />);
+    openEditor();
+    withState({ results: results({ refined: refined({ myRefined: true, refinedCount: 1 }) }) });
+    rerender(<RankScreen />);
+    fireEvent.click(handle('standings-all') as HTMLElement);
+    const showAll = handle('share-standings') as HTMLElement;
+    showAll.focus();
+    dispatch.mockClear();
+    withState({ results: closed() });
+    rerender(<RankScreen />);
+    expect(toasts()).toEqual([]);
+    expect(document.activeElement).toBe(showAll);
+  });
+
+  it('moves focus to the standings when the tabs it was on go away, without a toast', () => {
+    const { rerender } = render(<RankScreen />);
+    (handle('standings-all') as HTMLElement).focus();
+    dispatch.mockClear();
+    withState({ results: closed() });
+    rerender(<RankScreen />);
+    expect(toasts()).toEqual([]);
+    expect(document.activeElement?.textContent).toBe('fall standings.');
+  });
+
+  it('waits for the details dialog before moving focus to the standings, and does it once', () => {
+    const { rerender } = render(<RankScreen />);
+    openBothKept();
+    fireEvent.click(document.querySelectorAll('[data-test-handle="standing-details"]')[0] as HTMLElement);
+    expect(screen.getByRole('dialog')).toBeDefined();
+    withState({ results: closed() });
+    rerender(<RankScreen />);
+    expect(document.activeElement?.textContent).not.toBe('fall standings.');
+    fireEvent.click(handle('detail-close') as HTMLElement);
+    expect(document.activeElement?.textContent).toBe('fall standings.');
+    // A later dialog gives focus back to its own opener, not the headline.
+    const row = document.querySelectorAll('[data-test-handle="standing-details"]')[1] as HTMLElement;
+    row.focus();
+    fireEvent.click(row);
+    fireEvent.click(handle('detail-close') as HTMLElement);
+    expect(document.activeElement).toBe(row);
+  });
+
+  it('leaves focus with an open share dialog, which gives it back itself', () => {
+    const { rerender } = render(<RankScreen />);
+    openBothKept();
+    const link = handle('share-standings') as HTMLElement;
+    link.focus();
+    fireEvent.click(link);
+    const close = screen.getByText('Close');
+    close.focus();
+    withState({ results: closed() });
+    rerender(<RankScreen />);
+    expect(document.activeElement).toBe(close);
+    fireEvent.click(close);
+    expect(document.activeElement).toBe(link);
+  });
+
+  it('ends a re-rank ceremony whose round is closed', () => {
+    withState({ results: closed(), finalizing: { kind: 'refine', startedAt: Date.now() } });
+    render(<RankScreen />);
+    expect(dispatch).toHaveBeenCalledWith({ type: 'finalizing', payload: null });
+  });
+
+  it('closes the editor once the re-rank is in and the ceremony is over, focusing Both kept', () => {
+    const { rerender } = render(<RankScreen />);
+    openEditor();
+    expect(document.activeElement?.textContent).toBe('re-rank these 2.');
+    withState({
+      results: results({
+        members: [member('user1', { refined: true }), member('user2')],
+        refined: refined({ myRefined: true, refinedCount: 1 }),
+      }),
+    });
+    rerender(<RankScreen />);
+    expect(screen.queryByText('re-rank these 2.')).toBeNull();
+    expect(screen.getByText('RE-RANKED BY USER1')).toBeDefined();
+    expect(document.activeElement?.textContent).toBe('Both kept 2');
+  });
+
+  it('follows a change in the shows everyone kept while re-ranking', () => {
+    withState({
+      results: results({
+        refined: refined({ sharedTitleIds: [103, 101, 102], myOrder: [101, 102, 103] }),
+      }),
+    });
+    const { rerender } = render(<RankScreen />);
+    openEditor();
+    fireEvent.click(screen.getByLabelText('Move Third Show up'));
+    // Second Show is no longer kept by everyone.
+    withState({ results: results({ refined: refined({ sharedTitleIds: [103, 101], myOrder: [101, 103] }) }) });
+    rerender(<RankScreen />);
+    expect(editorTitles()).toEqual(['Iron Bloom', 'Third Show']);
+  });
+
+  it('freezes the list while the ceremony runs', () => {
     withState({ finalizing: { kind: 'refine', startedAt: Date.now() } });
     render(<RankScreen />);
     const moves = screen.getAllByLabelText(/^Move /) as HTMLButtonElement[];
@@ -363,7 +671,7 @@ describe('RankScreen refine round lifecycle', () => {
     for (const btn of moves) expect(btn.disabled).toBe(true);
   });
 
-  it('disables the refine submit when the connection drops', () => {
+  it('disables the submit when the connection drops', () => {
     const { rerender } = render(<RankScreen />);
     openEditor();
     withState({ connectionStatus: 'disconnected' });
@@ -375,8 +683,8 @@ describe('RankScreen refine round lifecycle', () => {
     render(<RankScreen />);
     openEditor();
     fireEvent.click(handle('submit-refine') as HTMLElement);
-    fireEvent.click(screen.getByText('This is my refined order'));
-    fireEvent.click(screen.getByText('Keep ordering'));
+    fireEvent.click(screen.getByText('This is my order'));
+    fireEvent.click(screen.getByText('Keep re-ranking'));
     fireEvent.click(handle('submit-refine') as HTMLElement);
     expect((handle('confirm-refine') as HTMLButtonElement).disabled).toBe(true);
   });
@@ -385,7 +693,7 @@ describe('RankScreen refine round lifecycle', () => {
     const { rerender } = render(<RankScreen />);
     openEditor();
     fireEvent.click(handle('submit-refine') as HTMLElement);
-    fireEvent.click(screen.getByText('This is my refined order'));
+    fireEvent.click(screen.getByText('This is my order'));
     withState({ connectionStatus: 'disconnected' });
     rerender(<RankScreen />);
     const confirm = handle('confirm-refine') as HTMLButtonElement;
@@ -395,23 +703,28 @@ describe('RankScreen refine round lifecycle', () => {
   });
 });
 
-describe('RankScreen refine round on desktop', () => {
+describe('RankScreen re-rank round on desktop', () => {
   beforeEach(() => stubDesktop(true));
 
-  it('shows the shared standings with the #1 hero row', () => {
+  it('keeps the head and everyone\'s #1 in the rail, the tabs and list in the main column', () => {
     render(<RankScreen />);
-    fireEvent.click(screen.getByText('Shared shows 2'));
-    const hero = document.querySelector('[data-hero="true"]');
-    expect(hero?.textContent).toContain('Iron Bloom');
+    const rail = document.querySelector('aside') as HTMLElement;
+    expect(rail.textContent).toContain('fall standings.');
+    expect(rail.textContent).toContain("EVERYONE'S #1");
+    expect(rail.querySelector('[role="tablist"]')).toBeNull();
+    expect(document.querySelector('[data-hero="true"]')?.textContent).toContain('Third Show');
+    openBothKept();
+    expect(document.querySelector('[data-hero="true"]')).toBeNull();
+    expect(document.querySelector('[data-medal]')).toBeNull();
   });
 
-  it('refines in the rail layout, the legend beside the list', () => {
+  it('re-ranks in the rail layout, the legend sized to the shows, the way back in the header', () => {
     render(<RankScreen />);
-    fireEvent.click(screen.getByText('Shared shows 2'));
-    fireEvent.click(handle('open-refine') as HTMLElement);
-    const rail = document.querySelector('[class*="rail"]') as HTMLElement;
-    expect(rail.textContent).toContain('refine your order.');
+    openEditor();
+    const rail = document.querySelector('aside') as HTMLElement;
+    expect(rail.textContent).toContain('re-rank these 2.');
     expect(rail.querySelector('[data-test-handle="submit-refine"]')).not.toBeNull();
-    expect(rail.textContent).toContain('#6+');
+    expect([...rail.querySelectorAll('li')].map((li) => li.textContent)).toEqual(['#112 PTS', '#29 PTS']);
+    expect(document.querySelector('header [data-test-handle="refine-back"]')).not.toBeNull();
   });
 });

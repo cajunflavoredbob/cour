@@ -228,7 +228,8 @@ export const reducer = (state: Store = initialState, action: Actions): Store => 
           {
             id: mintToastId(base.toastCounter + 1),
             appearance: "Success" as const,
-            message: "Everyone's locked in. Rank your keeps.",
+            // A member who already ranked has no keeps left to rank.
+            message: state.results?.mySubmitted ? "Everyone's locked in." : "Everyone's locked in. Rank your keeps.",
             showTimeMs: 6000,
           },
         ],
@@ -315,6 +316,9 @@ export const reducer = (state: Store = initialState, action: Actions): Store => 
         error: undefined,
         room: { name: action.payload.roomName, joined: false },
         reviewView: undefined,
+        // Another room's standings must not show, or speak, for this one.
+        results: undefined,
+        members: undefined,
       };
     }
     case "createRoomSuccess":
@@ -355,8 +359,9 @@ export const reducer = (state: Store = initialState, action: Actions): Store => 
     }
     case "joinRoomError":
     case "createRoomError":
-      // Room-flow errors surface on the home screen's join form.
-      return { ...state, error: action.payload, route: "home", room: undefined };
+      // Room-flow errors surface on the home screen's join form, and the
+      // room's standings go with it.
+      return { ...state, error: action.payload, route: "home", room: undefined, results: undefined, members: undefined };
     case "leaveRoomSuccess":
       return {
         ...state,

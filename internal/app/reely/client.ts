@@ -681,7 +681,7 @@ export class Client {
     if (!refined) {
       this.sendMessage({
         type: 'submitRefinedRankingsError',
-        payload: { message: 'Refining opens once every ranking is in.' },
+        payload: { message: 'Re-ranking opens once every ranking is in.' },
       });
       return;
     }
@@ -689,7 +689,7 @@ export class Client {
     if (shared.size < 2) {
       this.sendMessage({
         type: 'submitRefinedRankingsError',
-        payload: { message: 'There is nothing to refine: fewer than two shows are shared.' },
+        payload: { message: 'Re-ranking needs at least two shows everyone kept.' },
       });
       return;
     }
@@ -698,7 +698,7 @@ export class Client {
     if (submitted.size !== raw.length || submitted.size !== shared.size || !raw.every((id) => shared.has(id))) {
       this.sendMessage({
         type: 'submitRefinedRankingsError',
-        payload: { message: 'Refined rankings must order exactly the shared shows.' },
+        payload: { message: 'The shows everyone kept just changed. Try again.' },
       });
       return;
     }
@@ -709,7 +709,7 @@ export class Client {
       if (!known) logger.error(`submitRefinedRankings failed: ${String(err)}`);
       this.sendMessage({
         type: 'submitRefinedRankingsError',
-        payload: { message: known ? err.message : 'Refining failed. Please try again.' },
+        payload: { message: known ? err.message : "Your order didn't go through. Please try again." },
       });
       return;
     }

@@ -467,7 +467,7 @@ describe('verdict / review / lockIn', () => {
     expect(last(ws1, 'resultsSuccess')?.payload.refined).toBeUndefined();
     push(ws1, { type: 'submitRefinedRankings', payload: { rankedTitleIds: [101, 103] } });
     await flush();
-    expect(last(ws1, 'submitRefinedRankingsError')?.payload.message).toContain('every ranking is in');
+    expect(last(ws1, 'submitRefinedRankingsError')?.payload.message).toBe('Re-ranking opens once every ranking is in.');
 
     push(ws2, { type: 'submitRankings', payload: { rankedTitleIds: [103, 101] } });
     await flush();
@@ -486,7 +486,7 @@ describe('verdict / review / lockIn', () => {
       ws1.send.mockClear();
       push(ws1, { type: 'submitRefinedRankings', payload: { rankedTitleIds } });
       await flush();
-      expect(last(ws1, 'submitRefinedRankingsError')?.payload.message).toContain('exactly the shared shows');
+      expect(last(ws1, 'submitRefinedRankingsError')?.payload.message).toBe('The shows everyone kept just changed. Try again.');
       expect(last(ws1, 'submitRefinedRankingsSuccess')).toBeUndefined();
     }
 
@@ -514,7 +514,7 @@ describe('verdict / review / lockIn', () => {
     // One shot.
     push(ws1, { type: 'submitRefinedRankings', payload: { rankedTitleIds: [101, 103] } });
     await flush();
-    expect(last(ws1, 'submitRefinedRankingsError')?.payload.message).toContain('already in');
+    expect(last(ws1, 'submitRefinedRankingsError')?.payload.message).toBe('Your order is already in.');
   });
 
   it('a new member closes the refine round for everyone, by push', async () => {
@@ -543,7 +543,7 @@ describe('verdict / review / lockIn', () => {
     expect(pushed?.refined).toBeUndefined();
     push(ws1, { type: 'submitRefinedRankings', payload: { rankedTitleIds: [101, 102] } });
     await flush();
-    expect(last(ws1, 'submitRefinedRankingsError')?.payload.message).toContain('every ranking is in');
+    expect(last(ws1, 'submitRefinedRankingsError')?.payload.message).toBe('Re-ranking opens once every ranking is in.');
   });
 
   it('submitRefinedRankings refuses when fewer than two shows are shared', async () => {
@@ -563,7 +563,7 @@ describe('verdict / review / lockIn', () => {
     expect(last(ws1, 'resultsSuccess')?.payload.refined?.sharedTitleIds).toEqual([101]);
     push(ws1, { type: 'submitRefinedRankings', payload: { rankedTitleIds: [101] } });
     await flush();
-    expect(last(ws1, 'submitRefinedRankingsError')?.payload.message).toContain('fewer than two');
+    expect(last(ws1, 'submitRefinedRankingsError')?.payload.message).toBe('Re-ranking needs at least two shows everyone kept.');
   });
 
   it('submitRefinedRankings rejects a malformed payload', async () => {

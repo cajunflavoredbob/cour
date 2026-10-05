@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { rankedByText, rankingsIn, refinedIn, standingsFinal } from '../../web/app/src/utils/standingsText';
+import { groupTopPicks, rankedByText, rankingsIn, rerankedByText, standingsFinal } from '../../web/app/src/utils/standingsText';
 
 describe('standingsFinal', () => {
   it('is final once every member has submitted', () => {
@@ -25,15 +25,27 @@ describe('rankingsIn', () => {
   });
 });
 
-describe('refinedIn', () => {
-  it('counts the refines in, or says ALL once every member has refined', () => {
-    expect(refinedIn(0, 2)).toBe('0 OF 2 REFINED');
-    expect(refinedIn(1, 3)).toBe('1 OF 3 REFINED');
-    expect(refinedIn(2, 2)).toBe('ALL 2 REFINED');
+describe('rerankedByText', () => {
+  it('names who re-ranked, as the rows name rankers, and says nothing while nobody has', () => {
+    expect(rerankedByText([])).toBe('');
+    expect(rerankedByText(['user9'])).toBe('RE-RANKED BY USER9');
+    expect(rerankedByText(['user10', 'user9'])).toBe('RE-RANKED BY USER10 + USER9');
   });
+});
 
-  it('never says ALL for an empty room', () => {
-    expect(refinedIn(0, 0)).toBe('0 OF 0 REFINED');
+describe('groupTopPicks', () => {
+  it('puts members with the same #1 under one show, in first-seen order', () => {
+    expect(
+      groupTopPicks([
+        { userName: 'user10', titleId: 1 },
+        { userName: 'user18', titleId: 2 },
+        { userName: 'user9', titleId: 2 },
+      ]),
+    ).toEqual([
+      { titleId: 1, names: ['user10'] },
+      { titleId: 2, names: ['user18', 'user9'] },
+    ]);
+    expect(groupTopPicks([])).toEqual([]);
   });
 });
 

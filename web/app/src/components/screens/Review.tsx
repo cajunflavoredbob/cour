@@ -3,6 +3,7 @@ import type { Media, VerdictValue } from "../../../../../types/reely";
 import { AccountMenu } from "../organisms/AccountMenu";
 import { AppHeader } from "../organisms/AppHeader";
 import { DialogScrim } from "../molecules/DialogScrim";
+import { PillTabs, tabPanelProps } from "../molecules/PillTabs";
 import { DESKTOP_QUERY, useMediaQuery } from "../../hooks/useMediaQuery";
 import { useDispatch, useStore } from "../../store";
 import { useSeason } from "../../hooks/useSeason";
@@ -183,21 +184,17 @@ export const ReviewScreen = () => {
   );
 
   const pileTabsEl = (
-    <div className={styles.pileTabs} role="tablist">
-      {(Object.keys(PILE_LABELS) as VerdictValue[]).map((v) => (
-        <button
-          key={v}
-          type="button"
-          role="tab"
-          aria-selected={pile === v}
-          className={styles.pileTab}
-          data-active={pile === v}
-          onClick={() => dispatch({ type: "reviewView", payload: { pile: v, showAll: false } })}
-        >
-          {PILE_LABELS[v]} {review.counts[v]}
-        </button>
-      ))}
-    </div>
+    <PillTabs
+      label="Piles"
+      idPrefix="piles"
+      className={styles.pileTabs}
+      tabs={(Object.keys(PILE_LABELS) as VerdictValue[]).map((v) => ({
+        id: v,
+        label: `${PILE_LABELS[v]} ${review.counts[v]}`,
+      }))}
+      active={pile}
+      onSelect={(v) => dispatch({ type: "reviewView", payload: { pile: v, showAll: false } })}
+    />
   );
 
   const pileReviewEl = pileRows.length > 0 && !locked && (
@@ -370,8 +367,10 @@ export const ReviewScreen = () => {
           </aside>
           <div className={styles.main}>
             {pileTabsEl}
-            {pileReviewEl}
-            {ledgerEl}
+            <div {...tabPanelProps("piles", pile)} className={styles.pilePanel}>
+              {pileReviewEl}
+              {ledgerEl}
+            </div>
           </div>
         </div>
         {confirmDialogEl}
@@ -393,8 +392,10 @@ export const ReviewScreen = () => {
       {headlineBlock}
       {resumeBannerEl}
       {pileTabsEl}
-      {pileReviewEl}
-      {ledgerEl}
+      <div {...tabPanelProps("piles", pile)} className={styles.pilePanel}>
+        {pileReviewEl}
+        {ledgerEl}
+      </div>
 
       <footer className={styles.lockBar}>{lockControls}</footer>
 

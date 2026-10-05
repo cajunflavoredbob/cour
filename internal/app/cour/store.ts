@@ -519,10 +519,10 @@ export const createCourStore = (db: DatabaseSync) => {
         | { rankings_submitted_at: number | null; refined_at: number | null }
         | undefined;
       if (member?.rankings_submitted_at == null) {
-        throw new NotSubmittedError('Submit your ranking before refining.');
+        throw new NotSubmittedError('Submit your ranking before re-ranking.');
       }
       if (member.refined_at != null) {
-        throw new AlreadyRefinedError('Your refined ranking is already in.');
+        throw new AlreadyRefinedError('Your order is already in.');
       }
       const insert = db.prepare(
         'INSERT INTO refined_rankings (user_id, room_id, title_id, rank) VALUES (?, ?, ?, ?)',

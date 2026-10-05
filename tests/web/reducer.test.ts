@@ -531,6 +531,21 @@ describe('reducer join/rejoin room-state handling', () => {
     expect(next.room).toEqual({ name: 'other-room', joined: false });
   });
 
+  it("drops the old room's standings on a join for another room or a failed join, not on a rejoin", () => {
+    const withStandings = {
+      ...liveRoom(),
+      results: { submittedCount: 1, memberCount: 1, members: [], mySubmitted: true, myRanking: [], standings: [], topPicks: [] },
+      members: [],
+    } as Store;
+    const other = reducer(withStandings, { type: 'joinOrCreateRoom', payload: { roomName: 'other-room' } } as Actions);
+    expect(other.results).toBeUndefined();
+    expect(other.members).toBeUndefined();
+    const failed = reducer(withStandings, { type: 'joinRoomError', payload: { message: 'Room is full.' } } as Actions);
+    expect(failed.results).toBeUndefined();
+    const rejoin = reducer(withStandings, { type: 'joinOrCreateRoom', payload: { roomName: 'movie-night' } } as Actions);
+    expect(rejoin.results).toBe(withStandings.results);
+  });
+
   it('joinRoomSuccess marks the room joined without navigating', () => {
     const state: Store = {
       ...initialState,
@@ -573,6 +588,18 @@ describe('reducer roomPulse', () => {
     expect(next.toasts).toHaveLength(1);
     expect(next.toasts[0].message).toBe("Everyone's locked in. Rank your keeps.");
   });
+
+  it('celebrates a late joiner without telling a member who already ranked to rank', () => {
+    const ranked = {
+      ...initialState,
+      results: { submittedCount: 2, memberCount: 3, members: [], mySubmitted: true, myRanking: [101], standings: [], topPicks: [] },
+    } as Store;
+    const next = reducer(ranked, {
+      type: 'roomPulse',
+      payload: { members: members.map((m) => ({ ...m, locked: true })), allLocked: true },
+    } as Actions);
+    expect(next.toasts[0].message).toBe("Everyone's locked in.");
+  });
 });
 
 describe('reducer refine round', () => {
@@ -584,9 +611,9 @@ describe('reducer refine round', () => {
   it('a refine error shows its message', () => {
     const next = reducer(initialState, {
       type: 'submitRefinedRankingsError',
-      payload: { message: 'Your refined ranking is already in.' },
+      payload: { message: 'Your order is already in.' },
     } as Actions);
-    expect(next.toasts.at(-1)).toMatchObject({ appearance: 'Failure', message: 'Your refined ranking is already in.' });
+    expect(next.toasts.at(-1)).toMatchObject({ appearance: 'Failure', message: 'Your order is already in.' });
   });
 });
 

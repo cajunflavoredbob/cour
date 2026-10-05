@@ -24,7 +24,7 @@ const PLACEHOLDER_SRC = `data:image/svg+xml,${encodeURIComponent(
 interface SharePreviewProps {
   card: StandingsCardData;
   image: CardImageState;
-  // The refine round is open, so say which standings the image shows.
+  // The standings offer another view, so say which one the image shows.
   allPicks: boolean;
   // Members whose ranking is still out.
   waitingOn: readonly string[];

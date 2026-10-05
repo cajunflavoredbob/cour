@@ -23,6 +23,7 @@ vi.mock('../../../../web/app/src/utils/shareFile', () => ({
 }));
 
 import { RankScreen } from '../../../../web/app/src/components/screens/Rank';
+import { forgetDrafts } from '../../../../web/app/src/utils/drafts';
 import { makeMedia } from '../../../helpers';
 
 const media = [
@@ -75,6 +76,7 @@ const settle = async (ms: number) => {
 };
 
 beforeEach(() => {
+  forgetDrafts();
   dispatch = vi.fn();
   useStoreMock.mockReset();
   withState();
@@ -134,13 +136,32 @@ describe('RankScreen sharing the standings', () => {
       }),
     });
     render(<RankScreen />);
-    fireEvent.click(screen.getByText('Shared shows 2'));
+    fireEvent.click(screen.getByText('Both kept 2'));
     fireEvent.click(document.querySelector('[data-test-handle="open-refine"]') as HTMLElement);
     await settle(2000);
     expect(renderMock).not.toHaveBeenCalled();
     fireEvent.click(document.querySelector('[data-test-handle="refine-back"]') as HTMLElement);
     fireEvent.click(link() as HTMLElement);
     expect(screen.getByText('ALL PICKS · ALL 2 RANKINGS IN · FINAL')).toBeDefined();
+  });
+
+  it('names All picks only while the tabs offer another view', () => {
+    withState({
+      results: results({
+        refined: {
+          sharedTitleIds: [101],
+          refinedCount: 0,
+          myRefined: false,
+          myOrder: [101],
+          standings: standings.slice(0, 1),
+          topPicks: [],
+        },
+      }),
+    });
+    render(<RankScreen />);
+    expect(screen.queryByRole('tab')).toBeNull();
+    fireEvent.click(link() as HTMLElement);
+    expect(screen.getByRole('dialog').querySelector('p')?.textContent).toBe('ALL 2 RANKINGS IN · FINAL');
   });
 
   it('does not make the image again when a push brings the same standings', async () => {
