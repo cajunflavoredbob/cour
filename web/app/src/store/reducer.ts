@@ -165,6 +165,7 @@ export const reducer = (state: Store = initialState, action: Actions): Store => 
       return base;
     }
     case "submitRankingsError":
+    case "submitRefinedRankingsError":
       // Same as lockInError: a failed submit ends the ceremony.
       return { ...state, finalizing: undefined, ...addErrorToast(state, action.payload.message) };
     case "verdictError":
@@ -175,6 +176,7 @@ export const reducer = (state: Store = initialState, action: Actions): Store => 
     case "resultsSuccess":
       return { ...state, results: action.payload, members: action.payload.members };
     case "submitRankingsSuccess":
+    case "submitRefinedRankingsSuccess":
       // The server push (resultsSuccess to every member, submitter
       // included) carries the state change; nothing to do here.
       return state;
@@ -431,6 +433,7 @@ export const reducer = (state: Store = initialState, action: Actions): Store => 
     case "skipRemaining":
     case "lockIn":
     case "submitRankings":
+    case "submitRefinedRankings":
     case "results":
       return state;
     default: {

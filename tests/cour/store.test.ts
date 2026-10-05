@@ -92,6 +92,40 @@ describe('schema migration v3 (joined_at)', () => {
   });
 });
 
+describe('schema migration v6 (the refine round)', () => {
+  it('adds refined_at and the refined_rankings table to a v5 database', () => {
+    const { DatabaseSync } = require('node:sqlite');
+    const path = tempDbPath('cour-mig6-');
+    const old = new DatabaseSync(path);
+    old.exec(`
+      CREATE TABLE users (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT NOT NULL UNIQUE COLLATE NOCASE, password_hash TEXT NOT NULL, role TEXT NOT NULL DEFAULT 'user', sound_pref INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL);
+      CREATE TABLE rooms (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, display_name TEXT NOT NULL, season TEXT NOT NULL, year INTEGER NOT NULL, filters_json TEXT, show_sequels INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL);
+      CREATE TABLE room_members (room_id INTEGER NOT NULL REFERENCES rooms(id) ON DELETE CASCADE, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, deck_position INTEGER NOT NULL DEFAULT 0, locked_at INTEGER, joined_at INTEGER NOT NULL DEFAULT 0, rankings_submitted_at INTEGER, PRIMARY KEY (room_id, user_id));
+      CREATE TABLE rankings (user_id INTEGER NOT NULL, room_id INTEGER NOT NULL, title_id INTEGER NOT NULL, rank INTEGER NOT NULL, PRIMARY KEY (user_id, room_id, title_id));
+      INSERT INTO users (username, password_hash, created_at) VALUES ('user1', '', 1);
+      INSERT INTO rooms (name, display_name, season, year, created_at) VALUES ('r1', 'r1', 'SUMMER', 2026, 1);
+      INSERT INTO room_members (room_id, user_id, locked_at, rankings_submitted_at) VALUES (1, 1, 5, 6);
+      INSERT INTO rankings (user_id, room_id, title_id, rank) VALUES (1, 1, 101, 1), (1, 1, 102, 2);
+      PRAGMA user_version = 5;
+    `);
+    old.close();
+
+    const migrated = openDb(path);
+    const cols = migrated.prepare("SELECT name FROM pragma_table_info('room_members')").all() as Array<{ name: string }>;
+    expect(cols.map((c) => c.name)).toContain('refined_at');
+    const tables = migrated.prepare("SELECT name FROM sqlite_master WHERE type='table'").all() as Array<{ name: string }>;
+    expect(tables.map((t) => t.name)).toContain('refined_rankings');
+    const version = migrated.prepare('PRAGMA user_version').get() as { user_version: number };
+    expect(version.user_version).toBe(6);
+    // The existing member keeps their ranking and can now refine it.
+    const s2 = createCourStore(migrated);
+    expect(s2.members.get(1, 1)?.refinedAt).toBeNull();
+    s2.refined.submit(1, 1, [102, 101]);
+    expect(s2.refined.forUser(1, 1)).toEqual([102, 101]);
+    migrated.close();
+  });
+});
+
 describe('schema migration v4 (sessions dropped)', () => {
   it('drops the sessions table from a pre-v4 database', () => {
     const { DatabaseSync } = require('node:sqlite');

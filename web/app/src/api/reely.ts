@@ -300,6 +300,12 @@ export class ReelyClient extends EventTarget {
       "submitRankingsError",
     ]);
 
+  submitRefinedRankings = async (payload: { rankedTitleIds: number[] }) =>
+    this.request({ type: "submitRefinedRankings", payload }, [
+      "submitRefinedRankingsSuccess",
+      "submitRefinedRankingsError",
+    ]);
+
   // Was the one request sent raw through the socket (audit 17 H8): a
   // dropped reply left the rank screen's editor-vs-standings gate
   // guessing forever. The helper gives it the same open-socket wait,

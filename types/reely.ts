@@ -82,6 +82,9 @@ export type ServerMessage =
   // final order of YOUR liked titles, rank 1 first. One shot -- no
   // resubmits. Dislikes and skips never rank and never score.
   | { type: "submitRankings"; payload: { rankedTitleIds: number[] } }
+  // The refine round: once every ranking is in, re-rank just the titles
+  // every member ranked. Optional and one shot, like the ranking.
+  | { type: "submitRefinedRankings"; payload: { rankedTitleIds: number[] } }
   // The room's combined standings + this member's submission state.
   | { type: "results" };
 
@@ -115,8 +118,10 @@ export type ClientMessage =
   | { type: "skipRemainingError"; payload: { message: string } }
   | { type: "submitRankingsSuccess" }
   | { type: "submitRankingsError"; payload: { message: string } }
-  // Also PUSHED to every connected room member when someone submits, so
-  // open results screens update live.
+  | { type: "submitRefinedRankingsSuccess" }
+  | { type: "submitRefinedRankingsError"; payload: { message: string } }
+  // Also PUSHED to every connected room member when someone submits,
+  // refines, or newly joins the room, so open results screens update live.
   | { type: "resultsSuccess"; payload: RankingResults }
   | { type: "resultsError"; payload: { message: string } };
 
@@ -147,6 +152,8 @@ export interface RoomMemberState {
   userName: string;
   locked: boolean;
   submitted: boolean;
+  // Refined their shared-shows ranking (the optional refine round).
+  refined?: boolean;
 }
 
 export interface VerdictRequest {
@@ -180,6 +187,28 @@ export interface RankingResults {
   // Each submitted member's #1 pick (rank 1) with their name -- the
   // "everyone's favorite" strip, shown regardless of the pick's
   // combined position. (A first step toward full who-picked-what.)
+  topPicks: Array<{ userName: string; titleId: number }>;
+  // The refine round, present once every member (two or more) has
+  // submitted a ranking.
+  refined?: RefinedResults;
+}
+
+// The refine round: standings over just the titles every member ranked.
+// A member who hasn't refined counts with their own ranking cut down to
+// those titles, so these standings are whole from the moment the round
+// opens and refining stays optional.
+export interface RefinedResults {
+  // Titles every member ranked, in the room's standings order.
+  sharedTitleIds: number[];
+  // Members who have refined (each refine is one shot).
+  refinedCount: number;
+  myRefined: boolean;
+  // This member's order over the shared titles: their refine, or until
+  // they make one, their ranking cut down to the shared titles.
+  myOrder: number[];
+  // Same scoring as the standings, over every member's shared order.
+  standings: RankingStanding[];
+  // Each member's shared #1.
   topPicks: Array<{ userName: string; titleId: number }>;
 }
 

@@ -6,6 +6,7 @@ import type {
   JoinRoomError,
   JoinRoomRequest,
   ProviderType,
+  RankingResults,
   ServerMessage,
   User,
   VerdictValue,
@@ -30,16 +31,29 @@ import {
 } from './util/sanitize';
 import { getConfig } from './config/main';
 import {
+  AlreadyRefinedError,
   AlreadySubmittedError,
   type CourStore,
   type CourUser,
   MAX_USERNAME_LEN,
   MemberLockedError,
   NotLockedError,
+  NotSubmittedError,
   UsernameTakenError as CourUsernameTakenError,
 } from '../cour/store';
+import { refinedFor, refineRound } from '../cour/refine';
 import type { RouteContext } from './types';
 import { logger } from './logger';
+
+// The verdict flow's error frames (each carries a message).
+type VerdictFlowError =
+  | 'verdictError'
+  | 'reviewError'
+  | 'lockInError'
+  | 'skipRemainingError'
+  | 'submitRankingsError'
+  | 'submitRefinedRankingsError'
+  | 'resultsError';
 
 // Per-connection WebSocket message rate limit (fixed window). Generous enough
 // for rapid swiping plus the burst of messages on room join, tight enough to
@@ -192,7 +206,7 @@ export class Client {
     this.isLoggedIn = true;
   }
 
-  private courOr(errType: 'loginError' | 'verdictError' | 'reviewError' | 'lockInError' | 'skipRemainingError' | 'submitRankingsError' | 'resultsError'): CourStore | undefined {
+  private courOr(errType: 'loginError' | VerdictFlowError): CourStore | undefined {
     if (this.ctx.cour) return this.ctx.cour;
     this.sendMessage({
       type: errType,
@@ -278,7 +292,7 @@ export class Client {
 
   /** Shared gate for the verdict flow: store + identity + current room. */
   private verdictContext(
-    errType: 'verdictError' | 'reviewError' | 'lockInError' | 'skipRemainingError' | 'submitRankingsError' | 'resultsError',
+    errType: VerdictFlowError,
   ): { cour: CourStore; user: CourUser; roomId: number } | undefined {
     const cour = this.courOr(errType);
     if (!cour) return undefined;
@@ -335,6 +349,9 @@ export class Client {
         },
         this.userName,
       );
+      // Results depend on who is in the room too: a new member reopens
+      // the standings and closes the refine round until they submit.
+      this.pushResults(cour, courRoom.id);
     }
     return { cour, user, roomId: courRoom.id };
   }
@@ -518,16 +535,21 @@ export class Client {
   /** The shared per-member state payload (audit 17 UX items 3/7/11):
    * one shape feeds the review screen's room pulse, the standings'
    * FINAL / "WAITING ON" line, and the roomPulse push. */
-  private memberStates(cour: CourStore, roomId: number) {
-    return cour.members.list(roomId).map((m) => ({
+  private memberStates(cour: CourStore, roomId: number, members = cour.members.list(roomId)) {
+    return members.map((m) => ({
       userName: m.username,
       locked: m.lockedAt != null,
       submitted: m.submittedAt != null,
+      refined: m.refinedAt != null,
     }));
   }
 
-  /** Per-member results payload: shared standings + their own state. */
-  private buildResults(cour: CourStore, roomId: number, userId: number) {
+  /**
+   * The room's results, built once: the shared standings, the member
+   * states, and the refine round. The returned function adds one member's
+   * own state.
+   */
+  private roomResults(cour: CourStore, roomId: number): (userId: number) => RankingResults {
     const progress = cour.rankings.progress(roomId);
     // Names per title (who-ranked-what): one query, attached per row.
     const namesByTitle = new Map<number, string[]>();
@@ -536,18 +558,55 @@ export class Client {
       names.push(r.userName);
       namesByTitle.set(r.titleId, names);
     }
-    return {
+    const standings = cour.rankings.standings(roomId);
+    const members = cour.members.list(roomId);
+    const allSubmitted = progress.members > 0 && progress.submitted === progress.members;
+    // Every member's orders are read only for an open round.
+    const round = members.length >= 2 && allSubmitted
+      ? refineRound(
+        members.map((m) => ({
+          userName: m.username,
+          ranking: cour.rankings.forUser(m.userId, roomId),
+          refine: cour.refined.forUser(m.userId, roomId),
+          refined: m.refinedAt != null,
+        })),
+        true,
+        standings.map((row) => row.titleId),
+      )
+      : undefined;
+    const shared = {
       submittedCount: progress.submitted,
       memberCount: progress.members,
-      members: this.memberStates(cour, roomId),
-      mySubmitted: cour.rankings.hasSubmitted(userId, roomId),
-      myRanking: cour.rankings.forUser(userId, roomId),
-      standings: cour.rankings.standings(roomId).map((row) => ({
+      members: this.memberStates(cour, roomId, members),
+      standings: standings.map((row) => ({
         ...row,
         rankedByNames: namesByTitle.get(row.titleId) ?? [],
       })),
       topPicks: cour.rankings.topPicks(roomId),
     };
+    const nameOf = new Map(members.map((m) => [m.userId, m.username]));
+    return (userId) => ({
+      ...shared,
+      mySubmitted: cour.rankings.hasSubmitted(userId, roomId),
+      myRanking: cour.rankings.forUser(userId, roomId),
+      ...(round ? { refined: refinedFor(round, nameOf.get(userId)) } : {}),
+    });
+  }
+
+  /** Per-member results payload: shared standings + their own state. */
+  private buildResults(cour: CourStore, roomId: number, userId: number): RankingResults {
+    return this.roomResults(cour, roomId)(userId);
+  }
+
+  /** A fresh results payload to every connected member: standings update live. */
+  private pushResults(cour: CourStore, roomId: number) {
+    if (!this.room) return;
+    const forMember = this.roomResults(cour, roomId);
+    for (const memberClient of this.room.users.values()) {
+      const memberUser = memberClient.authedUser;
+      if (!memberUser) continue;
+      memberClient.sendMessage({ type: 'resultsSuccess', payload: forMember(memberUser.id) });
+    }
   }
 
   private async handleSubmitRankings(payload: unknown) {
@@ -604,16 +663,58 @@ export class Client {
     // Live standings: every connected room member gets a fresh payload
     // (their own mySubmitted/myRanking, the shared standings), so open
     // results screens update the moment anyone submits.
-    if (this.room) {
-      for (const memberClient of this.room.users.values()) {
-        const memberUser = memberClient.authedUser;
-        if (!memberUser) continue;
-        memberClient.sendMessage({
-          type: 'resultsSuccess',
-          payload: this.buildResults(ctx.cour, ctx.roomId, memberUser.id),
-        });
-      }
+    this.pushResults(ctx.cour, ctx.roomId);
+  }
+
+  private handleSubmitRefinedRankings(payload: unknown) {
+    const ctx = this.verdictContext('submitRefinedRankingsError');
+    if (!ctx) return;
+    const raw = (payload as { rankedTitleIds?: unknown } | null)?.rankedTitleIds;
+    if (!Array.isArray(raw) || !raw.every((id) => typeof id === 'number')) {
+      this.sendMessage({
+        type: 'submitRefinedRankingsError',
+        payload: { message: 'Invalid rankings payload.' },
+      });
+      return;
     }
+    const refined = this.buildResults(ctx.cour, ctx.roomId, ctx.user.id).refined;
+    if (!refined) {
+      this.sendMessage({
+        type: 'submitRefinedRankingsError',
+        payload: { message: 'Refining opens once every ranking is in.' },
+      });
+      return;
+    }
+    const shared = new Set(refined.sharedTitleIds);
+    if (shared.size < 2) {
+      this.sendMessage({
+        type: 'submitRefinedRankingsError',
+        payload: { message: 'There is nothing to refine: fewer than two shows are shared.' },
+      });
+      return;
+    }
+    // Exactly the shared titles, each once.
+    const submitted = new Set(raw);
+    if (submitted.size !== raw.length || submitted.size !== shared.size || !raw.every((id) => shared.has(id))) {
+      this.sendMessage({
+        type: 'submitRefinedRankingsError',
+        payload: { message: 'Refined rankings must order exactly the shared shows.' },
+      });
+      return;
+    }
+    try {
+      ctx.cour.refined.submit(ctx.user.id, ctx.roomId, raw);
+    } catch (err) {
+      const known = err instanceof NotSubmittedError || err instanceof AlreadyRefinedError;
+      if (!known) logger.error(`submitRefinedRankings failed: ${String(err)}`);
+      this.sendMessage({
+        type: 'submitRefinedRankingsError',
+        payload: { message: known ? err.message : 'Refining failed. Please try again.' },
+      });
+      return;
+    }
+    this.sendMessage({ type: 'submitRefinedRankingsSuccess' });
+    this.pushResults(ctx.cour, ctx.roomId);
   }
 
   private handleResults() {
@@ -673,6 +774,7 @@ export class Client {
         case 'lockIn': await this.handleLockIn(); break;
         case 'skipRemaining': await this.handleSkipRemaining(); break;
         case 'submitRankings': await this.handleSubmitRankings(message.payload); break;
+        case 'submitRefinedRankings': this.handleSubmitRefinedRankings(message.payload); break;
         case 'results': this.handleResults(); break;
         default: logger.info(`Unhandled message: ${messageText}`);
       }

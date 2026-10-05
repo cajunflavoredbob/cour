@@ -575,6 +575,21 @@ describe('reducer roomPulse', () => {
   });
 });
 
+describe('reducer refine round', () => {
+  it('a refine success waits for the results push', () => {
+    const state = { ...initialState, finalizing: { kind: 'refine' as const, startedAt: 1 } };
+    expect(reducer(state, { type: 'submitRefinedRankingsSuccess' } as Actions)).toBe(state);
+  });
+
+  it('a refine error shows its message', () => {
+    const next = reducer(initialState, {
+      type: 'submitRefinedRankingsError',
+      payload: { message: 'Your refined ranking is already in.' },
+    } as Actions);
+    expect(next.toasts.at(-1)).toMatchObject({ appearance: 'Failure', message: 'Your refined ranking is already in.' });
+  });
+});
+
 // Audit v1.2.0 #9: the one-shot finalizers' in-flight ceremony.
 describe('reducer finalizing ceremony', () => {
   it('sets and clears the ceremony state', () => {
@@ -590,6 +605,7 @@ describe('reducer finalizing ceremony', () => {
   it.each([
     ['lockInError', { type: 'lockInError', payload: { message: 'no' } }],
     ['submitRankingsError', { type: 'submitRankingsError', payload: { message: 'no' } }],
+    ['submitRefinedRankingsError', { type: 'submitRefinedRankingsError', payload: { message: 'no' } }],
   ])('%s ends the ceremony so the button re-arms', (_label, action) => {
     const armed = reducer(initialState, {
       type: 'finalizing', payload: { kind: 'lock' },

@@ -10,6 +10,7 @@ const makeClientMock = () => {
   const client = new EventTarget() as EventTarget & Record<string, ReturnType<typeof vi.fn>>;
   for (const name of [
     'verdict', 'review', 'skipRemaining', 'lockIn', 'results', 'login',
+    'submitRankings', 'submitRefinedRankings',
     'createRoom', 'joinRoom', 'joinOrCreateRoom', 'leaveRoom',
     'requestFilters', 'requestFilterValues', 'applyFilters',
     'sendMessage',
@@ -686,6 +687,31 @@ describe('review rejection-path retry + stall affordance', () => {
     // biome-ignore lint/suspicious/noExplicitAny: test setup shortcut.
     mod.useZustandStore.getState().dispatch({ type: 'lockIn' } as any);
     await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(mod.useZustandStore.getState().finalizing).toBeUndefined();
+  });
+
+  it.each(['submitRankingsError', 'submitRefinedRankingsError'])(
+    'a %s refetches the results so the screen shows what the server holds',
+    async (type) => {
+      const mod = await loadCreateStore();
+      mod.createStore();
+      clientMock.results.mockClear();
+      emit({ type, payload: { message: 'Refining opens once every ranking is in.' } });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(clientMock.results).toHaveBeenCalledTimes(1);
+      expect(mod.useZustandStore.getState().toasts.at(-1)?.message).toBe('Refining opens once every ranking is in.');
+    },
+  );
+
+  it('sends a refine to the server and ends its ceremony when the request dies', async () => {
+    clientMock.submitRefinedRankings = vi.fn().mockRejectedValue(new Error('timeout'));
+    const mod = await loadCreateStore();
+    mod.createStore();
+    // biome-ignore lint/suspicious/noExplicitAny: test setup shortcut.
+    mod.useZustandStore.getState().dispatch({ type: 'finalizing', payload: { kind: 'refine' } } as any);
+    mod.useZustandStore.getState().dispatch({ type: 'submitRefinedRankings', payload: { rankedTitleIds: [2, 1] } });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(clientMock.submitRefinedRankings).toHaveBeenCalledWith({ rankedTitleIds: [2, 1] });
     expect(mod.useZustandStore.getState().finalizing).toBeUndefined();
   });
 

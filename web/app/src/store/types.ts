@@ -43,6 +43,9 @@ export interface DeckScope {
   position: number;
 }
 
+// The one-shot finalizers: lock-in, the ranking submit, the refine submit.
+export type FinalizingKind = "lock" | "submit" | "refine";
+
 // The review page's open pile and "+N MORE" reveal. Kept in the store so
 // a trip to the deck and back lands on the same list. scroll is where the
 // ledger stood when that trip began (desktop scrolls the list, mobile the
@@ -77,7 +80,7 @@ export type ClientActions =
   // The one-shot finalizers' in-flight ceremony (audit v1.2.0 #9, the
   // owner's spec): "Locking in..." / "Submitting..." shows for a MINIMUM
   // of 3 seconds, even when the ack lands faster. null clears it.
-  | { type: "finalizing"; payload: { kind: "lock" | "submit" } | null }
+  | { type: "finalizing"; payload: { kind: FinalizingKind } | null }
   | ServerMessage;
 
 export type Actions =
@@ -134,7 +137,7 @@ export interface Store {
   // Review fetch retries exhausted; a retry affordance renders.
   ledgerStalled?: boolean;
   // Active one-shot finalizer ceremony (min 3s of in-flight state).
-  finalizing?: { kind: "lock" | "submit"; startedAt: number } | null;
+  finalizing?: { kind: FinalizingKind; startedAt: number } | null;
 
   toasts: Toast[];
   config?: AppConfig;

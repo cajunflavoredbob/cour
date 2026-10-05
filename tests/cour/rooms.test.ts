@@ -2,8 +2,10 @@ import { describe, expect, it, beforeEach } from 'vitest';
 import { openDb } from '../../internal/app/cour/db';
 
 import {
+  AlreadyRefinedError,
   createCourStore,
   MemberLockedError,
+  NotSubmittedError,
   type CourStore,
 } from '../../internal/app/cour/store';
 
@@ -190,6 +192,45 @@ describe('rankings (the couple-profile scoring, 0.13.0)', () => {
   });
 });
 
+describe('refined rankings (the refine round)', () => {
+  const lockAndSubmit = (userId: number, order: number[]) => {
+    store.members.lock(roomId, userId);
+    store.rankings.submit(userId, roomId, order);
+  };
+
+  it('refuses a refine before the ranking, and a second refine', () => {
+    expect(() => store.refined.submit(user1, roomId, [101])).toThrow(NotSubmittedError);
+    lockAndSubmit(user1, [101, 102]);
+    store.refined.submit(user1, roomId, [102, 101]);
+    expect(() => store.refined.submit(user1, roomId, [101, 102])).toThrow(AlreadyRefinedError);
+    expect(store.refined.forUser(user1, roomId)).toEqual([102, 101]);
+  });
+
+  it('stamps the member and keeps each refine to its maker', () => {
+    lockAndSubmit(user1, [101, 102]);
+    lockAndSubmit(user2, [102, 101]);
+    store.refined.submit(user1, roomId, [102, 101]);
+    expect(store.members.get(roomId, user1)?.refinedAt).toEqual(expect.any(Number));
+    expect(store.members.get(roomId, user2)?.refinedAt).toBeNull();
+    expect(store.members.list(roomId).map((m) => m.refinedAt != null)).toEqual([true, false]);
+    expect(store.refined.forUser(user2, roomId)).toEqual([]);
+  });
+
+  it('a refine that fails part way leaves nothing behind', () => {
+    lockAndSubmit(user1, [101, 102]);
+    // The duplicate title breaks the primary key on the second insert.
+    expect(() => store.refined.submit(user1, roomId, [101, 101])).toThrow();
+    expect(store.refined.forUser(user1, roomId)).toEqual([]);
+    expect(store.members.get(roomId, user1)?.refinedAt).toBeNull();
+  });
+
+  it('room delete cascades to refined rankings', () => {
+    lockAndSubmit(user1, [101, 102]);
+    store.refined.submit(user1, roomId, [102, 101]);
+    store.rooms.delete(roomId);
+    expect(store.refined.forUser(user1, roomId)).toEqual([]);
+  });
+});
 
 // Audit v1.2.0 #2: a corrupt filters_json row crash-looped every boot.
 // The column is fully dead since the filter rip-out -- this pins that a

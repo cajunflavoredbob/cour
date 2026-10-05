@@ -243,6 +243,32 @@ describe('waitForAnyMessage', () => {
   });
 });
 
+describe('submitRefinedRankings', () => {
+  it('sends the refine and settles on its own reply', async () => {
+    const ReelyClient = await loadClient();
+    const client = new ReelyClient();
+    const ws = MockWebSocket.latest();
+    ws.simulateOpen();
+    const done = client.submitRefinedRankings({ rankedTitleIds: [2, 1] });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(JSON.parse(ws.sent.at(-1) ?? '{}')).toEqual({ type: 'submitRefinedRankings', payload: { rankedTitleIds: [2, 1] } });
+    ws.simulateMessage({ type: 'submitRankingsSuccess' });
+    ws.simulateMessage({ type: 'submitRefinedRankingsSuccess' });
+    await expect(done).resolves.toMatchObject({ type: 'submitRefinedRankingsSuccess' });
+  });
+
+  it('settles on the refine error too', async () => {
+    const ReelyClient = await loadClient();
+    const client = new ReelyClient();
+    const ws = MockWebSocket.latest();
+    ws.simulateOpen();
+    const done = client.submitRefinedRankings({ rankedTitleIds: [1] });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    ws.simulateMessage({ type: 'submitRefinedRankingsError', payload: { message: 'no' } });
+    await expect(done).resolves.toMatchObject({ type: 'submitRefinedRankingsError' });
+  });
+});
+
 describe('reconnect backoff', () => {
   it('schedules a reconnect after close', async () => {
     vi.useFakeTimers();

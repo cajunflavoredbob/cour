@@ -25,12 +25,15 @@ import { DatabaseSync } from 'node:sqlite';
  *   UPSERTs (the review screen's tap-to-change contract).
  * - rankings carries each member's one-shot post-lock ordering (0.13.0
  *   replaced the room_results tally table -- the v5 migration drops it).
+ * - refined_rankings carries each member's optional one-shot re-rank of
+ *   the titles every member ranked (the refine round); refined_at on
+ *   room_members stamps it.
  * - room_members still carries credential-era and deck-position columns
  *   as documented dead weight (dropping a column is a table rebuild);
  *   the accessor layer no longer reads them.
  */
 
-export const SCHEMA_VERSION = 5;
+export const SCHEMA_VERSION = 6;
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS users (
@@ -60,6 +63,7 @@ CREATE TABLE IF NOT EXISTS room_members (
   locked_at     INTEGER,
   joined_at     INTEGER NOT NULL DEFAULT 0,
   rankings_submitted_at INTEGER,
+  refined_at    INTEGER,
   PRIMARY KEY (room_id, user_id)
 );
 
@@ -74,6 +78,14 @@ CREATE TABLE IF NOT EXISTS verdicts (
 CREATE INDEX IF NOT EXISTS idx_verdicts_room ON verdicts(room_id);
 
 CREATE TABLE IF NOT EXISTS rankings (
+  user_id   INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  room_id   INTEGER NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
+  title_id  INTEGER NOT NULL,
+  rank      INTEGER NOT NULL,
+  PRIMARY KEY (user_id, room_id, title_id)
+);
+
+CREATE TABLE IF NOT EXISTS refined_rankings (
   user_id   INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   room_id   INTEGER NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
   title_id  INTEGER NOT NULL,
@@ -156,6 +168,15 @@ export const openDb = (path = defaultDbPath()): DatabaseSync => {
       db.exec('ALTER TABLE room_members ADD COLUMN rankings_submitted_at INTEGER');
     } catch {
       // Column already exists (fresh CREATE carries it) -- fine.
+    }
+  }
+  // v6: the refine round. refined_rankings arrives with the CREATE above;
+  // older room_members rows need the stamp column.
+  if (versionRow.user_version > 0 && versionRow.user_version < 6) {
+    try {
+      db.exec('ALTER TABLE room_members ADD COLUMN refined_at INTEGER');
+    } catch {
+      // Already added by an earlier, interrupted run of this step.
     }
   }
   db.exec(`PRAGMA user_version = ${SCHEMA_VERSION}`);

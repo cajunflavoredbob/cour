@@ -32,6 +32,12 @@ export class NotLockedError extends Error {
 export class AlreadySubmittedError extends Error {
   name = 'AlreadySubmittedError';
 }
+export class NotSubmittedError extends Error {
+  name = 'NotSubmittedError';
+}
+export class AlreadyRefinedError extends Error {
+  name = 'AlreadyRefinedError';
+}
 
 export type Verdict = 'like' | 'dislike' | 'skip';
 
@@ -53,6 +59,8 @@ export interface RoomMember {
   // Ranking submitted (one-shot). Rides along so the member-state
   // payloads (room pulse / standings WAITING ON) need one query.
   submittedAt: number | null;
+  // Shared-shows refine submitted (one-shot, optional).
+  refinedAt: number | null;
 }
 
 // Single source for the name-length rule (audit 17: it was 32 at the
@@ -198,7 +206,7 @@ export const createCourStore = (db: DatabaseSync) => {
       return rows.map(toRoom);
     },
 
-    /** Cascades to members/verdicts/rankings. Rooms never expire on
+    /** Cascades to members/verdicts/rankings/refined rankings. Rooms never expire on
      * their own mid-season; the season-rotation sweep (the owner's spec:
      * rooms and their members are deleted at the two-week rotation
      * mark) and a future explicit admin delete are the only callers. A
@@ -225,14 +233,14 @@ export const createCourStore = (db: DatabaseSync) => {
     get: (roomId: number, userId: number): RoomMember | undefined => {
       const row = db
         .prepare(
-          `SELECT m.room_id, m.user_id, m.locked_at, m.rankings_submitted_at, u.username
+          `SELECT m.room_id, m.user_id, m.locked_at, m.rankings_submitted_at, m.refined_at, u.username
            FROM room_members m JOIN users u ON u.id = m.user_id
            WHERE m.room_id = ? AND m.user_id = ?`,
         )
         .get(roomId, userId) as
         | {
           room_id: number; user_id: number; locked_at: number | null;
-          rankings_submitted_at: number | null; username: string;
+          rankings_submitted_at: number | null; refined_at: number | null; username: string;
         }
         | undefined;
       if (!row) return undefined;
@@ -242,6 +250,7 @@ export const createCourStore = (db: DatabaseSync) => {
         username: row.username,
         lockedAt: row.locked_at,
         submittedAt: row.rankings_submitted_at,
+        refinedAt: row.refined_at,
       };
     },
 
@@ -251,13 +260,13 @@ export const createCourStore = (db: DatabaseSync) => {
     list: (roomId: number): RoomMember[] => {
       const rows = db
         .prepare(
-          `SELECT m.room_id, m.user_id, m.locked_at, m.rankings_submitted_at, u.username
+          `SELECT m.room_id, m.user_id, m.locked_at, m.rankings_submitted_at, m.refined_at, u.username
            FROM room_members m JOIN users u ON u.id = m.user_id
            WHERE m.room_id = ? ORDER BY u.created_at`,
         )
         .all(roomId) as unknown as Array<{
           room_id: number; user_id: number; locked_at: number | null;
-          rankings_submitted_at: number | null; username: string;
+          rankings_submitted_at: number | null; refined_at: number | null; username: string;
         }>;
       return rows.map((row) => ({
         roomId: row.room_id,
@@ -265,6 +274,7 @@ export const createCourStore = (db: DatabaseSync) => {
         username: row.username,
         lockedAt: row.locked_at,
         submittedAt: row.rankings_submitted_at,
+        refinedAt: row.refined_at,
       }));
     },
 
@@ -495,7 +505,55 @@ export const createCourStore = (db: DatabaseSync) => {
     },
   };
 
-  return { users, rooms, members, verdicts, rankings };
+  const refined = {
+    /**
+     * A member's re-rank of the titles every member ranked: the refine
+     * round. One shot, like the ranking, and only after it.
+     */
+    submit: (userId: number, roomId: number, orderedTitleIds: number[]): void => {
+      const member = db
+        .prepare(
+          'SELECT rankings_submitted_at, refined_at FROM room_members WHERE room_id = ? AND user_id = ?',
+        )
+        .get(roomId, userId) as
+        | { rankings_submitted_at: number | null; refined_at: number | null }
+        | undefined;
+      if (member?.rankings_submitted_at == null) {
+        throw new NotSubmittedError('Submit your ranking before refining.');
+      }
+      if (member.refined_at != null) {
+        throw new AlreadyRefinedError('Your refined ranking is already in.');
+      }
+      const insert = db.prepare(
+        'INSERT INTO refined_rankings (user_id, room_id, title_id, rank) VALUES (?, ?, ?, ?)',
+      );
+      db.exec('BEGIN');
+      try {
+        orderedTitleIds.forEach((titleId, i) => {
+          insert.run(userId, roomId, titleId, i + 1);
+        });
+        db.prepare(
+          'UPDATE room_members SET refined_at = ? WHERE room_id = ? AND user_id = ?',
+        ).run(Date.now(), roomId, userId);
+        db.exec('COMMIT');
+      } catch (err) {
+        db.exec('ROLLBACK');
+        throw err;
+      }
+    },
+
+    /** A member's refined order (titleIds, rank 1 first); empty until they refine. */
+    forUser: (userId: number, roomId: number): number[] => {
+      const rows = db
+        .prepare(
+          'SELECT title_id FROM refined_rankings WHERE user_id = ? AND room_id = ? ORDER BY rank',
+        )
+        .all(userId, roomId) as unknown as Array<{ title_id: number }>;
+      return rows.map((r) => r.title_id);
+    },
+  };
+
+  return { users, rooms, members, verdicts, rankings, refined };
 };
 
 export type CourStore = ReturnType<typeof createCourStore>;

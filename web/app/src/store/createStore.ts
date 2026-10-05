@@ -47,6 +47,7 @@ const dispatchToClient = (
     case "review":            return client.review();
     case "skipRemaining":     return client.skipRemaining();
     case "submitRankings":    return client.submitRankings(msg.payload);
+    case "submitRefinedRankings": return client.submitRefinedRankings(msg.payload);
     case "results":           return client.results();
     case "lockIn":            return client.lockIn();
     // UI-only actions: not server-bound, return undefined so the caller
@@ -143,7 +144,7 @@ export const createStore = () => {
           // A lock/submit that never got an answer must not stick on its
           // in-flight ceremony forever -- the timeout toast plus a
           // re-armed button is the honest state (audit v1.2.0 #9).
-          if (action.type === "lockIn" || action.type === "submitRankings") {
+          if (action.type === "lockIn" || action.type === "submitRankings" || action.type === "submitRefinedRankings") {
             set((state) => reducer(state, { type: "finalizing", payload: null }));
           }
           // A login that never got an answer must not strand the wordmark
@@ -506,12 +507,12 @@ export const createStore = () => {
       return;
     }
 
-    if (msg.type === "submitRankingsError") {
+    if (msg.type === "submitRankingsError" || msg.type === "submitRefinedRankingsError") {
       apply(msg as Actions);
       // The refusal may mean the server accepted an EARLIER submit whose
       // ack was lost (AlreadySubmitted after a reconnect re-armed the
-      // editor): refetch results so mySubmitted lands and the standings
-      // replace an editor whose resubmit can never succeed.
+      // editor), or that the room changed under a refine: refetch results
+      // so the screen shows what the server holds.
       dispatch({ type: "results" });
       return;
     }

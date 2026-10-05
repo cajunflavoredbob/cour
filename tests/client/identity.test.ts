@@ -448,6 +448,132 @@ describe('verdict / review / lockIn', () => {
     expect(combined?.standings[1]).toMatchObject({ titleId: 102, points: 12 });
   });
 
+  it('submitRefinedRankings: opens once every ranking is in, shared shows only, one shot, pushed live', async () => {
+    const room = makeWsRoomWithExtraTitle();
+    const { ws: ws1 } = await authedInRoom('user1', room);
+    const { ws: ws2 } = await authedInRoom('user0', room);
+    // user1 keeps all three; user0 keeps 101 and 103, so those two are shared.
+    for (const titleId of [101, 102, 103]) push(ws1, { type: 'verdict', payload: { titleId, verdict: 'like' } });
+    push(ws2, { type: 'verdict', payload: { titleId: 101, verdict: 'like' } });
+    push(ws2, { type: 'verdict', payload: { titleId: 102, verdict: 'dislike' } });
+    push(ws2, { type: 'verdict', payload: { titleId: 103, verdict: 'like' } });
+    push(ws1, { type: 'lockIn' });
+    push(ws2, { type: 'lockIn' });
+    await flush();
+    push(ws1, { type: 'submitRankings', payload: { rankedTitleIds: [102, 101, 103] } });
+    await flush();
+
+    // One ranking still out: closed.
+    expect(last(ws1, 'resultsSuccess')?.payload.refined).toBeUndefined();
+    push(ws1, { type: 'submitRefinedRankings', payload: { rankedTitleIds: [101, 103] } });
+    await flush();
+    expect(last(ws1, 'submitRefinedRankingsError')?.payload.message).toContain('every ranking is in');
+
+    push(ws2, { type: 'submitRankings', payload: { rankedTitleIds: [103, 101] } });
+    await flush();
+    // Standings: 103 18 (best #1), 101 18 (best #2), 102 12. Shared: 103, 101.
+    // Unrefined, each member counts with their ranking cut to the shared shows.
+    const open = last(ws1, 'resultsSuccess')?.payload.refined;
+    expect(open).toMatchObject({ sharedTitleIds: [103, 101], refinedCount: 0, myRefined: false, myOrder: [101, 103] });
+    expect(open?.standings.map((s: { titleId: number; points: number }) => [s.titleId, s.points])).toEqual([
+      [101, 21],
+      [103, 21],
+    ]);
+    expect(last(ws2, 'resultsSuccess')?.payload.refined?.myOrder).toEqual([103, 101]);
+
+    // Not exactly the shared shows, each once: refused.
+    for (const rankedTitleIds of [[101, 102], [103, 103], [103], [103, 101, 103]]) {
+      ws1.send.mockClear();
+      push(ws1, { type: 'submitRefinedRankings', payload: { rankedTitleIds } });
+      await flush();
+      expect(last(ws1, 'submitRefinedRankingsError')?.payload.message).toContain('exactly the shared shows');
+      expect(last(ws1, 'submitRefinedRankingsSuccess')).toBeUndefined();
+    }
+
+    // user1 refines: both members get the new shared standings.
+    ws2.send.mockClear();
+    push(ws1, { type: 'submitRefinedRankings', payload: { rankedTitleIds: [103, 101] } });
+    await flush();
+    expect(last(ws1, 'submitRefinedRankingsSuccess')).toBeDefined();
+    expect(last(ws1, 'resultsSuccess')?.payload.refined).toMatchObject({
+      refinedCount: 1,
+      myRefined: true,
+      myOrder: [103, 101],
+    });
+    const pushed = last(ws2, 'resultsSuccess')?.payload;
+    expect(pushed?.refined).toMatchObject({ refinedCount: 1, myRefined: false });
+    // Both now put 103 first: 24 against 18.
+    expect(pushed?.refined?.standings.map((s: { titleId: number; points: number }) => [s.titleId, s.points])).toEqual([
+      [103, 24],
+      [101, 18],
+    ]);
+    expect(pushed?.members).toContainEqual({ userName: 'user1', locked: true, submitted: true, refined: true });
+    // The normal standings are untouched.
+    expect(pushed?.standings.map((s: { titleId: number }) => s.titleId)).toEqual([103, 101, 102]);
+
+    // One shot.
+    push(ws1, { type: 'submitRefinedRankings', payload: { rankedTitleIds: [101, 103] } });
+    await flush();
+    expect(last(ws1, 'submitRefinedRankingsError')?.payload.message).toContain('already in');
+  });
+
+  it('a new member closes the refine round for everyone, by push', async () => {
+    const room = makeWsRoomWithExtraTitle();
+    const { ws: ws1 } = await authedInRoom('user1', room);
+    const { ws: ws2 } = await authedInRoom('user0', room);
+    for (const ws of [ws1, ws2]) {
+      push(ws, { type: 'verdict', payload: { titleId: 101, verdict: 'like' } });
+      push(ws, { type: 'verdict', payload: { titleId: 102, verdict: 'like' } });
+      push(ws, { type: 'verdict', payload: { titleId: 103, verdict: 'dislike' } });
+      push(ws, { type: 'lockIn' });
+    }
+    await flush();
+    push(ws1, { type: 'submitRankings', payload: { rankedTitleIds: [101, 102] } });
+    push(ws2, { type: 'submitRankings', payload: { rankedTitleIds: [102, 101] } });
+    await flush();
+    expect(last(ws1, 'resultsSuccess')?.payload.refined?.sharedTitleIds).toHaveLength(2);
+
+    // user2's first verdict-flow message makes them a member: two of three in.
+    const { ws: ws3 } = await authedInRoom('user2', room);
+    ws1.send.mockClear();
+    push(ws3, { type: 'review' });
+    await flush();
+    const pushed = last(ws1, 'resultsSuccess')?.payload;
+    expect(pushed).toMatchObject({ memberCount: 3, submittedCount: 2 });
+    expect(pushed?.refined).toBeUndefined();
+    push(ws1, { type: 'submitRefinedRankings', payload: { rankedTitleIds: [101, 102] } });
+    await flush();
+    expect(last(ws1, 'submitRefinedRankingsError')?.payload.message).toContain('every ranking is in');
+  });
+
+  it('submitRefinedRankings refuses when fewer than two shows are shared', async () => {
+    const room = makeWsRoom();
+    const { ws: ws1 } = await authedInRoom('user1', room);
+    const { ws: ws2 } = await authedInRoom('user0', room);
+    push(ws1, { type: 'verdict', payload: { titleId: 101, verdict: 'like' } });
+    push(ws1, { type: 'verdict', payload: { titleId: 102, verdict: 'like' } });
+    push(ws2, { type: 'verdict', payload: { titleId: 101, verdict: 'like' } });
+    push(ws2, { type: 'verdict', payload: { titleId: 102, verdict: 'dislike' } });
+    push(ws1, { type: 'lockIn' });
+    push(ws2, { type: 'lockIn' });
+    await flush();
+    push(ws1, { type: 'submitRankings', payload: { rankedTitleIds: [101, 102] } });
+    push(ws2, { type: 'submitRankings', payload: { rankedTitleIds: [101] } });
+    await flush();
+    expect(last(ws1, 'resultsSuccess')?.payload.refined?.sharedTitleIds).toEqual([101]);
+    push(ws1, { type: 'submitRefinedRankings', payload: { rankedTitleIds: [101] } });
+    await flush();
+    expect(last(ws1, 'submitRefinedRankingsError')?.payload.message).toContain('fewer than two');
+  });
+
+  it('submitRefinedRankings rejects a malformed payload', async () => {
+    const room = makeWsRoom();
+    const { ws } = await authedInRoom('user1', room);
+    push(ws, { type: 'submitRefinedRankings', payload: { rankedTitleIds: ['101'] } });
+    await flush();
+    expect(last(ws, 'submitRefinedRankingsError')?.payload.message).toBe('Invalid rankings payload.');
+  });
+
   it('results returns the payload on request', async () => {
     const room = makeWsRoom();
     const { ws } = await authedInRoom('user1', room);
@@ -540,8 +666,8 @@ describe('verdict / review / lockIn', () => {
     await flush();
     const members = last(ws2, 'reviewSuccess')?.payload.members;
     expect(members).toEqual([
-      { userName: 'user1', locked: true, submitted: false },
-      { userName: 'user0', locked: false, submitted: false },
+      { userName: 'user1', locked: true, submitted: false, refined: false },
+      { userName: 'user0', locked: false, submitted: false, refined: false },
     ]);
   });
 
@@ -566,7 +692,7 @@ describe('verdict / review / lockIn', () => {
     expect(last(ws1, 'roomPulse')).toBeUndefined();
     const pulse = last(ws2, 'roomPulse')?.payload;
     expect(pulse?.allLocked).toBe(false);
-    expect(pulse?.members).toContainEqual({ userName: 'user1', locked: true, submitted: false });
+    expect(pulse?.members).toContainEqual({ userName: 'user1', locked: true, submitted: false, refined: false });
 
     push(ws2, { type: 'lockIn' });
     await flush();
@@ -590,7 +716,7 @@ describe('verdict / review / lockIn', () => {
     const pulse = last(ws1, 'roomPulse')?.payload;
     expect(pulse?.allLocked).toBe(false);
     expect(pulse?.members).toContainEqual({
-      userName: 'user0', locked: false, submitted: false,
+      userName: 'user0', locked: false, submitted: false, refined: false,
     });
 
     // Repeat traffic from the SAME member does not re-pulse.
@@ -621,8 +747,8 @@ describe('verdict / review / lockIn', () => {
     const top = payload?.standings.find((row: { titleId: number }) => row.titleId === 101);
     expect(top?.rankedByNames).toEqual(['user0', 'user1']);
     expect(payload?.members).toEqual([
-      { userName: 'user1', locked: true, submitted: true },
-      { userName: 'user0', locked: true, submitted: true },
+      { userName: 'user1', locked: true, submitted: true, refined: false },
+      { userName: 'user0', locked: true, submitted: true, refined: false },
     ]);
   });
 
