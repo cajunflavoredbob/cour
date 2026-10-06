@@ -140,7 +140,7 @@ describe('VerdictRow', () => {
     expect(verdicts).toHaveLength(1);
   });
 
-  it('briefly refuses presses after the card advances, keeping focus (audit v1.2.0 #16)', () => {
+  it('briefly refuses presses after the card advances, keeping focus', () => {
     vi.useFakeTimers();
     const { rerender } = render(<VerdictRow titleId={101} remaining={12} />);
     const like = document.querySelector('[data-test-handle="verdict-like"]') as HTMLButtonElement;

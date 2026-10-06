@@ -354,7 +354,7 @@ export const createStore = () => {
     // resume handlers below route the user explicitly.
     clearTimeout(loadingEscapeTimer);
 
-    // Auto-login (0.12.0): every (re)connect re-claims this tab's member,
+    // Auto-login: every (re)connect re-claims this tab's member,
     // and loginSuccess below decides whether a room rejoin follows. No name
     // at all -> the join form (home fallback).
     const relogin = ownName();

@@ -13,6 +13,80 @@ repository; this changelog starts fresh at 0.1.0.
 
 ---
 
+## [1.5.0] - 2026-10-06
+
+The standings gain a re-rank of the shows everyone kept and a preview
+before sharing, Back steps back inside cour, and buttons, headers and
+colors follow one style across the app.
+
+### Added
+- Once every member has ranked and at least two shows were kept by
+  everyone, the standings offer an All kept tab beside All picks. It
+  scores only those shows, starting from each member's own ranking, and
+  each member can re-rank them once with the same scoring. All picks stays
+  the room's result. A toast points to the new tab once, and a new member
+  joining closes the round until they rank.
+- SHARE THE STANDINGS opens a preview of the exact image first, with one
+  action: share on a phone that can share images, save the image
+  everywhere else.
+- Back, on the phone or in the browser, steps back inside cour: it closes
+  an open dialog, the details or the account menu first, then takes the
+  deck back to your review and closes a re-review, the review peek or the
+  re-rank editor.
+- The deck's progress chip takes you back to your review, or to the
+  standings once you've locked in.
+- Trailers show a still with cour's play button, and YouTube loads only
+  when you press it. With "autoplay PVs with sound" on, each card's first
+  trailer still plays by itself.
+- Everyone's #1 posters open the show's details.
+- On desktop, holding U for 1.5 seconds marks the rest of the season
+  unsure, as holding the Unsure button does.
+- Every control shows a focus ring for the keyboard, dialogs keep Tab
+  inside them and hand focus back when they close, and the account menu
+  works with the arrow keys, Home and End.
+
+### Changed
+- Buttons read in lowercase: lock in, keep picking, save image.
+- Filled accent buttons use a deeper shade of each season's color, so
+  their white text stays readable.
+- Every phone screen shares one header, with the room name over the
+  wordmark, clear of the status bar on notched phones.
+- AniList and MAL are quiet text links instead of buttons.
+- On desktop the standings use the same sidebar and main column as your
+  review, the deck's poster and details line up at the top, and toasts
+  sit in the bottom-left corner.
+- #2 and #3 get their medal colors on phones too.
+- Tapping a verdict on your review changes it in place; the show moves
+  to its new pile when you switch piles.
+- Coming back to the standings starts at the top of the page.
+- Headlines end in a period, and long lists expand with SHOW ALL.
+- The join screen's form follows the style guide's margins.
+- On phones, toasts sit under the header as a card. Scrollbars and
+  checkboxes are dark, and reduced motion fades instead of sliding.
+
+### Fixed
+- Giving a verdict to a show opened from the Passed or Unsure pile
+  returns you to that pile instead of Kept.
+- Each browser tab keeps its own name and room, through a reload too. A
+  reconnect, a reload or a refused rejoin no longer logs a tab in as
+  another tab's name or puts someone in a room they didn't choose.
+- Right after a reconnect, the join button waits until the reconnect's
+  own sign-in answers, and a late answer to an earlier sign-in can no
+  longer put a name in the wrong room.
+- Leave room forgets the remembered room only when it's the room you
+  left; another tab's room stays for the next new tab.
+- A room name cut at its 48-character limit no longer ends in a space,
+  which made rejoining it open a different, empty room.
+- A rejoin waits instead of giving up, Disconnected stays until the room
+  can be used, and a rejoin left unanswered offers Leave room.
+- Double clicks no longer fall through dialogs, reopen what they closed,
+  or click into the next screen.
+- Keyboard verdict keys no longer act behind an open dialog or menu.
+- Opening your review from the standings keeps keyboard focus.
+- "1 TITLE LEFT" and other counts of one read in the singular.
+- Small controls have full-size tap targets, and empty-state text is
+  easier to read.
+
 ## [1.4.0] - 2026-10-04
 
 The standings can now be shared as an image, and dragging and coming back

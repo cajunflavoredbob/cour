@@ -131,7 +131,7 @@ describe('connected handler', () => {
     const mod = await loadCreateStore();
     mod.createStore();
     clientMock.dispatchEvent(new Event('connected'));
-    // login rides the request helper now (audit 17 M8), not the raw socket.
+    // The login goes through the request helper, not the raw socket.
     expect(clientMock.login).toHaveBeenCalledWith(expect.objectContaining({ userName: 'user1' }));
   });
 
