@@ -2,26 +2,12 @@
   min-height: 100dvh;
   display: flex;
   flex-direction: column;
-  padding: 56px 20px 0;
+  padding: var(--cour-top-pad) 20px 0;
 }
 
+/* The shared phone header, in flow above the headline. */
 .topBar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
   margin-bottom: 18px;
-}
-
-.wordRow {
-  display: inline-flex;
-  align-items: center;
-}
-
-.word {
-  font-family: var(--cour-font-display);
-  font-weight: 600;
-  font-size: 19px;
-  color: var(--cour-text-0);
 }
 
 .headline {
@@ -94,10 +80,19 @@
   color: var(--cour-text-2);
 }
 
-/* The room's #1 gets the accent number. Medals are set only on All picks
-   rows, so the second view's ranks stay quiet. */
+/* Medals: #1 in the accent, #2 text-0, #3 text-1, on phones and desktop.
+   They are set only on All picks rows, so the second view's ranks stay
+   quiet. */
 .row[data-medal="1"] .standingRank {
   color: var(--cour-accent-bright);
+}
+
+.row[data-medal="2"] .standingRank {
+  color: var(--cour-text-0);
+}
+
+.row[data-medal="3"] .standingRank {
+  color: var(--cour-text-1);
 }
 
 .rowThumb {
@@ -278,7 +273,8 @@
   margin: 0 auto;
   padding: 8px var(--cour-desk-gutter) 32px;
   display: grid;
-  grid-template-columns: 300px minmax(0, 1fr);
+  /* The review's rail width, so both screens share their columns. */
+  grid-template-columns: 320px minmax(0, 1fr);
   gap: 48px;
   align-items: stretch;
 }
@@ -300,6 +296,7 @@
 
 .rail .headline {
   font-size: 30px;
+  margin-bottom: 8px;
 }
 
 .railSubmit {
@@ -491,14 +488,6 @@
   }
 }
 
-.standingsRows .row[data-medal="2"] .standingRank {
-  color: var(--cour-text-0);
-}
-
-.standingsRows .row[data-medal="3"] .standingRank {
-  color: var(--cour-text-1);
-}
-
 .standingsRows .row[data-hero="true"] {
   padding: 16px;
   margin-bottom: 10px;
@@ -606,18 +595,20 @@
   overflow-wrap: anywhere;
 }
 
-/* Three cards across the 300px rail. */
+/* Three cards across the 320px rail. */
 .rail .topPicks {
   margin-bottom: 0;
 }
 
 .rail .topPicksRow {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
 }
 
 .rail .pickCard,
 .rail .pickPoster {
-  width: 92px;
+  width: 100%;
 }
 
 .pickTitle {
@@ -709,30 +700,6 @@
   cursor: pointer;
 }
 
-/* Mobile header parity (audit v1.2.0 low): mirrors Deck's room stack. */
-.roomStack {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.roomLabel {
-  font-family: var(--cour-font-mono);
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--cour-text-2);
-  max-width: 60vw;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-/* The season chip, as on the review header: serif 600 (the only weight
-   with the kanji glyphs), line-strong border. */
-.kanjiChip {
-  composes: kanjiChip from "../shared.module.css";
-  margin-left: 7px;
-}
-
 /* All picks / All kept: the review piles' pill tabs, right above the
    list they switch. */
 .viewTabs {
@@ -810,6 +777,15 @@
   cursor: pointer;
 }
 
+/* On the narrowest phones the chip slims so the centered wordmark keeps
+   its room beside it. */
+@media (max-width: 359px) {
+  .backChip {
+    padding-inline: 8px;
+    gap: 4px;
+  }
+}
+
 @media (hover: hover) {
   .backChip:hover:not(:disabled) {
     border-color: var(--cour-text-3);
@@ -818,34 +794,6 @@
 
 .backChip:disabled {
   border-color: var(--cour-line);
-}
-
-/* The scoped header, as the deck's: the way back, the room centered, the
-   avatar. The room label gets less room beside the chip. */
-.topBar[data-scoped] {
-  display: grid;
-  /* The sides never narrow past the chip and the avatar; the room label
-     gives way instead, so nothing paints over it. */
-  grid-template-columns: minmax(max-content, 1fr) minmax(0, auto) minmax(max-content, 1fr);
-  gap: 8px;
-}
-
-.topBar[data-scoped] > :first-child {
-  justify-self: start;
-}
-
-.topBar[data-scoped] > :last-child {
-  justify-self: end;
-}
-
-.topBar[data-scoped] .roomStack {
-  align-items: center;
-  min-width: 0;
-  max-width: 100%;
-}
-
-.topBar[data-scoped] .roomLabel {
-  max-width: min(40vw, 100%);
 }
 
 /* Read by screen readers, not shown. */

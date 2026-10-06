@@ -69,6 +69,9 @@
    * accent so Dislike reads the same in every season. */
   --cour-negative: oklch(0.62 0.13 35);
 
+  /* The phone screens' top edge: clear of the status bar, never under 56px. */
+  --cour-top-pad: max(56px, calc(env(safe-area-inset-top, 0px) + 12px));
+
   /* The desktop shell: content width and side gutter. */
   --cour-desk-width: 1120px;
   --cour-desk-gutter: 24px;

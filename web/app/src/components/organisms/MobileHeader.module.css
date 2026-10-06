@@ -1,0 +1,72 @@
+/* Three columns. Both sides are at least --side, the wider side's content
+   (measured), so the brand sits at the true center and the room label
+   gives way first. Before the measure, each side holds its own content. */
+.header {
+  display: grid;
+  grid-template-columns: minmax(var(--side, max-content), 1fr) minmax(0, auto) minmax(var(--side, max-content), 1fr);
+  align-items: center;
+  gap: 8px;
+}
+
+/* The side controls keep one line, so their measured width is their own. */
+.start {
+  justify-self: start;
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+}
+
+.end {
+  justify-self: end;
+  white-space: nowrap;
+}
+
+.brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.roomLabel {
+  max-width: 100%;
+  font-family: var(--cour-font-mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--cour-text-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wordRow {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.word {
+  font-family: var(--cour-font-display);
+  font-weight: 600;
+  font-size: 19px;
+  color: var(--cour-text-0);
+}
+
+.kanjiChip {
+  composes: kanjiChip from "../shared.module.css";
+}
+
+.header[data-over-art] .roomLabel {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.header[data-over-art] .word {
+  color: white;
+}
+
+.header[data-over-art] .kanjiChip {
+  border-color: rgba(255, 255, 255, 0.25);
+}

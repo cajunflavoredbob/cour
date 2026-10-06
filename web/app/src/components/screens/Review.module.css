@@ -2,31 +2,12 @@
   min-height: 100dvh;
   display: flex;
   flex-direction: column;
-  padding: 56px 20px 0;
+  padding: var(--cour-top-pad) 20px 0;
 }
 
+/* The shared phone header, in flow above the headline. */
 .topBar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
   margin-bottom: 18px;
-}
-
-.wordRow {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-}
-
-.word {
-  font-family: var(--cour-font-display);
-  font-weight: 600;
-  font-size: 19px;
-  color: var(--cour-text-0);
-}
-
-.kanjiChip {
-  composes: kanjiChip from "../shared.module.css";
 }
 
 .headline {

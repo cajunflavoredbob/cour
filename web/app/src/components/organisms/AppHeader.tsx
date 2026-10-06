@@ -16,8 +16,8 @@ interface AppHeaderProps {
  * The shared desktop header (docs/DESKTOP.md 0.15.0): brand (cour +
  * season kanji + room label) on the left, the account popover on the
  * right, with an optional leading slot. Replaces the three ad-hoc
- * desktop headers the deck/review/rank screens each grew. Desktop-only
- * -- mobile keeps each screen's own header.
+ * desktop headers the deck/review/rank screens each grew. Desktop-only:
+ * the phone screens share MobileHeader.
  */
 export const AppHeader = ({ leading, roomLabel }: AppHeaderProps) => {
   const { season } = useSeason();

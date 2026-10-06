@@ -85,6 +85,10 @@ export const VerdictRow = ({ titleId, remaining, allowSkipAll = true, currentVer
     }
   }, [inputsDisabled]);
 
+  // A hold still running when the row goes away (the screen changed under
+  // the finger) must not skip the rest of the season after the fact.
+  useEffect(() => () => clearTimeout(holdTimer.current), []);
+
   const verdict = (v: "like" | "dislike" | "skip") =>
     dispatch({ type: "verdict", payload: { titleId, verdict: v } });
 

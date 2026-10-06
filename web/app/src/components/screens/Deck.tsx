@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Media, VerdictValue } from "../../../../../types/reely";
-import { AccountMenu } from "../organisms/AccountMenu";
 import { AppHeader } from "../organisms/AppHeader";
+import { MobileHeader } from "../organisms/MobileHeader";
 import { LedgerStalled } from "./LedgerStalled";
 import { Loading } from "./Loading";
 import { DeckDetails } from "../organisms/DeckDetails";
@@ -11,7 +11,6 @@ import { DESKTOP_QUERY, useMediaQuery } from "../../hooks/useMediaQuery";
 import { useStore } from "../../store";
 import { roomOffline } from "../../store/offline";
 import { useSeason } from "../../hooks/useSeason";
-import { SEASON_THEMES } from "../../utils/season";
 import { posterSrc } from "../../utils/poster";
 import { metaLine } from "../../utils/metaLine";
 import { overlayOpen } from "../../utils/overlay";
@@ -160,20 +159,31 @@ export const DeckScreen = () => {
   // Hook: must run before the early return below.
   const { season } = useSeason();
 
+  // The empty states keep the screen's header, with the room when there is one.
+  const emptyHeader = (roomLabel?: string) =>
+    isDesktop ? (
+      <AppHeader roomLabel={roomLabel} />
+    ) : (
+      <MobileHeader roomLabel={roomLabel} className={styles.emptyHeader} />
+    );
+
   if (!room) {
     // Not a dead end (audit 17): hand the user the way back to the join
     // form instead of a bare sentence.
     return (
       <div className={styles.emptyScreen}>
-        <h1 className={styles.emptyHeadline}>you are not in a room.</h1>
-        <button
-          type="button"
-          className={styles.emptyCta}
-          onClick={() => dispatch({ type: "navigate", payload: { route: "home" } })}
-          data-test-handle="to-join"
-        >
-          join a room
-        </button>
+        {emptyHeader()}
+        <div className={styles.emptyBody}>
+          <h1 className={styles.emptyHeadline}>you are not in a room.</h1>
+          <button
+            type="button"
+            className={styles.emptyCta}
+            onClick={() => dispatch({ type: "navigate", payload: { route: "home" } })}
+            data-test-handle="to-join"
+          >
+            join a room
+          </button>
+        </div>
       </div>
     );
   }
@@ -187,50 +197,48 @@ export const DeckScreen = () => {
 
   const total = review.total;
   const done = verdictedIds.size;
-  const kanji = SEASON_THEMES[season].kanji;
 
   // (Momentary blank while the exit effect fires.)
   if (deckScope && !scopedMedia) return <div />;
 
   if (!current) {
     // Deck exhausted (or filters emptied it). The review screen is where
-    // lock-in lives; keep this state quiet until then. (Centered column
-    // -- works on both mobile and desktop unchanged.) Locked users get
-    // honest copy: their picks are in, the standings are the destination
-    // (audit 17 H4 -- "time to lock in" was a lie weeks after they did).
+    // lock-in lives; keep this state quiet until then: the screen's header
+    // and a centered message. Locked users get honest copy: their picks
+    // are in, the standings are the destination.
     const locked = review.lockedAt != null;
     return (
       <div className={styles.emptyScreen}>
-        <p className={styles.emptyKicker}>{done} / {total}</p>
-        {locked ? (
-          <>
-            <h1 className={styles.emptyHeadline}>that&apos;s a wrap on the season.</h1>
-            <p className={styles.emptyText}>your picks are locked in.</p>
-            <button
-              type="button"
-              className={styles.emptyCta}
-              onClick={() => dispatch({ type: "navigate", payload: { route: "home" } })}
-              data-test-handle="to-standings"
-            >
-              see the standings
-            </button>
-          </>
-        ) : (
-          <>
-            <h1 className={styles.emptyHeadline}>that&apos;s the whole season.</h1>
-            <p className={styles.emptyText}>time to look over your picks and lock in.</p>
-            <button
-              type="button"
-              className={styles.emptyCta}
-              onClick={() => dispatch({ type: "navigate", payload: { route: "home" } })}
-              data-test-handle="to-review"
-            >
-              see your review
-            </button>
-          </>
-        )}
-        <div className={styles.emptyAvatar}>
-          <AccountMenu />
+        {emptyHeader(room.displayName ?? room.name)}
+        <div className={styles.emptyBody}>
+          <p className={styles.emptyKicker}>{done} / {total}</p>
+          {locked ? (
+            <>
+              <h1 className={styles.emptyHeadline}>that&apos;s a wrap on the season.</h1>
+              <p className={styles.emptyText}>your picks are locked in.</p>
+              <button
+                type="button"
+                className={styles.emptyCta}
+                onClick={() => dispatch({ type: "navigate", payload: { route: "home" } })}
+                data-test-handle="to-standings"
+              >
+                see the standings
+              </button>
+            </>
+          ) : (
+            <>
+              <h1 className={styles.emptyHeadline}>that&apos;s the whole season.</h1>
+              <p className={styles.emptyText}>time to look over your picks and lock in.</p>
+              <button
+                type="button"
+                className={styles.emptyCta}
+                onClick={() => dispatch({ type: "navigate", payload: { route: "home" } })}
+                data-test-handle="to-review"
+              >
+                see your review
+              </button>
+            </>
+          )}
         </div>
       </div>
     );
@@ -239,18 +247,27 @@ export const DeckScreen = () => {
   const poster = posterSrc(current.posterUrl);
   const currentVerdict = review?.verdicts.find((v) => v.titleId === current.anilistId)?.verdict;
 
-  // Progress chip / scope-back control -- shared content, styled per
-  // layout by its container.
+  // The progress chip is the way back to the review: from a scoped pass
+  // it ends the scope, from the whole deck it opens the review. Shared
+  // content, styled per layout by its container.
+  const backIcon = (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path d="M10 3 5 8l5 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
   const progressControl = deckScope ? (
     <button
       type="button"
       className={isDesktop ? styles.deskBackChip : styles.backChip}
       onClick={() => dispatch({ type: "exitDeckScope" })}
+      aria-label={
+        deckScope.titleIds.length > 1
+          ? `Back to your review: ${deckScope.position + 1} / ${deckScope.titleIds.length}`
+          : "Back to your review"
+      }
       data-test-handle="scope-back"
     >
-      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-        <path d="M10 3 5 8l5 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
+      {backIcon}
       {deckScope.titleIds.length > 1 ? (
         <span>
           {deckScope.position + 1}{" "}
@@ -261,19 +278,19 @@ export const DeckScreen = () => {
       )}
     </button>
   ) : (
-    <span className={isDesktop ? styles.deskProgressChip : styles.progressChip}>
-      {done} <span className={styles.progressTotal}>/ {total}</span>
-    </span>
-  );
-
-  const roomStack = (
-    <div className={styles.roomStack}>
-      <span className={styles.roomLabel}>{room.displayName ?? room.name}</span>
-      <span className={styles.wordRow}>
-        <span className={styles.word} translate="no">cour</span>
-        <span className={styles.kanjiChip} aria-hidden="true">{kanji}</span>
+    <button
+      type="button"
+      className={isDesktop ? styles.deskBackChip : styles.backChip}
+      onClick={() => dispatch({ type: "navigate", payload: { route: "home" } })}
+      // Home is the standings once this member has locked in.
+      aria-label={`${review.lockedAt != null ? "Back to the standings" : "Back to your review"}: ${done} / ${total}`}
+      data-test-handle="deck-progress"
+    >
+      {backIcon}
+      <span>
+        {done} <span className={styles.progressTotal}>/ {total}</span>
       </span>
-    </div>
+    </button>
   );
 
   // ── Desktop: two-pane stage (docs/DESKTOP.md) ──
@@ -361,13 +378,12 @@ export const DeckScreen = () => {
         </div>
       )}
 
-      <header className={styles.topBar}>
-        {progressControl}
-        {roomStack}
-        <div className={styles.topActions}>
-          <AccountMenu />
-        </div>
-      </header>
+      <MobileHeader
+        leading={progressControl}
+        roomLabel={room.displayName ?? room.name}
+        overArt
+        className={styles.topBar}
+      />
 
       <div className={styles.infoBlock} key={`info-${current.id}`}>
         {current.genres.length > 0 && (

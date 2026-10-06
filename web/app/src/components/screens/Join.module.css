@@ -4,13 +4,20 @@
   justify-content: center;
 }
 
+/* The guide's 28px auth gutters come from the column alone, so the
+   layout's own side padding gives way to the safe area. */
+section.screen {
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+}
+
 .inner {
   position: relative;
   width: 100%;
   max-width: 480px;
   display: flex;
   flex-direction: column;
-  padding: 60px 24px 34px;
+  padding: 60px 28px 34px;
 }
 
 .topBar {
@@ -22,10 +29,11 @@
 /* The stylized wordmark, per the style guide's construction: 52px mark
    beside 58px Shippori "our", baseline row with the mark centered and
    nudged 6px down onto the x-height, 2px gap before the o. */
+/* Room under the mark before the headline. */
 .logotype {
   display: inline-flex;
   align-items: baseline;
-  margin-bottom: 14px;
+  margin-bottom: 22px;
 }
 
 .logotype svg {

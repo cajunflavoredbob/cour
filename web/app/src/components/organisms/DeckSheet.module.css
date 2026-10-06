@@ -19,7 +19,7 @@
   transition: none;
 }
 
-/* Sheet container: from the design's 118px top gap to the bottom of
+/* Sheet container: from just under the header row to the bottom of
    the screen. The chrome (grabber + label + verdict row) is static at
    the bottom; the panel slides within the leftover space, clipped so a
    closed panel is invisible behind the chrome. */
@@ -27,7 +27,8 @@
   position: absolute;
   left: 0;
   right: 0;
-  top: 118px;
+  /* Just under the header row. */
+  top: calc(var(--cour-top-pad) + 62px);
   bottom: 0;
   z-index: 310;
   /* clip, NOT hidden: the panel's translateY pushes its box well below

@@ -100,81 +100,19 @@
   pointer-events: none;
 }
 
+/* The shared phone header, laid over the poster. */
 .topBar {
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 56px 20px 10px;
-}
-
-.progressChip {
-  padding: 7px 12px;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  background: rgba(0, 0, 0, 0.35);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  font-family: var(--cour-font-mono);
-  font-size: 11px;
-  color: white;
+  padding: var(--cour-top-pad) 20px 10px;
 }
 
 .progressTotal {
   color: rgba(255, 255, 255, 0.5);
 }
 
-.roomStack {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-}
-
-.roomLabel {
-  font-family: var(--cour-font-mono);
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: rgba(255, 255, 255, 0.55);
-  /* Room names run to 64 chars; keep the top bar to one tidy line. */
-  max-width: 40vw;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.wordRow {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-}
-
-.word {
-  font-family: var(--cour-font-display);
-  font-weight: 600;
-  font-size: 19px;
-  color: white;
-}
-
-.kanjiChip {
-  font-family: var(--cour-font-display);
-  font-weight: 600;
-  font-size: 12px;
-  color: var(--cour-accent-bright);
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  border-radius: 5px;
-  padding: 1px 5px;
-}
-
-.topActions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
 
 .infoBlock {
   position: absolute;
@@ -246,8 +184,19 @@
 
 
 /* Deck-exhausted state */
+/* The screen's header on top, the message centered in the rest. */
 .emptyScreen {
   min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+.emptyHeader {
+  padding: var(--cour-top-pad) 20px 10px;
+}
+
+.emptyBody {
+  flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -267,7 +216,9 @@
   font-family: var(--cour-font-display);
   font-weight: 600;
   font-size: 34px;
+  line-height: 1.1;
   color: var(--cour-text-0);
+  text-wrap: balance;
 }
 
 .emptyText {
@@ -276,17 +227,16 @@
   color: var(--cour-text-2);
 }
 
-.emptyAvatar {
-  margin-top: 16px;
-}
-
 .emptyCta {
   composes: primary inline from "../shared.module.css";
   margin-top: 8px;
 }
 
-/* Scoped re-review back control -- sits where the progress chip lives. */
+/* The way back to the review: the progress chip, or a scoped pass's back
+   chip. A blur chip over the poster, with a 44px target. */
 .backChip {
+  composes: hitBox from "../shared.module.css";
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -295,7 +245,6 @@
   border: 1px solid rgba(255, 255, 255, 0.2);
   background: rgba(0, 0, 0, 0.35);
   backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
   font-family: var(--cour-font-mono);
   font-size: 11px;
   color: white;
@@ -318,8 +267,9 @@
 
 /* Solid-on-dark chips: the mobile chips are translucent for legibility
    over poster art, which nearly vanishes on the flat bg-0 desktop bar. */
-.deskProgressChip,
 .deskBackChip {
+  composes: hitBox from "../shared.module.css";
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -330,9 +280,6 @@
   font-family: var(--cour-font-mono);
   font-size: 11px;
   color: var(--cour-text-1);
-}
-
-.deskBackChip {
   cursor: pointer;
 }
 
@@ -351,8 +298,11 @@
   padding: 8px var(--cour-desk-gutter) 28px;
   display: grid;
   grid-template-columns: minmax(0, 360px) minmax(0, 1fr);
+  /* One row the height of the stage, so each pane caps at it. */
+  grid-template-rows: minmax(0, 1fr);
   gap: 44px;
-  align-items: center;
+  /* The poster and the details share a top edge. */
+  align-items: start;
 }
 
 /* The poster as a contained 2:3 card (guide poster shadow), not
@@ -360,7 +310,6 @@
    inside it. */
 .posterPane {
   position: relative;
-  align-self: center;
   width: 100%;
   aspect-ratio: 2 / 3;
   max-height: 100%;

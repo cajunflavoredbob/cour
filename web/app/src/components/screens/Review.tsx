@@ -1,14 +1,13 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { Media, VerdictValue } from "../../../../../types/reely";
-import { AccountMenu } from "../organisms/AccountMenu";
 import { AppHeader } from "../organisms/AppHeader";
+import { MobileHeader } from "../organisms/MobileHeader";
 import { DialogScrim } from "../molecules/DialogScrim";
 import { PillTabs, tabId, tabPanelProps } from "../molecules/PillTabs";
 import { DESKTOP_QUERY, useMediaQuery } from "../../hooks/useMediaQuery";
 import { useDispatch, useStore } from "../../store";
 import { roomOffline } from "../../store/offline";
 import { useSeason } from "../../hooks/useSeason";
-import { SEASON_THEMES } from "../../utils/season";
 import { placeKey, placeOf } from "../../utils/drafts";
 import { focusLost } from "../../utils/overlay";
 import { rerankOpen } from "../../utils/standingsText";
@@ -145,7 +144,6 @@ export const ReviewScreen = () => {
   const locked = review.lockedAt != null;
   // The ledger holds still through the lock ceremony, as Rank's lists do.
   const frozen = locked || lockingIn;
-  const kanji = SEASON_THEMES[season].kanji;
   const roomName = room.displayName ?? room.name;
 
   const memberStates = members ?? review.members ?? [];
@@ -178,7 +176,7 @@ export const ReviewScreen = () => {
     <div className={styles.headlineBlock}>
       <h1 className={styles.headline}>your {season.toLowerCase()} review.</h1>
       <p className={styles.contextLine}>
-        {roomName.toUpperCase()} &middot; {done} / {total} VERDICTS
+        {done} / {total} VERDICTS
         {/* Room pulse (audit 17 UX 3): pre-lock the room used to be
             opaque. Live via roomPulse pushes; seeded by the review
             payload. */}
@@ -437,13 +435,7 @@ export const ReviewScreen = () => {
   // ── Mobile: single stack, lock bar as sticky footer ──
   return (
     <div className={styles.screen}>
-      <header className={styles.topBar}>
-        <span className={styles.wordRow}>
-          <span className={styles.word} translate="no">cour</span>
-          <span className={styles.kanjiChip} aria-hidden="true">{kanji}</span>
-        </span>
-        <AccountMenu />
-      </header>
+      <MobileHeader roomLabel={roomName} className={styles.topBar} />
 
       {headlineBlock}
       {resumeBannerEl}

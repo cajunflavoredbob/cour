@@ -1,8 +1,9 @@
-/* System messages sit under the header row, clear of the bottom action
-   bars (Lock in, Keep) and of the header's avatar and back chip. */
+/* System messages sit under the header row (its top padding plus the
+   48px row), clear of the bottom action bars (Lock in, Keep) and of the
+   header's avatar and back chip. */
 .toastList {
   position: fixed;
-  top: max(100px, calc(env(safe-area-inset-top, 0px) + 12px));
+  top: calc(var(--cour-top-pad) + 48px);
   left: 0;
   right: 0;
   margin: 0;

@@ -102,8 +102,8 @@ Two taste forks were put to the owner; their calls, locked:
 - **AppHeader (new shared component).** Brand (cour + kanji + room
   label) left, AccountMenu right, optional `leading` slot (the deck's
   progress chip / scope-back). Replaces the three ad-hoc desktop
-  headers (deck/review/rank) with one. Desktop-only; mobile headers
-  are unchanged per screen.
+  headers (deck/review/rank) with one. Desktop-only; the phone screens
+  share MobileHeader (the room over the wordmark, centered).
 - **Review -> rail + main** (CSS grid reflow, one render tree; NO JS
   branch). Full-width AppHeader. Sticky left rail (~320px): season
   headline, progress bar, resume banner, and the lock-in button (out

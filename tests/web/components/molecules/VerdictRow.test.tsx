@@ -163,6 +163,15 @@ describe('VerdictRow', () => {
     expect(dispatch).not.toHaveBeenCalled();
   });
 
+  it('drops a running hold when the row unmounts', () => {
+    vi.useFakeTimers();
+    const view = render(<VerdictRow titleId={101} remaining={12} />);
+    fireEvent.pointerDown(document.querySelector('[data-test-handle="verdict-skip"]') as HTMLElement);
+    view.unmount();
+    vi.advanceTimersByTime(3000);
+    expect(dispatch).not.toHaveBeenCalled();
+  });
+
   it('ignores a right-click press', () => {
     vi.useFakeTimers();
     render(<VerdictRow titleId={101} remaining={12} />);

@@ -108,6 +108,20 @@ describe('DeckScreen', () => {
     expect(screen.getByText('/ 3')).toBeDefined();
   });
 
+  it('takes the progress chip back to the review', () => {
+    withState({ review: review([101, 102]) });
+    render(<DeckScreen />);
+    const chip = screen.getByRole('button', { name: 'Back to your review: 2 / 3' });
+    fireEvent.click(chip);
+    expect(dispatch).toHaveBeenCalledWith({ type: 'navigate', payload: { route: 'home' } });
+  });
+
+  it('names the standings as the way back once the member has locked in', () => {
+    withState({ review: { ...review([101, 102]), lockedAt: 12345 } });
+    render(<DeckScreen />);
+    expect(screen.getByRole('button', { name: 'Back to the standings: 2 / 3' })).toBeDefined();
+  });
+
   it('shows the room label and season kanji in the top bar', () => {
     render(<DeckScreen />);
     expect(screen.getByText('Couch-Club')).toBeDefined();
@@ -120,12 +134,18 @@ describe('DeckScreen', () => {
     expect(screen.getByText("that's the whole season.")).toBeDefined();
     expect(screen.getByText('3 / 3')).toBeDefined();
     expect(screen.queryByTestId('deck-sheet')).toBeNull();
+    // The screen keeps its header: the room, the brand and the one menu.
+    const header = screen.getByRole('banner');
+    expect(header.textContent).toContain('Couch-Club');
+    expect(header.contains(screen.getByTestId('account-menu'))).toBe(true);
+    expect(screen.getAllByTestId('account-menu')).toHaveLength(1);
   });
 
   it('renders the not-in-a-room guard with a way back to the join form', () => {
     withState({ room: undefined, review: undefined });
     render(<DeckScreen />);
     expect(screen.getByText('you are not in a room.')).toBeDefined();
+    expect(screen.getByRole('banner').contains(screen.getByTestId('account-menu'))).toBe(true);
     // Not a dead end anymore (audit 17): the CTA routes home.
     fireEvent.click(screen.getByText('join a room'));
     expect(dispatch).toHaveBeenCalledWith({ type: 'navigate', payload: { route: 'home' } });

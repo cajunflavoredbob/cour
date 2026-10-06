@@ -78,7 +78,9 @@ describe('ReviewScreen (design section 07)', () => {
   it('renders the headline, context line, and progress', () => {
     render(<ReviewScreen />);
     expect(screen.getByText('your summer review.')).toBeDefined();
-    expect(screen.getByText(/COUCH-CLUB · 2 \/ 3 VERDICTS/)).toBeDefined();
+    // The room is named once, in the header.
+    expect(screen.getByText('Couch-Club')).toBeDefined();
+    expect(screen.getByText(/^2 \/ 3 VERDICTS/)).toBeDefined();
     expect(screen.getByRole('progressbar').getAttribute('aria-valuenow')).toBe('2');
   });
 

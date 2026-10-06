@@ -1,7 +1,7 @@
 import { type Dispatch, type SetStateAction, useEffect, useMemo, useRef, useState } from "react";
 import type { Media, RankingStanding } from "../../../../../types/reely";
-import { AccountMenu } from "../organisms/AccountMenu";
 import { AppHeader } from "../organisms/AppHeader";
+import { MobileHeader } from "../organisms/MobileHeader";
 import { DialogScrim } from "../molecules/DialogScrim";
 import { PillTabs, tabPanelProps } from "../molecules/PillTabs";
 import { DeckDetails } from "../organisms/DeckDetails";
@@ -19,7 +19,6 @@ import { posterSrc } from "../../utils/poster";
 import { getRerankTold, setRerankTold } from "../../utils/prefs";
 import { reconcileOrder } from "../../utils/rankOrder";
 import { useSeason } from "../../hooks/useSeason";
-import { SEASON_THEMES } from "../../utils/season";
 import { buildStandingsCard, listOf } from "../../utils/standingsCard";
 import {
   groupTopPicks,
@@ -178,7 +177,6 @@ export const RankScreen = ({ fromLock = false, onFocusTaken }: RankScreenProps =
   // The editor holds through the submit ceremony so the standings never
   // flash in early.
   const rankingDone = mySubmitted && !submitting;
-  const kanji = SEASON_THEMES[season].kanji;
   const round = results?.refined;
   const sharedCount = round?.sharedTitleIds.length ?? 0;
   // The second view exists only with at least two shows to compare.
@@ -949,19 +947,7 @@ export const RankScreen = ({ fromLock = false, onFocusTaken }: RankScreenProps =
   // ── Mobile ──
   return (
     <div className={styles.screen}>
-      <header className={styles.topBar} data-scoped={editingRefine || undefined}>
-        {editingRefine && backChip}
-        {/* Mobile parity with the deck/review headers (audit v1.2.0
-            low): season kanji + room name were missing here. */}
-        <div className={styles.roomStack}>
-          <span className={styles.roomLabel}>{roomName}</span>
-          <span className={styles.wordRow}>
-            <span className={styles.word} translate="no">cour</span>
-            <span className={styles.kanjiChip} aria-hidden="true">{kanji}</span>
-          </span>
-        </div>
-        <AccountMenu />
-      </header>
+      <MobileHeader leading={editingRefine ? backChip : undefined} roomLabel={roomName} className={styles.topBar} />
 
       {editingRefine ? (
         <>
