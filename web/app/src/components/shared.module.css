@@ -70,7 +70,7 @@
   width: 100%;
   background: var(--cour-bg-1);
   border: 1px solid var(--cour-line-strong);
-  border-radius: 20px;
+  border-radius: 22px;
   padding: 22px var(--panel-pad-x) var(--panel-pad-end);
   gap: 12px;
 }
@@ -95,7 +95,7 @@
   gap: 10px;
   padding: 10px 12px;
   border: 1px solid var(--cour-line-strong);
-  border-radius: 12px;
+  border-radius: 16px;
   font-family: var(--cour-font-ui);
   font-size: 13px;
   color: var(--cour-text-0);
@@ -105,7 +105,7 @@
 .checkbox {
   width: 18px;
   height: 18px;
-  accent-color: var(--cour-accent);
+  accent-color: var(--cour-accent-fill);
   flex-shrink: 0;
 }
 
@@ -119,6 +119,100 @@
   box-shadow: none;
 }
 
+/* ── The button family (guide 05) ──
+   A role (primary, secondary, ghost) composed with a size (bar, inline,
+   pill). The sizes bring the disabled recipe; the verdict row composes a
+   role alone, so its brief post-advance disable doesn't flash grey. The
+   composing rule adds only layout: width, margins, alignment. */
+
+/* The filled accent: white text, the glow. */
+.primary {
+  border: none;
+  border-radius: 999px;
+  background: var(--cour-accent-fill);
+  color: white;
+  font-family: var(--cour-font-ui);
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: var(--cour-glow-primary);
+  transition: box-shadow 160ms ease;
+}
+
+/* The quiet pill beside a primary: bg-2, line-strong, text-0. */
+.secondary {
+  border: 1px solid var(--cour-line-strong);
+  border-radius: 999px;
+  background: var(--cour-bg-2);
+  color: var(--cour-text-0);
+  font-family: var(--cour-font-ui);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 160ms ease;
+}
+
+/* Text only: text-2, brightening to text-0. */
+.ghost {
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--cour-text-2);
+  font-family: var(--cour-font-ui);
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 160ms ease;
+}
+
+/* One hover per role, only where a pointer hovers. */
+@media (hover: hover) {
+  .primary:hover:not(:disabled, [aria-disabled="true"]) {
+    box-shadow: var(--cour-glow-primary-hover);
+  }
+
+  .secondary:hover:not(:disabled, [aria-disabled="true"]) {
+    background: var(--cour-bg-3);
+  }
+
+  .ghost:hover:not(:disabled, [aria-disabled="true"]) {
+    color: var(--cour-text-0);
+  }
+}
+
+/* A full-width action bar: Lock in, Submit rankings, the join button. */
+.bar {
+  composes: solidDisabled;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 16px;
+  font-size: 15px;
+}
+
+/* A standalone call to action. */
+.inline {
+  composes: solidDisabled;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 14px 28px;
+  font-size: 15px;
+  text-decoration: none;
+}
+
+/* A dialog or menu button. */
+.pill {
+  composes: solidDisabled;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 16px;
+  font-size: 14px;
+  text-decoration: none;
+}
+
 /* Equal halves while both labels fit on one line; on narrow phones the
    longer label takes its width, and the pair stacks when even that fails. */
 .pillPair {
@@ -128,28 +222,15 @@
   margin-top: 2px;
 }
 
-.pill {
+.pillPair > * {
   flex: 1;
   min-width: max-content;
-  padding: 12px;
-  border-radius: 999px;
-  font-family: var(--cour-font-ui);
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
 }
 
 .pillOutline {
-  composes: pill;
-  border: 1px solid var(--cour-line-strong);
-  background: transparent;
-  color: var(--cour-text-1);
+  composes: secondary pill;
 }
 
 .pillAccent {
-  composes: pill solidDisabled;
-  border: none;
-  background: var(--cour-accent);
-  color: white;
-  box-shadow: 0 8px 24px -8px var(--cour-accent);
+  composes: primary pill;
 }

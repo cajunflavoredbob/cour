@@ -79,7 +79,7 @@
 
 .rankPoints {
   font-family: var(--cour-font-mono);
-  font-size: 9px;
+  font-size: 10px;
   letter-spacing: 0.05em;
   color: var(--cour-accent-bright);
 }
@@ -103,7 +103,7 @@
 .rowThumb {
   width: 40px;
   height: 56px;
-  border-radius: 6px;
+  border-radius: 8px;
   overflow: hidden;
   background: var(--cour-bg-2);
   flex-shrink: 0;
@@ -162,6 +162,13 @@
   cursor: pointer;
 }
 
+@media (hover: hover) {
+  .moveBtn:hover:not(:disabled, [aria-disabled="true"]) {
+    border-color: var(--cour-text-3);
+    color: var(--cour-text-0);
+  }
+}
+
 /* Frozen by the ceremony, or at the end of the list (still focusable). */
 .moveBtn:disabled,
 .moveBtn[aria-disabled="true"] {
@@ -174,7 +181,7 @@
   padding: 24px 0;
   font-family: var(--cour-font-ui);
   font-size: 13px;
-  color: var(--cour-text-3);
+  color: var(--cour-text-2);
 }
 
 .submitBar {
@@ -186,28 +193,24 @@
   border-top: 1px solid var(--cour-line-strong);
 }
 
+/* Keyboard focus scrolls a row clear of the sticky bar (the bar's own
+   button stays put). */
+.screen:has(.submitBar) .rows button {
+  scroll-margin-bottom: 160px;
+}
+
 .submitBtn {
-  composes: solidDisabled from "../shared.module.css";
-  width: 100%;
-  padding: 16px;
-  border: none;
-  border-radius: 999px;
-  background: var(--cour-accent);
-  color: white;
-  font-family: var(--cour-font-ui);
-  font-size: 15px;
-  font-weight: 600;
-  cursor: pointer;
-  box-shadow: 0 8px 24px -8px var(--cour-accent);
+  composes: primary bar from "../shared.module.css";
 }
 
 .submitCaption {
   margin: 8px 0 0;
   text-align: center;
   font-family: var(--cour-font-mono);
-  font-size: 9.5px;
+  font-size: 10.5px;
   letter-spacing: 0.1em;
   color: var(--cour-text-2);
+  text-wrap: balance;
 }
 
 /* Same dialog grammar as the lock-in confirm. */
@@ -288,6 +291,11 @@
   display: flex;
   flex-direction: column;
   gap: 18px;
+  /* Room for the focus ring, which the scroll box would clip, at rest and
+     when Tab scrolls a control into view. */
+  padding: 4px;
+  margin: -4px;
+  scroll-padding: 4px;
 }
 
 .rail .headline {
@@ -312,6 +320,11 @@
   min-height: 0;
   overflow-y: auto;
   scrollbar-width: thin;
+  /* Room for the focus ring, which the scroll box would clip, at rest and
+     when Tab scrolls a row into view. */
+  padding: 4px 4px 20px;
+  margin: -4px;
+  scroll-padding: 4px;
 }
 
 /* The point legend in the editor rail. */
@@ -393,7 +406,7 @@
   position: relative;
   z-index: 2;
   background: var(--cour-bg-2);
-  border-radius: 10px;
+  border-radius: 16px;
   box-shadow: 0 10px 28px -10px rgba(0, 0, 0, 0.6);
 }
 
@@ -441,8 +454,10 @@
   cursor: pointer;
 }
 
-.shareLink:hover {
-  filter: brightness(1.15);
+@media (hover: hover) {
+  .shareLink:hover {
+    color: var(--cour-text-0);
+  }
 }
 
 .standingsHead > :last-child {
@@ -453,8 +468,11 @@
    under it. */
 .standingsRows {
   list-style: none;
-  margin: 0;
-  padding: 0 0 8px;
+  /* Room for the focus ring, which the scroll box would clip, at rest and
+     when Tab scrolls a row into view. */
+  margin: -4px;
+  padding: 4px 4px 12px;
+  scroll-padding: 4px;
   flex: 0 1 auto;
   min-height: 0;
   overflow-y: auto;
@@ -528,8 +546,10 @@
   cursor: pointer;
 }
 
-.showAllBtn:hover {
-  color: var(--cour-text-0);
+@media (hover: hover) {
+  .showAllBtn:hover {
+    color: var(--cour-text-0);
+  }
 }
 
 /* "Everyone's #1" -- each member's top pick (the owner's ask). Static
@@ -563,7 +583,7 @@
 .pickPoster {
   width: 96px;
   aspect-ratio: 2 / 3;
-  border-radius: 10px;
+  border-radius: 16px;
   overflow: hidden;
   background: var(--cour-bg-2);
   border: 1px solid var(--cour-line-strong);
@@ -622,10 +642,18 @@
   width: 100%;
   cursor: pointer;
 }
+/* all: unset drops the global ring with the rest, so it comes back here. */
 .rowOpen:focus-visible {
-  outline: 2px solid var(--cour-accent);
+  outline: 2px solid var(--cour-accent-bright);
   outline-offset: 2px;
   border-radius: 8px;
+}
+
+/* Row hover, as the review ledger's: pointer devices only. */
+@media (hover: hover) {
+  .rowOpen:hover .rowTitle {
+    color: var(--cour-accent-bright);
+  }
 }
 
 /* Read-only details drawer over the standings (audit 17 UX 4). */
@@ -647,7 +675,7 @@
   overflow-y: auto;
   background: var(--cour-bg-1);
   border: 1px solid var(--cour-line-strong);
-  border-radius: 20px;
+  border-radius: 22px;
   /* The detail block brings its own gutters. */
   padding: 0 0 20px;
 }
@@ -758,8 +786,10 @@
   cursor: pointer;
 }
 
-.refineBtn:hover {
-  filter: brightness(1.15);
+@media (hover: hover) {
+  .refineBtn:hover {
+    color: var(--cour-text-0);
+  }
 }
 
 /* The way back from the re-rank: the deck's flat scope-back chip, with a
@@ -780,8 +810,10 @@
   cursor: pointer;
 }
 
-.backChip:hover:not(:disabled) {
-  border-color: var(--cour-text-3);
+@media (hover: hover) {
+  .backChip:hover:not(:disabled) {
+    border-color: var(--cour-text-3);
+  }
 }
 
 .backChip:disabled {

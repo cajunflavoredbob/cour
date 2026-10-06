@@ -82,12 +82,3 @@ createRoot(document.getElementById("app")!).render(
 // directly (see main.css, Layout.module.css, Card.module.css,
 // CardStack.module.css).
 
-window.addEventListener("keyup", (e) => {
-  if (e.key === "Tab") {
-    document.body.classList.add("show-focus-ring");
-  }
-});
-
-window.addEventListener("mouseup", () => {
-  document.body.classList.remove("show-focus-ring");
-});

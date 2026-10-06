@@ -58,17 +58,6 @@
   white-space: nowrap;
 }
 
-.adminTag {
-  padding: 2px 7px;
-  border-radius: 5px;
-  border: 1px solid var(--cour-accent);
-  color: var(--cour-accent-bright);
-  font-family: var(--cour-font-mono);
-  font-size: 9px;
-  letter-spacing: 0.08em;
-  flex-shrink: 0;
-}
-
 .row {
   display: flex;
   align-items: center;
@@ -117,45 +106,15 @@
   cursor: default;
 }
 
-.pwForm {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 4px 0 12px;
-  border-bottom: 1px solid var(--cour-line);
-}
+/* Menu rows brighten under a pointer; Leave room stays clay. */
+@media (hover: hover) {
+  .rowButton:hover {
+    color: var(--cour-accent-bright);
+  }
 
-.input {
-  padding: 10px 12px;
-  border-radius: 10px;
-  border: 1px solid var(--cour-line-strong);
-  background: var(--cour-bg-0);
-  color: var(--cour-text-0);
-  font-family: var(--cour-font-ui);
-  font-size: 13px;
-}
-
-.input:focus {
-  outline: none;
-  border-color: var(--cour-accent);
-}
-
-.pwSubmit {
-  padding: 10px 14px;
-  border: none;
-  border-radius: 999px;
-  background: var(--cour-accent);
-  color: white;
-  font-family: var(--cour-font-ui);
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.pwSubmit:disabled {
-  background: var(--cour-bg-2);
-  color: var(--cour-text-3);
-  cursor: default;
+  .logoutButton:hover:not(:disabled) {
+    color: oklch(0.7 0.13 35);
+  }
 }
 
 .togglePill {
@@ -171,8 +130,8 @@
 }
 
 .togglePill[data-on="true"] {
-  background: var(--cour-accent);
-  border-color: var(--cour-accent);
+  background: var(--cour-accent-fill);
+  border-color: var(--cour-accent-fill);
 }
 
 .toggleKnob {
@@ -213,31 +172,15 @@
 
 
 /* The prominent "finish your deck" prompt, shown when the deck is
-   unfinished. Accent-filled so it reads as the primary next action. */
+   unfinished: the primary next action. */
 .keepGoing {
-  display: block;
+  composes: primary pill from "../shared.module.css";
   width: 100%;
   margin: 12px 0 4px;
-  padding: 12px 14px;
-  border: none;
-  border-radius: 12px;
-  background: var(--cour-accent);
-  color: #fff;
-  font-family: var(--cour-font-ui);
-  font-size: 13px;
-  font-weight: 600;
-  text-align: center;
-  cursor: pointer;
-  transition: background 160ms ease;
-}
-
-.keepGoing:hover {
-  background: var(--cour-accent-bright);
 }
 
 .keepGoingCount {
   font-weight: 400;
-  opacity: 0.85;
 }
 
 /* App version, quiet mono footer at the bottom of the popover. */
@@ -274,19 +217,16 @@
   color: var(--cour-text-0);
   background: var(--cour-bg-0);
   border: 1px solid var(--cour-line-strong);
-  border-radius: 10px;
+  border-radius: 16px;
   padding: 10px 12px;
   width: 100%;
 }
+/* The guide's input focus: an accent border, no ring (as the join form). */
+.shareInput:focus {
+  outline: none;
+  border-color: var(--cour-accent);
+}
 .shareClose {
-  font-family: var(--cour-font-ui);
-  font-weight: 600;
-  font-size: 14px;
-  color: white;
-  background: var(--cour-accent);
-  border: none;
-  border-radius: 999px;
-  padding: 10px 16px;
-  cursor: pointer;
+  composes: primary pill from "../shared.module.css";
   align-self: flex-end;
 }

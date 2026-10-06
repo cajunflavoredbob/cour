@@ -19,7 +19,7 @@
   overflow-y: auto;
   background: var(--cour-bg-1);
   border: 1px solid var(--cour-line-strong);
-  border-radius: 20px;
+  border-radius: 22px;
   padding: 24px 22px 20px;
   display: flex;
   flex-direction: column;
@@ -64,13 +64,5 @@
 }
 
 .cta {
-  font-family: var(--cour-font-ui);
-  font-weight: 600;
-  font-size: 15px;
-  color: white;
-  background: var(--cour-accent);
-  border: none;
-  border-radius: 999px;
-  padding: 12px 18px;
-  cursor: pointer;
+  composes: primary inline from "../shared.module.css";
 }

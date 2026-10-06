@@ -47,7 +47,7 @@
   left: 10px;
   padding: 5px 9px;
   border: none;
-  border-radius: 6px;
+  border-radius: 999px;
   background: rgba(0, 0, 0, 0.6);
   color: white;
   font-family: var(--cour-font-mono);
@@ -61,7 +61,7 @@
   bottom: 10px;
   right: 10px;
   padding: 4px 8px;
-  border-radius: 6px;
+  border-radius: 999px;
   background: rgba(0, 0, 0, 0.6);
   color: white;
   font-family: var(--cour-font-mono);
@@ -72,7 +72,10 @@
 .thumbStrip {
   display: flex;
   gap: 6px;
-  margin: 8px 20px 0;
+  /* 4px of padding inside the scroll box keeps a focus ring whole. */
+  margin: 4px 16px -4px;
+  padding: 4px;
+  scroll-padding: 4px;
   flex-shrink: 0;
   /* Unstacked strips scroll horizontally; thumbs keep their size. */
   overflow-x: auto;
@@ -97,7 +100,8 @@
   opacity: 0.65;
 }
 
-.thumb[data-active="true"] {
+.thumb[data-active="true"],
+.thumb:focus-visible {
   opacity: 1;
 }
 
@@ -246,16 +250,6 @@
 }
 
 .pvErrorLink {
+  composes: primary pill from "../shared.module.css";
   position: relative;
-  display: inline-flex;
-  align-items: center;
-  padding: 10px 16px;
-  border-radius: 999px;
-  background: var(--cour-accent);
-  color: white;
-  font-family: var(--cour-font-ui);
-  font-size: 13px;
-  font-weight: 600;
-  text-decoration: none;
-  box-shadow: 0 8px 24px -8px var(--cour-accent);
 }

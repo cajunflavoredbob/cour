@@ -63,6 +63,41 @@ describe('DialogScrim', () => {
     expect(document.activeElement).toBe(opener());
   });
 
+  it('cycles Tab and Shift+Tab through its controls, never stopping on the dialog itself', () => {
+    render(
+      <DialogScrim label="Test dialog" onDismiss={() => {}} backdropClassName="b" dialogClassName="d">
+        <button type="button">First</button>
+        <button type="button">Last</button>
+        <button type="button" disabled>
+          Off
+        </button>
+      </DialogScrim>,
+    );
+    const dialog = screen.getByRole('alertdialog');
+    expect(document.activeElement).toBe(dialog);
+    // Shift+Tab from the dialog itself lands on the last control that can
+    // take focus, past the disabled one after it.
+    fireEvent.keyDown(window, { key: 'Tab', shiftKey: true });
+    expect(document.activeElement).toBe(screen.getByText('Last'));
+    // Tab past the last control wraps to the first.
+    fireEvent.keyDown(window, { key: 'Tab' });
+    expect(document.activeElement).toBe(screen.getByText('First'));
+    fireEvent.keyDown(window, { key: 'Tab', shiftKey: true });
+    expect(document.activeElement).toBe(screen.getByText('Last'));
+  });
+
+  it('holds Tab on the dialog when it has no controls', () => {
+    render(
+      <DialogScrim label="Test dialog" onDismiss={() => {}} backdropClassName="b" dialogClassName="d">
+        <p>Body</p>
+      </DialogScrim>,
+    );
+    const tab = new KeyboardEvent('keydown', { key: 'Tab', cancelable: true });
+    window.dispatchEvent(tab);
+    expect(tab.defaultPrevented).toBe(true);
+    expect(document.activeElement).toBe(screen.getByRole('alertdialog'));
+  });
+
   it('dismisses on Escape and on a backdrop click, not on a click inside', () => {
     const onDismiss = vi.fn();
     render(

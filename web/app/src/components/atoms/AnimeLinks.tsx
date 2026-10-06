@@ -28,7 +28,7 @@ export const AnimeLinks = ({ media }: AnimeLinksProps) => {
         target={isIOS ? "_self" : "_blank"}
         rel="noopener noreferrer"
       >
-        AniList
+        AniList <span aria-hidden="true">&#8599;</span>
       </a>
       {links.malUrl && (
         <a
@@ -37,7 +37,7 @@ export const AnimeLinks = ({ media }: AnimeLinksProps) => {
           target={isIOS ? "_self" : "_blank"}
           rel="noopener noreferrer"
         >
-          MAL
+          MAL <span aria-hidden="true">&#8599;</span>
         </a>
       )}
     </div>

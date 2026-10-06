@@ -57,8 +57,14 @@
 
   /* Seasonal accent (Summer indigo fallback; see season.ts) */
   --cour-accent: oklch(0.64 0.15 278);
+  --cour-accent-fill: oklch(0.573 0.15 278);
   --cour-accent-bright: oklch(0.75 0.13 278);
   --cour-accent-soft: oklch(0.64 0.15 278 / 0.16);
+  /* The glow under a filled button (guide: accent at 45-55%). */
+  --cour-glow-primary: 0 8px 32px -10px color-mix(in oklch, var(--cour-accent-fill) 55%, transparent);
+  --cour-glow-like: 0 8px 24px -8px color-mix(in oklch, var(--cour-accent-fill) 45%, transparent);
+  --cour-glow-primary-hover: 0 10px 36px -8px color-mix(in oklch, var(--cour-accent-fill) 75%, transparent);
+  --cour-glow-like-hover: 0 10px 28px -6px color-mix(in oklch, var(--cour-accent-fill) 70%, transparent);
   /* Negative/destructive (clay) -- deliberately decoupled from the brand
    * accent so Dislike reads the same in every season. */
   --cour-negative: oklch(0.62 0.13 35);
@@ -113,8 +119,22 @@ body {
   scroll-behavior: smooth;
 }
 
-body:not(.show-focus-ring) *:focus {
+/* Keyboard focus: one accent ring on every control; pointer focus shows
+   none. Dialogs take focus to hold it, not as controls, so they show none
+   either. */
+:focus-visible {
+  outline: 2px solid var(--cour-accent-bright);
+  outline-offset: 2px;
+}
+
+[role="dialog"]:focus,
+[role="alertdialog"]:focus {
   outline: none;
+}
+
+/* A control focused at the top of the page keeps its ring in view. */
+:root {
+  scroll-padding-top: 4px;
 }
 
 /* ── Shared utilities ── */

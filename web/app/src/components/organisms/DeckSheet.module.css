@@ -119,6 +119,12 @@
   touch-action: none;
 }
 
+/* The panel clips anything outside it, so the ring sits inside the strip. */
+.handle:focus-visible {
+  outline-offset: -6px;
+  border-radius: 16px;
+}
+
 .grabber {
   width: 40px;
   height: 4px;

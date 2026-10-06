@@ -75,14 +75,16 @@
   margin-bottom: 16px;
 }
 
-.resumeBanner:hover {
-  border-color: var(--cour-text-3);
+@media (hover: hover) {
+  .resumeBanner:hover {
+    border-color: var(--cour-text-3);
+  }
 }
 
 .resumeThumb {
   width: 40px;
   height: 56px;
-  border-radius: 6px;
+  border-radius: 8px;
   overflow: hidden;
   background: var(--cour-bg-2);
   flex-shrink: 0;
@@ -143,7 +145,7 @@
   padding: 24px 0;
   font-family: var(--cour-font-ui);
   font-size: 13px;
-  color: var(--cour-text-3);
+  color: var(--cour-text-2);
   text-align: center;
 }
 
@@ -189,14 +191,16 @@
   cursor: pointer;
 }
 
-.pileReviewBtn:hover {
-  filter: brightness(1.15);
+@media (hover: hover) {
+  .pileReviewBtn:hover {
+    color: var(--cour-text-0);
+  }
 }
 
 .rowThumb {
   width: 40px;
   height: 56px;
-  border-radius: 6px;
+  border-radius: 8px;
   overflow: hidden;
   background: var(--cour-bg-2);
   flex-shrink: 0;
@@ -257,6 +261,13 @@
   color: var(--cour-negative);
 }
 
+/* bg-1, not bg-2: the pill's text-2 and clay keep 4.5:1 on it. */
+@media (hover: hover) {
+  .verdictPill:hover:not(:disabled, [data-offline="true"]) {
+    background: var(--cour-bg-1);
+  }
+}
+
 /* Locked, the pill still reads as its verdict (the ledger is read-only). */
 .verdictPill:disabled {
   cursor: default;
@@ -280,8 +291,10 @@
   cursor: pointer;
 }
 
-.overflowBtn:hover {
-  color: var(--cour-text-0);
+@media (hover: hover) {
+  .overflowBtn:hover {
+    color: var(--cour-text-0);
+  }
 }
 
 .lockBar {
@@ -293,30 +306,26 @@
   border-top: 1px solid var(--cour-line-strong);
 }
 
+/* Keyboard focus scrolls a row clear of the sticky bar (the bar's own
+   button stays put). */
+.screen:has(.lockBar) .rows button {
+  scroll-margin-bottom: 160px;
+}
+
 /* Accent while it can be pressed; not ready, offline or locking in, the
    shared disabled look. */
 .lockBtn {
-  composes: solidDisabled from "../shared.module.css";
-  width: 100%;
-  padding: 16px;
-  border: none;
-  border-radius: 999px;
-  background: var(--cour-accent);
-  color: white;
-  font-family: var(--cour-font-ui);
-  font-size: 15px;
-  font-weight: 600;
-  cursor: pointer;
-  box-shadow: 0 8px 24px -8px var(--cour-accent);
+  composes: primary bar from "../shared.module.css";
 }
 
 .lockCaption {
   margin: 8px 0 0;
   text-align: center;
   font-family: var(--cour-font-mono);
-  font-size: 9.5px;
+  font-size: 10.5px;
   letter-spacing: 0.1em;
   color: var(--cour-text-2);
+  text-wrap: balance;
 }
 
 /* The no-take-backsies dialog (0.12.0): lock-in is final, so it takes a
@@ -416,6 +425,11 @@
   display: flex;
   flex-direction: column;
   gap: 18px;
+  /* Room for the focus ring, which the scroll box would clip, at rest and
+     when Tab scrolls a control into view. */
+  padding: 4px;
+  margin: -4px;
+  scroll-padding: 4px;
 }
 
 .rail .headline {
@@ -446,6 +460,11 @@
   min-height: 0;
   overflow-y: auto;
   scrollbar-width: thin;
+  /* Room for the focus ring, which the scroll box would clip, at rest and
+     when Tab scrolls a row into view. */
+  padding: 4px 4px 20px;
+  margin: -4px;
+  scroll-padding: 4px;
 }
 
 .srOnly {

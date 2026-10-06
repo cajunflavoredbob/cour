@@ -176,21 +176,6 @@
   gap: 8px;
 }
 
-.soundBtn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  background: rgba(0, 0, 0, 0.35);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  color: white;
-  cursor: pointer;
-}
-
 .infoBlock {
   position: absolute;
   left: 24px;
@@ -296,17 +281,8 @@
 }
 
 .emptyCta {
+  composes: primary inline from "../shared.module.css";
   margin-top: 8px;
-  padding: 14px 24px;
-  border: none;
-  border-radius: 999px;
-  background: var(--cour-accent);
-  color: white;
-  font-family: var(--cour-font-ui);
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  box-shadow: 0 8px 24px -8px var(--cour-accent);
 }
 
 /* Scoped re-review back control -- sits where the progress chip lives. */
@@ -360,8 +336,10 @@
   cursor: pointer;
 }
 
-.deskBackChip:hover {
-  border-color: var(--cour-text-3);
+@media (hover: hover) {
+  .deskBackChip:hover {
+    border-color: var(--cour-text-3);
+  }
 }
 
 .stage {

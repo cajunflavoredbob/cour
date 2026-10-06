@@ -36,6 +36,9 @@ export const VerdictRow = ({ titleId, remaining, allowSkipAll = true, currentVer
   // reconnect rejoins the room is lost; the row is dimmed then.
   const offline = roomOffline(useSelector(["connectionStatus", "rejoining"]) ?? {});
   const [holding, setHolding] = useState(false);
+  // Unsure's pressed look, cleared the moment a press is cancelled (the
+  // browser's :active outlives a pointer dragged off the button).
+  const [pressed, setPressed] = useState(false);
   const holdTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const holdFired = useRef(false);
 
@@ -76,6 +79,7 @@ export const VerdictRow = ({ titleId, remaining, allowSkipAll = true, currentVer
     if (inputsDisabled) {
       clearTimeout(holdTimer.current);
       setHolding(false);
+      setPressed(false);
       pressActive.current = false;
       holdFired.current = false;
     }
@@ -85,7 +89,9 @@ export const VerdictRow = ({ titleId, remaining, allowSkipAll = true, currentVer
     dispatch({ type: "verdict", payload: { titleId, verdict: v } });
 
   const startHold = (e: React.PointerEvent<HTMLButtonElement>) => {
-    if (inputsDisabled) return;
+    // A right or middle press, or a Mac ctrl+click, opens a menu or
+    // scrolls; only the main button (any touch or pen) presses Unsure.
+    if (inputsDisabled || e.button !== 0 || e.ctrlKey) return;
     // Touch pointers are implicitly CAPTURED by the element receiving
     // pointerdown, which retargets every later pointer event back to the
     // button -- onPointerLeave (the slide-off abort, the only way out of
@@ -104,6 +110,7 @@ export const VerdictRow = ({ titleId, remaining, allowSkipAll = true, currentVer
     clearTimeout(holdTimer.current);
     holdFired.current = false;
     pressActive.current = true;
+    setPressed(true);
     // Without skip-all, or with only this title left, the press is a plain
     // tap: no timer, no hold UI, but pressActive still arms endHold's
     // tap-skip path.
@@ -119,6 +126,7 @@ export const VerdictRow = ({ titleId, remaining, allowSkipAll = true, currentVer
   const endHold = () => {
     clearTimeout(holdTimer.current);
     setHolding(false);
+    setPressed(false);
     // Released before the hold completed, from a press that started here
     // and was never cancelled: a single skip (the tap path).
     if (pressActive.current && !holdFired.current) verdict("skip");
@@ -129,6 +137,7 @@ export const VerdictRow = ({ titleId, remaining, allowSkipAll = true, currentVer
   const cancelHold = () => {
     clearTimeout(holdTimer.current);
     setHolding(false);
+    setPressed(false);
     pressActive.current = false;
     holdFired.current = false;
   };
@@ -161,6 +170,7 @@ export const VerdictRow = ({ titleId, remaining, allowSkipAll = true, currentVer
         data-current={currentVerdict === "skip"}
         aria-label={currentVerdict === "skip" ? "Unsure (your current pick)" : undefined}
         data-holding={holding}
+        data-pressed={pressed}
         onPointerDown={startHold}
         onPointerUp={endHold}
         onPointerLeave={cancelHold}

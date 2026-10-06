@@ -30,13 +30,13 @@ export const Tutorial = () => {
       <ol className={styles.steps}>
         <li className={styles.step}>
           <span className={styles.stepKicker}>VERDICT THE SEASON</span>
-          One title at a time: <strong>Keep</strong>, <strong>Pass</strong>,
-          or <strong>Unsure</strong>. Go at your own pace: nobody waits on
+          One title at a time: <strong>keep</strong>, <strong>pass</strong>,
+          or <strong>unsure</strong>. Go at your own pace: nobody waits on
           anybody.
         </li>
         <li className={styles.step}>
           <span className={styles.stepKicker}>IN A HURRY?</span>
-          Press and hold <strong>Unsure</strong> to mark everything left
+          Press and hold <strong>unsure</strong> to mark everything left
           unsure at once.
         </li>
         <li className={styles.step}>

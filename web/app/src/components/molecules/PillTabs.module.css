@@ -19,6 +19,13 @@
   cursor: pointer;
 }
 
+@media (hover: hover) {
+  .tab:hover:not([data-active="true"]) {
+    border-color: var(--cour-line-strong);
+    color: var(--cour-text-0);
+  }
+}
+
 .tab[data-active="true"] {
   background: var(--cour-accent-soft);
   border-color: var(--cour-accent);

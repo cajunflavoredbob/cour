@@ -163,6 +163,44 @@ describe('VerdictRow', () => {
     expect(dispatch).not.toHaveBeenCalled();
   });
 
+  it('ignores a right-click press', () => {
+    vi.useFakeTimers();
+    render(<VerdictRow titleId={101} remaining={12} />);
+    const button = screen.getByText('unsure').closest('button') as HTMLElement;
+    fireEvent.pointerDown(button, { button: 2 });
+    expect(button.getAttribute('data-pressed')).toBe('false');
+    vi.advanceTimersByTime(3000);
+    fireEvent.pointerUp(button, { button: 2 });
+    // A Mac ctrl+click opens the same menu with the main button.
+    fireEvent.pointerDown(button, { button: 0, ctrlKey: true });
+    expect(button.getAttribute('data-pressed')).toBe('false');
+    vi.advanceTimersByTime(3000);
+    expect(dispatch).not.toHaveBeenCalled();
+  });
+
+  it('drops the pressed pill when the row disables mid-press', () => {
+    const view = render(<VerdictRow titleId={101} remaining={12} />);
+    const button = () => document.querySelector('[data-test-handle="verdict-skip"]') as HTMLElement;
+    fireEvent.pointerDown(button());
+    expect(button().getAttribute('data-pressed')).toBe('true');
+    // A new title arms the post-advance disable.
+    view.rerender(<VerdictRow titleId={102} remaining={11} />);
+    expect(button().getAttribute('data-pressed')).toBe('false');
+  });
+
+  it('shows the pressed pill only while a press is live', () => {
+    render(<VerdictRow titleId={101} remaining={12} />);
+    const button = screen.getByText('unsure').closest('button') as HTMLElement;
+    expect(button.getAttribute('data-pressed')).toBe('false');
+    fireEvent.pointerDown(button);
+    expect(button.getAttribute('data-pressed')).toBe('true');
+    fireEvent.pointerLeave(button);
+    expect(button.getAttribute('data-pressed')).toBe('false');
+    fireEvent.pointerDown(button);
+    fireEvent.pointerUp(button);
+    expect(button.getAttribute('data-pressed')).toBe('false');
+  });
+
   it('keyboard Skip is always a single skip (hold is pointer-only)', () => {
     render(<VerdictRow titleId={101} remaining={12} />);
     fireEvent.keyDown(screen.getByText('unsure').closest('button') as HTMLElement, { key: 'Enter' });

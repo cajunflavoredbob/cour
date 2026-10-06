@@ -106,10 +106,12 @@
   margin: 0;
   text-align: center;
   font-family: var(--cour-font-mono);
-  font-size: 9.5px;
+  font-size: 10.5px;
   line-height: 1.5;
-  letter-spacing: 0.1em;
+  /* Tighter than other captions: the longest fits one line at 320px. */
+  letter-spacing: 0.06em;
   color: var(--cour-text-2);
+  text-wrap: balance;
 }
 
 .caption[data-tone="error"] {

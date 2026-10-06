@@ -12,11 +12,15 @@ interface DialogScrimProps {
   children: ReactNode;
 }
 
+// What Tab can reach inside a dialog.
+const FOCUSABLE =
+  'button:not(:disabled), [href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])';
+
 /**
  * Shared modal scrim: the one-shot confirmations (an alertdialog) and the
  * content dialogs (details, sharing, the tutorial). Escape and a backdrop
- * click dismiss it. Focus lands on the dialog when it opens and is pulled
- * back if it escapes, a light containment rather than a full trap.
+ * click dismiss it. Focus lands on the dialog when it opens, Tab and
+ * Shift+Tab cycle its controls, and focus that escapes is pulled back.
  */
 export const DialogScrim = ({
   label,
@@ -49,6 +53,22 @@ export const DialogScrim = ({
     if (dialog && !dialog.contains(document.activeElement)) dialog.focus();
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onDismiss();
+      if (e.key !== "Tab" || !dialog) return;
+      // Past the last control to the first, and back from the first (or
+      // the dialog itself) to the last, so focus never leaves the dialog.
+      const controls = [...dialog.querySelectorAll<HTMLElement>(FOCUSABLE)];
+      const first = controls[0];
+      const last = controls[controls.length - 1];
+      const active = document.activeElement;
+      if (!first || !last) {
+        e.preventDefault();
+      } else if (e.shiftKey && (active === first || active === dialog)) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && active === last) {
+        e.preventDefault();
+        first.focus();
+      }
     };
     const onFocusIn = (e: FocusEvent) => {
       if (dialog && !dialog.contains(e.target as Node)) dialog.focus();

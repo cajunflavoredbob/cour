@@ -28,6 +28,8 @@
     --winter: oklch(0.78 0.09 220);
     /* current season */
     --accent: var(--summer);
+    /* deeper, for fills under white: spring 0.578 0.12 350 · summer 0.573 0.15 278 · fall 0.573 0.14 55 · winter 0.556 0.09 220 */
+    --accent-fill: oklch(0.573 0.15 278);
     --accent-soft: oklch(0.64 0.15 278 / 0.16);
     --accent-hi: oklch(0.75 0.13 278);
     /* ── semantic ── */
@@ -92,9 +94,9 @@
   .btn-like {
     display: inline-flex; align-items: center; justify-content: center; gap: 7px;
     width: 116px; height: 52px; border-radius: 999px; border: none;
-    background: var(--accent); color: white;
+    background: var(--accent-fill); color: white;
     font-family: var(--sans); font-size: 13px; font-weight: 700;
-    box-shadow: 0 8px 24px -8px oklch(0.64 0.15 278 / 0.45);
+    box-shadow: 0 8px 24px -8px oklch(0.573 0.15 278 / 0.45);
   }
   .btn-dis {
     display: inline-flex; align-items: center; justify-content: center; gap: 7px;
@@ -110,9 +112,9 @@
   .btn-primary {
     display: inline-flex; align-items: center; justify-content: center; gap: 10px;
     padding: 15px 28px; border-radius: 999px; border: none;
-    background: var(--accent); color: white;
+    background: var(--accent-fill); color: white;
     font-family: var(--sans); font-size: 15px; font-weight: 600;
-    box-shadow: 0 8px 32px -10px oklch(0.64 0.15 278 / 0.55);
+    box-shadow: 0 8px 32px -10px oklch(0.573 0.15 278 / 0.55);
   }
   .btn-disabled {
     display: inline-flex; align-items: center; justify-content: center;
@@ -146,9 +148,9 @@
     background: var(--bg-1); border: 1px solid var(--line-strong); border-radius: 16px;
     padding: 15px 18px; font-size: 16px; color: var(--text-0); width: 280px;
   }
-  .input.focus { border-color: oklch(0.64 0.15 278 / 0.6); }
+  .input.focus { border-color: var(--accent); }
   .lbl { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--text-3); margin-bottom: 9px; }
-  .toggle { width: 34px; height: 20px; border-radius: 999px; background: var(--accent); position: relative; flex: none; }
+  .toggle { width: 34px; height: 20px; border-radius: 999px; background: var(--accent-fill); position: relative; flex: none; }
   .toggle::after { content: ""; position: absolute; top: 2px; right: 2px; width: 16px; height: 16px; border-radius: 50%; background: white; }
   .toggle.off { background: var(--bg-2); border: 1px solid var(--line-strong); }
   .toggle.off::after { right: auto; left: 2px; background: var(--text-3); }
@@ -231,6 +233,7 @@
     </div>
     <div class="rules" style="margin-top: 18px;">
       <div class="rule"><span class="k2">--accent</span><span class="v2">The live season's color. Derived per season: <code>--accent-soft</code> = accent at 16% alpha (fills, active tabs) · <code>--accent-hi</code> = accent raised ~0.10 lightness (text/links on dark; summer: oklch(0.75 0.13 278)).</span></div>
+      <div class="rule"><span class="k2">--accent-fill</span><span class="v2">The accent deepened until white on it clears 4.5:1 as rendered: every solid accent fill under white text or a white knob (Like, primary buttons, the avatar, toggles, the checkbox). Glows follow the fill. Links, chips, rings and progress keep <code>--accent</code> / <code>--accent-hi</code>.</span></div>
       <div class="rule"><span class="k2">links</span><span class="v2">Text links are <code>--accent-hi</code>, no underline; hover → text-0. Defined globally even where no links exist yet.</span></div>
       <div class="rule"><span class="k2">expanders</span><span class="v2">A control that reveals more rows in place reads SHOW ALL N in mono text-2 (hover text-0), with no arrow. An arrow marks a control that goes somewhere: REVIEW ALL 21 KEPT →.</span></div>
       <div class="rule"><span class="k2">--neg · clay</span><span class="v2"><span style="display: inline-block; width: 12px; height: 12px; border-radius: 4px; background: var(--neg); vertical-align: -1px; margin-right: 6px;"></span>oklch(0.62 0.13 35) — Dislike, log out, destructive confirms. Fixed year-round.</span></div>
@@ -365,7 +368,7 @@
         <div class="toggle off"></div><span style="font-size: 13px; color: var(--text-2);">off</span>
       </div>
     </div>
-    <p class="note" style="margin-top: 10px;">inputs: bg-1 · 1px line-strong · radius 16 · padding 15–16px 18px · 16px text (prevents iOS zoom) · focus ring = accent @60% border, no glow</p>
+    <p class="note" style="margin-top: 10px;">inputs: bg-1 · 1px line-strong · radius 16 · padding 15 to 16px 18px · 16px text (prevents iOS zoom) · focus = accent border, no ring, no glow</p>
 
     <h3>List rows (review ledger)</h3>
     <div class="demo col" style="gap: 0; padding: 10px 28px;">
@@ -406,6 +409,7 @@
       <div class="rule"><span class="k2">hit targets</span><span class="v2">44px minimum; verdict buttons 52px. Text-only Skip keeps the full 116×52 invisible target.</span></div>
       <div class="rule"><span class="k2">safe area</span><span class="v2">34px bottom padding under the last interactive row (iOS home indicator). The lip's swipe zone must clear the OS gesture zone.</span></div>
       <div class="rule"><span class="k2">elevation</span><span class="v2">Borders and fills, not shadows. The only shadows: poster cards and the accent glow under primary/Like buttons (accent @ 45–55%, y 8, blur 24–32, spread −8/−10).</span></div>
+      <div class="rule"><span class="k2">focus &amp; hover</span><span class="v2">Keyboard focus is a 2px accent-hi ring, 2px out (inside, where an edge would clip it), on every control; inputs light their border instead. Pointer focus shows none. Hover, pointer devices only: primary glow deepens, secondary bg-2 → bg-3, ghost and links → text-0, list and menu rows light their title in accent-hi.</span></div>
     </div>
   </section>
 

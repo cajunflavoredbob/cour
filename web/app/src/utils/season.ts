@@ -18,8 +18,12 @@ export type CourSeason = "WINTER" | "SPRING" | "SUMMER" | "FALL";
 export interface SeasonTheme {
   season: CourSeason;
   kanji: string;
-  /** Primary accent -- solid fills (Like pill, CTA). */
+  /** Primary accent: progress, rings, borders, washes. */
   accent: string;
+  /** Deeper accent for solid fills under white text or a white knob
+   * (Keep, primary buttons, the avatar, toggles): white on it clears
+   * 4.5:1 once rendered to 8-bit sRGB. */
+  accentFill: string;
   /** Brighter text-on-dark variant (kanji chip, accent text). */
   accentBright: string;
   /** 16%-alpha soft fill (active tabs, hold-to-skip sweep). */
@@ -32,24 +36,28 @@ export const SEASON_THEMES: Record<CourSeason, Omit<SeasonTheme, "season">> = {
   SPRING: {
     kanji: "春",
     accent: "oklch(0.75 0.12 350)",
+    accentFill: "oklch(0.578 0.12 350)",
     accentBright: "oklch(0.83 0.1 350)",
     accentSoft: "oklch(0.75 0.12 350 / 0.16)",
   },
   SUMMER: {
     kanji: "夏",
     accent: "oklch(0.64 0.15 278)",
+    accentFill: "oklch(0.573 0.15 278)",
     accentBright: "oklch(0.75 0.13 278)",
     accentSoft: "oklch(0.64 0.15 278 / 0.16)",
   },
   FALL: {
     kanji: "秋",
     accent: "oklch(0.68 0.15 55)",
+    accentFill: "oklch(0.573 0.14 55)",
     accentBright: "oklch(0.78 0.13 55)",
     accentSoft: "oklch(0.68 0.15 55 / 0.16)",
   },
   WINTER: {
     kanji: "冬",
     accent: "oklch(0.78 0.09 220)",
+    accentFill: "oklch(0.556 0.09 220)",
     accentBright: "oklch(0.85 0.08 220)",
     accentSoft: "oklch(0.78 0.09 220 / 0.16)",
   },
@@ -113,6 +121,7 @@ export const applySeasonTheme = (
 ): SeasonTheme => {
   const theme = seasonTheme(season ?? detectSeason(new Date()).season);
   root.style.setProperty("--cour-accent", theme.accent);
+  root.style.setProperty("--cour-accent-fill", theme.accentFill);
   root.style.setProperty("--cour-accent-bright", theme.accentBright);
   root.style.setProperty("--cour-accent-soft", theme.accentSoft);
   return theme;

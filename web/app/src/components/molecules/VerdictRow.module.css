@@ -14,10 +14,11 @@
   transform: scale(0.95);
 }
 
+/* The guide's verdict size on the button family's roles: Pass is
+   secondary, Unsure ghost, Keep primary. */
 .dislikeBtn,
 .skipBtn,
 .likeBtn {
-  transition: transform 100ms ease;
   flex: 1;
   max-width: 116px;
   height: 52px;
@@ -25,17 +26,11 @@
   align-items: center;
   justify-content: center;
   gap: 7px;
-  border-radius: 999px;
-  font-family: var(--cour-font-ui);
   font-size: 13px;
-  cursor: pointer;
 }
 
 .dislikeBtn {
-  background: var(--cour-bg-2);
-  border: 1px solid var(--cour-line-strong);
-  color: var(--cour-text-0);
-  font-weight: 600;
+  composes: secondary from "../shared.module.css";
 }
 
 .dislikeBtn svg {
@@ -43,19 +38,17 @@
 }
 
 .skipBtn {
+  composes: ghost from "../shared.module.css";
   position: relative;
   overflow: hidden;
-  background: transparent;
-  border: none;
-  color: var(--cour-text-2);
-  font-weight: 600;
 }
 
-/* Hold-to-skip-all: a ghost pill fades in under the finger, then the
-   accent-soft fill sweeps it for the 1.5s countdown (section 04). */
-.skipBtn[data-holding="true"] {
+/* Pressed: a ghost pill fades in under the finger and the label brightens;
+   held, the accent-soft fill sweeps it for the 1.5s countdown (section 04). */
+.skipBtn[data-pressed="true"] {
   background: var(--cour-bg-2);
   border: 1px solid var(--cour-line-strong);
+  color: var(--cour-text-0);
 }
 
 .skipFill {
@@ -76,16 +69,40 @@
 }
 
 .likeBtn {
-  background: var(--cour-accent);
-  border: none;
-  color: white;
-  font-weight: 700;
-  box-shadow: 0 8px 24px -8px var(--cour-accent);
+  composes: primary from "../shared.module.css";
 }
 
-.likeBtn:hover:not(:disabled),
-.dislikeBtn:hover:not(:disabled) {
-  filter: brightness(1.06);
+/* Over the roles' own values, which load in no set order: the press
+   transition, and Keep's weight and lighter glow. */
+.row .dislikeBtn,
+.row .skipBtn,
+.row .likeBtn {
+  transition:
+    transform 100ms ease,
+    box-shadow 160ms ease,
+    background-color 160ms ease,
+    color 160ms ease;
+}
+
+.row .likeBtn {
+  font-weight: 700;
+  box-shadow: var(--cour-glow-like);
+}
+
+/* Hover holds through the 300ms post-advance disable, so the button under
+   the pointer doesn't blink after every verdict; offline drops it. */
+@media (hover: hover) {
+  .row:not([data-offline="true"]) .dislikeBtn:hover {
+    background: var(--cour-bg-3);
+  }
+
+  .row:not([data-offline="true"]) .skipBtn:hover {
+    color: var(--cour-text-0);
+  }
+
+  .row:not([data-offline="true"]) .likeBtn:hover {
+    box-shadow: var(--cour-glow-like-hover);
+  }
 }
 
 @keyframes cour-skip-sweep {
@@ -113,6 +130,13 @@
   outline-offset: 3px;
   border-radius: 999px;
   animation: cour-halo-neutral 1600ms ease-in-out infinite;
+}
+
+/* Keyboard focus on a halo'd button: the ring turns text-0 so it shows. */
+.likeBtn[data-current="true"]:focus-visible,
+.dislikeBtn[data-current="true"]:focus-visible,
+.skipBtn[data-current="true"]:focus-visible {
+  outline-color: var(--cour-text-0);
 }
 
 @keyframes cour-halo-accent {

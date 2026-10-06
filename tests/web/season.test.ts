@@ -43,6 +43,7 @@ describe('seasonal themes', () => {
       const t = seasonTheme(season);
       expect(t.kanji).toBe(kanji[season]);
       expect(t.accent).toMatch(/^oklch\(/);
+      expect(t.accentFill).toMatch(/^oklch\(/);
       expect(t.accentBright).toMatch(/^oklch\(/);
       // Soft variant is the accent at 16% alpha per the design tokens.
       expect(t.accentSoft).toContain('/ 0.16');
@@ -51,15 +52,54 @@ describe('seasonal themes', () => {
 
   it('summer accent matches the design handoff literal (and the CSS fallback)', () => {
     expect(SEASON_THEMES.SUMMER.accent).toBe('oklch(0.64 0.15 278)');
+    expect(SEASON_THEMES.SUMMER.accentFill).toBe('oklch(0.573 0.15 278)');
     expect(SEASON_THEMES.SUMMER.accentBright).toBe('oklch(0.75 0.13 278)');
   });
 });
 
+// White's contrast on an oklch color as a screen shows it: converted to
+// sRGB, clipped to the gamut and rounded to 8 bits.
+const whiteContrastOn = (color: string): number => {
+  const [L, C, H] = (color.match(/oklch\(([\d.]+) ([\d.]+) ([\d.]+)\)/) ?? []).slice(1).map(Number);
+  const h = (H * Math.PI) / 180;
+  const a = C * Math.cos(h);
+  const b = C * Math.sin(h);
+  const l = (L + 0.3963377774 * a + 0.2158037573 * b) ** 3;
+  const m = (L - 0.1055613458 * a - 0.0638541728 * b) ** 3;
+  const s = (L - 0.0894841775 * a - 1.291485548 * b) ** 3;
+  const linear = [
+    4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s,
+    -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s,
+    -0.0041960863 * l - 0.7034186147 * m + 1.707614701 * s,
+  ];
+  const [r, g, bl] = linear.map((x) => {
+    const c = Math.min(1, Math.max(0, x));
+    const v = Math.round((c <= 0.0031308 ? 12.92 * c : 1.055 * c ** (1 / 2.4) - 0.055) * 255) / 255;
+    return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+  });
+  return 1.05 / (0.2126 * r + 0.7152 * g + 0.0722 * bl + 0.05);
+};
+
+describe('the filled accent', () => {
+  it('keeps white text at 4.5:1 or better in every season', () => {
+    for (const season of ['WINTER', 'SPRING', 'SUMMER', 'FALL'] as const) {
+      expect(whiteContrastOn(SEASON_THEMES[season].accentFill)).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  it('is needed: white on the plain accent falls short in every season', () => {
+    for (const season of ['WINTER', 'SPRING', 'SUMMER', 'FALL'] as const) {
+      expect(whiteContrastOn(SEASON_THEMES[season].accent)).toBeLessThan(4.5);
+    }
+  });
+});
+
 describe('applySeasonTheme', () => {
-  it('sets the three accent custom properties for an explicit season', () => {
+  it('sets the accent custom properties for an explicit season', () => {
     const theme = applySeasonTheme('FALL');
     const style = document.documentElement.style;
     expect(style.getPropertyValue('--cour-accent')).toBe(SEASON_THEMES.FALL.accent);
+    expect(style.getPropertyValue('--cour-accent-fill')).toBe(SEASON_THEMES.FALL.accentFill);
     expect(style.getPropertyValue('--cour-accent-bright')).toBe(SEASON_THEMES.FALL.accentBright);
     expect(style.getPropertyValue('--cour-accent-soft')).toBe(SEASON_THEMES.FALL.accentSoft);
     expect(theme.season).toBe('FALL');
