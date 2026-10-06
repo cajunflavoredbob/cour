@@ -8,7 +8,8 @@
   gap: 8px;
 }
 
-/* The side controls keep one line, so their measured width is their own. */
+/* The leading control keeps one line, so its measured width is its own.
+   (The account menu's side stays as is: its popover and dialogs wrap.) */
 .start {
   justify-self: start;
   display: flex;
@@ -18,7 +19,6 @@
 
 .end {
   justify-self: end;
-  white-space: nowrap;
 }
 
 .brand {
