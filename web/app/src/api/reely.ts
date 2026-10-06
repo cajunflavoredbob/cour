@@ -317,8 +317,11 @@ export class ReelyClient extends EventTarget {
   // wordmark pulse forever once the 5s loading escape was cleared on
   // connect (audit 17 M8) -- the request timeout gives the store a
   // rejection to route on.
-  login = async (payload: { userName: string }) =>
-    this.request({ type: "login", payload }, ["loginSuccess", "loginError"]);
+  // Each login waits for the answer that echoes its own seq.
+  login = async (payload: { userName: string; seq?: number }) =>
+    this.request({ type: "login", payload }, ["loginSuccess", "loginError"], (msg) =>
+      msg.payload?.seq === undefined || msg.payload.seq === payload.seq,
+    );
 
   joinRoom = async (joinRoomRequest: JoinRoomRequest) =>
     this.request(

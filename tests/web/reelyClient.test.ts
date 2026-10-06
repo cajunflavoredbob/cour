@@ -269,6 +269,38 @@ describe('submitRefinedRankings', () => {
   });
 });
 
+describe('login', () => {
+  it("settles on the answer that echoes its own seq, not an earlier login's", async () => {
+    const ReelyClient = await loadClient();
+    const client = new ReelyClient();
+    const ws = MockWebSocket.latest();
+    ws.simulateOpen();
+    const done = client.login({ userName: 'user7', seq: 2 });
+    let settled = false;
+    void done.then(() => {
+      settled = true;
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(JSON.parse(ws.sent.at(-1) ?? '{}')).toEqual({ type: 'login', payload: { userName: 'user7', seq: 2 } });
+    ws.simulateMessage({ type: 'loginSuccess', payload: { userName: 'user1', seq: 1 } });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(settled).toBe(false);
+    ws.simulateMessage({ type: 'loginError', payload: { message: 'no', seq: 2 } });
+    await expect(done).resolves.toMatchObject({ type: 'loginError', payload: { seq: 2 } });
+  });
+
+  it('takes an answer without a seq as its own', async () => {
+    const ReelyClient = await loadClient();
+    const client = new ReelyClient();
+    const ws = MockWebSocket.latest();
+    ws.simulateOpen();
+    const done = client.login({ userName: 'user7', seq: 2 });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    ws.simulateMessage({ type: 'loginSuccess', payload: { userName: 'user7' } });
+    await expect(done).resolves.toMatchObject({ type: 'loginSuccess' });
+  });
+});
+
 describe('reconnect backoff', () => {
   it('schedules a reconnect after close', async () => {
     vi.useFakeTimers();

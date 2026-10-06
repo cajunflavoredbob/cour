@@ -96,6 +96,10 @@ const emit = (data: unknown) => {
   clientMock.dispatchEvent(new MessageEvent('message', { data } as MessageEventInit));
 };
 
+// The seq the store numbered a login with, by call (negative from the end);
+// the server echoes it in that login's answer.
+const loginSeq = (call: number): number => clientMock.login.mock.calls.at(call)?.[0]?.seq;
+
 // Drive the store into route='room' state.
 const enterRoom = (mod: Awaited<ReturnType<typeof loadCreateStore>>, roomName: string) => {
   mod.useZustandStore.getState().dispatch({ type: 'joinOrCreateRoom', payload: { roomName } });
@@ -128,7 +132,40 @@ describe('connected handler', () => {
     mod.createStore();
     clientMock.dispatchEvent(new Event('connected'));
     // login rides the request helper now (audit 17 M8), not the raw socket.
-    expect(clientMock.login).toHaveBeenCalledWith({ userName: 'user1' });
+    expect(clientMock.login).toHaveBeenCalledWith(expect.objectContaining({ userName: 'user1' }));
+  });
+
+  it("marks a reconnect's own login pending until it answers", async () => {
+    setupDomGlobals({ name: 'user1' });
+    const mod = await loadCreateStore();
+    mod.createStore();
+    clientMock.dispatchEvent(new Event('connected'));
+    expect(mod.useZustandStore.getState().reclaimPending).toBe(true);
+    emit({ type: 'loginSuccess', payload: { userName: 'user1' } });
+    expect(mod.useZustandStore.getState().reclaimPending).toBeUndefined();
+  });
+
+  it('lets the join form go when the reconnect login times out', async () => {
+    setupDomGlobals({ name: 'user1' });
+    clientMock.login = vi.fn().mockRejectedValue(new Error('timeout'));
+    const mod = await loadCreateStore();
+    mod.createStore();
+    clientMock.dispatchEvent(new Event('connected'));
+    expect(mod.useZustandStore.getState().reclaimPending).toBe(true);
+    await vi.waitFor(() => expect(mod.useZustandStore.getState().reclaimPending).toBeUndefined());
+  });
+
+  it('lets the join form go when the reconnect login is refused, or the socket drops', async () => {
+    setupDomGlobals({ name: 'user1' });
+    const mod = await loadCreateStore();
+    mod.createStore();
+    clientMock.dispatchEvent(new Event('connected'));
+    emit({ type: 'loginError', payload: { message: 'Names are 1 to 32 characters.' } });
+    expect(mod.useZustandStore.getState().reclaimPending).toBeUndefined();
+    clientMock.dispatchEvent(new Event('connected'));
+    expect(mod.useZustandStore.getState().reclaimPending).toBe(true);
+    clientMock.dispatchEvent(new Event('disconnected'));
+    expect(mod.useZustandStore.getState().reclaimPending).toBeUndefined();
   });
 
   it('sends no login without a stored name (the join form owns it)', async () => {
@@ -176,7 +213,7 @@ describe('reconnect identity', () => {
     clientMock.joinOrCreateRoom.mockClear();
     clientMock.dispatchEvent(new Event('disconnected'));
     clientMock.dispatchEvent(new Event('connected'));
-    expect(clientMock.login).toHaveBeenCalledWith({ userName: 'user1' });
+    expect(clientMock.login).toHaveBeenCalledWith(expect.objectContaining({ userName: 'user1' }));
     expect(localStore.get('courName')).toBe('user2');
     emit({ type: 'loginSuccess', payload: { userName: 'user1' } });
     expect(clientMock.joinOrCreateRoom).toHaveBeenCalledWith({ roomName: 'r' });
@@ -210,7 +247,7 @@ describe('reconnect identity', () => {
     clientMock.joinOrCreateRoom.mockClear();
     clientMock.dispatchEvent(new Event('disconnected'));
     clientMock.dispatchEvent(new Event('connected'));
-    expect(clientMock.login).toHaveBeenCalledWith({ userName: 'user1' });
+    expect(clientMock.login).toHaveBeenCalledWith(expect.objectContaining({ userName: 'user1' }));
     emit({ type: 'loginSuccess', payload: { userName: 'user1' } });
     expect(clientMock.joinOrCreateRoom).not.toHaveBeenCalled();
   });
@@ -233,7 +270,7 @@ describe('reconnect identity', () => {
     clientMock.joinOrCreateRoom.mockClear();
     clientMock.dispatchEvent(new Event('disconnected'));
     clientMock.dispatchEvent(new Event('connected'));
-    expect(clientMock.login).toHaveBeenCalledWith({ userName: 'user1' });
+    expect(clientMock.login).toHaveBeenCalledWith(expect.objectContaining({ userName: 'user1' }));
     emit({ type: 'loginSuccess', payload: { userName: 'user1' } });
     expect(clientMock.joinOrCreateRoom).toHaveBeenCalledWith({ roomName: 'r' });
     // Back in its own room, the tab leaves the other tab's pair in storage.
@@ -259,6 +296,176 @@ describe('reconnect identity', () => {
     expect([localStore.get('courName'), localStore.get('courRoom')]).toEqual(['user2', 'r2']);
   });
 
+  it('numbers every login, and each answer echoes its own', async () => {
+    setupDomGlobals({ name: 'user1' });
+    const mod = await loadCreateStore();
+    mod.createStore();
+    clientMock.dispatchEvent(new Event('connected'));
+    mod.useZustandStore.getState().dispatch({ type: 'login', payload: { userName: 'user7' } });
+    expect(loginSeq(0)).toBeTypeOf('number');
+    expect(loginSeq(1)).toBeGreaterThan(loginSeq(0));
+  });
+
+  it('never seats the old name in a room typed under a new one, when the old login answers late', async () => {
+    setupDomGlobals({ name: 'user1' });
+    // The reconnect's own login times out, which frees the join form.
+    clientMock.login = vi.fn().mockRejectedValueOnce(new Error('timeout')).mockResolvedValue(undefined);
+    const mod = await loadCreateStore();
+    mod.createStore();
+    clientMock.dispatchEvent(new Event('connected'));
+    await vi.waitFor(() => expect(mod.useZustandStore.getState().reclaimPending).toBeUndefined());
+    mod.useZustandStore.getState().dispatch({ type: 'chooseRoom', payload: { roomName: 'new-room' } });
+    mod.useZustandStore.getState().dispatch({ type: 'login', payload: { userName: 'user7' } });
+    // The server takes user7's login before anything sent now, so user1's
+    // late answer joins nothing; user7's refusal then drops the room.
+    emit({ type: 'loginSuccess', payload: { userName: 'user1', seq: loginSeq(0) } });
+    expect(clientMock.joinOrCreateRoom).not.toHaveBeenCalled();
+    emit({ type: 'loginError', payload: { message: 'Names are 1 to 32 characters.', seq: loginSeq(1) } });
+    expect(clientMock.joinOrCreateRoom).not.toHaveBeenCalled();
+    expect(mod.useZustandStore.getState().joinError).toBe('Names are 1 to 32 characters.');
+  });
+
+  it('seats the typed name in its typed room when its own answer comes', async () => {
+    setupDomGlobals({ name: 'user1' });
+    const mod = await loadCreateStore();
+    mod.createStore();
+    clientMock.dispatchEvent(new Event('connected'));
+    mod.useZustandStore.getState().dispatch({ type: 'chooseRoom', payload: { roomName: 'new-room' } });
+    mod.useZustandStore.getState().dispatch({ type: 'login', payload: { userName: 'user7' } });
+    emit({ type: 'loginSuccess', payload: { userName: 'user1', seq: loginSeq(0) } });
+    // Until the latest login answers, the tab is who the server says.
+    expect(mod.useZustandStore.getState().user?.userName).toBe('user1');
+    emit({ type: 'loginSuccess', payload: { userName: 'user7', seq: loginSeq(1) } });
+    expect(clientMock.joinOrCreateRoom).toHaveBeenCalledTimes(1);
+    expect(clientMock.joinOrCreateRoom).toHaveBeenCalledWith({ roomName: 'new-room' });
+  });
+
+  it("never seats a new name in the tab's own room when the old member's login answers late", async () => {
+    setupDomGlobals({ name: 'user1', room: 'r' });
+    const mod = await loadCreateStore();
+    mod.createStore();
+    clientMock.dispatchEvent(new Event('connected'));
+    emit({ type: 'loginSuccess', payload: { userName: 'user1' } });
+    emit({ type: 'joinRoomSuccess', payload: { roomName: 'r', media: [], users: [] } });
+    clientMock.dispatchEvent(new Event('disconnected'));
+    clientMock.dispatchEvent(new Event('connected'));
+    emit({ type: 'loginSuccess', payload: { userName: 'user1' } });
+    // The rejoin is refused: the join form, with the tab's own room kept.
+    emit({ type: 'joinRoomError', payload: { name: 'UsernameTakenError', message: 'Pick a different name.' } });
+    clientMock.joinOrCreateRoom.mockClear();
+    clientMock.dispatchEvent(new Event('disconnected'));
+    clientMock.dispatchEvent(new Event('connected'));
+    // Before the reconnect's own login answers, a new name and room go out.
+    mod.useZustandStore.getState().dispatch({ type: 'chooseRoom', payload: { roomName: 'new-room' } });
+    mod.useZustandStore.getState().dispatch({ type: 'login', payload: { userName: 'user7' } });
+    emit({ type: 'loginSuccess', payload: { userName: 'user1', seq: loginSeq(-2) } });
+    expect(clientMock.joinOrCreateRoom).not.toHaveBeenCalled();
+    emit({ type: 'loginSuccess', payload: { userName: 'user7', seq: loginSeq(-1) } });
+    expect(clientMock.joinOrCreateRoom).toHaveBeenCalledTimes(1);
+    expect(clientMock.joinOrCreateRoom).toHaveBeenCalledWith({ roomName: 'new-room' });
+  });
+
+  it('seats only the latest of two typed names, in its own room', async () => {
+    setupDomGlobals({ name: 'user1' });
+    const mod = await loadCreateStore();
+    mod.createStore();
+    clientMock.dispatchEvent(new Event('connected'));
+    emit({ type: 'loginSuccess', payload: { userName: 'user1', seq: loginSeq(-1) } });
+    const submit = (userName: string, roomName: string) => {
+      mod.useZustandStore.getState().dispatch({ type: 'chooseRoom', payload: { roomName } });
+      mod.useZustandStore.getState().dispatch({ type: 'login', payload: { userName } });
+    };
+    submit('user7', 'room-a');
+    submit('user8', 'room-b');
+    emit({ type: 'loginSuccess', payload: { userName: 'user7', seq: loginSeq(-2) } });
+    expect(clientMock.joinOrCreateRoom).not.toHaveBeenCalled();
+    emit({ type: 'loginSuccess', payload: { userName: 'user8', seq: loginSeq(-1) } });
+    expect(clientMock.joinOrCreateRoom).toHaveBeenCalledTimes(1);
+    expect(clientMock.joinOrCreateRoom).toHaveBeenCalledWith({ roomName: 'room-b' });
+  });
+
+  it("keeps a typed name's room through an earlier login's late refusal", async () => {
+    setupDomGlobals({ name: 'user1' });
+    // A tab with its own member: no new tab's remembered room to fall back on.
+    tabStore.set('courTabName', 'user1');
+    clientMock.login = vi.fn().mockRejectedValueOnce(new Error('timeout')).mockResolvedValue(undefined);
+    const mod = await loadCreateStore();
+    mod.createStore();
+    clientMock.dispatchEvent(new Event('connected'));
+    await vi.waitFor(() => expect(mod.useZustandStore.getState().reclaimPending).toBeUndefined());
+    mod.useZustandStore.getState().dispatch({ type: 'chooseRoom', payload: { roomName: 'new-room' } });
+    mod.useZustandStore.getState().dispatch({ type: 'login', payload: { userName: 'user7' } });
+    emit({ type: 'loginError', payload: { message: 'Names are 1 to 32 characters.', seq: loginSeq(0) } });
+    expect(mod.useZustandStore.getState().joinError).toBeUndefined();
+    emit({ type: 'loginSuccess', payload: { userName: 'user7', seq: loginSeq(1) } });
+    expect(clientMock.joinOrCreateRoom).toHaveBeenCalledWith({ roomName: 'new-room' });
+  });
+
+  it("re-claims the typed name, not the old one, when the socket drops after the old login's late answer", async () => {
+    setupDomGlobals({ name: 'user1' });
+    tabStore.set('courTabName', 'user1');
+    clientMock.login = vi.fn().mockRejectedValueOnce(new Error('timeout')).mockResolvedValue(undefined);
+    const mod = await loadCreateStore();
+    mod.createStore();
+    clientMock.dispatchEvent(new Event('connected'));
+    await vi.waitFor(() => expect(mod.useZustandStore.getState().reclaimPending).toBeUndefined());
+    mod.useZustandStore.getState().dispatch({ type: 'chooseRoom', payload: { roomName: 'new-room' } });
+    mod.useZustandStore.getState().dispatch({ type: 'login', payload: { userName: 'user7' } });
+    emit({ type: 'loginSuccess', payload: { userName: 'user1', seq: loginSeq(0) } });
+    clientMock.dispatchEvent(new Event('disconnected'));
+    clientMock.dispatchEvent(new Event('connected'));
+    expect(clientMock.login).toHaveBeenLastCalledWith(expect.objectContaining({ userName: 'user7' }));
+    emit({ type: 'loginSuccess', payload: { userName: 'user7', seq: loginSeq(-1) } });
+    expect(clientMock.joinOrCreateRoom).toHaveBeenCalledTimes(1);
+    expect(clientMock.joinOrCreateRoom).toHaveBeenCalledWith({ roomName: 'new-room' });
+  });
+
+  it('stays the earlier typed name the server took when a later one is refused, without the old member\'s room', async () => {
+    setupDomGlobals({ name: 'user1', room: 'r' });
+    const mod = await loadCreateStore();
+    mod.createStore();
+    clientMock.dispatchEvent(new Event('connected'));
+    emit({ type: 'loginSuccess', payload: { userName: 'user1' } });
+    emit({ type: 'joinRoomSuccess', payload: { roomName: 'r', media: [], users: [] } });
+    clientMock.dispatchEvent(new Event('disconnected'));
+    clientMock.dispatchEvent(new Event('connected'));
+    emit({ type: 'loginSuccess', payload: { userName: 'user1' } });
+    emit({ type: 'joinRoomError', payload: { name: 'UsernameTakenError', message: 'Pick a different name.' } });
+    const submit = (userName: string, roomName: string) => {
+      mod.useZustandStore.getState().dispatch({ type: 'chooseRoom', payload: { roomName } });
+      mod.useZustandStore.getState().dispatch({ type: 'login', payload: { userName } });
+    };
+    submit('user7', 'room-a');
+    submit('user8', 'room-b');
+    emit({ type: 'loginSuccess', payload: { userName: 'user7', seq: loginSeq(-2) } });
+    emit({ type: 'loginError', payload: { message: 'Names are 1 to 32 characters.', seq: loginSeq(-1) } });
+    // The server holds user7 now, so the tab is user7, and user1's room is
+    // not user7's to rejoin.
+    expect(mod.useZustandStore.getState().user?.userName).toBe('user7');
+    expect(tabStore.get('courTabName')).toBe('user7');
+    clientMock.joinOrCreateRoom.mockClear();
+    clientMock.dispatchEvent(new Event('disconnected'));
+    clientMock.dispatchEvent(new Event('connected'));
+    expect(clientMock.login).toHaveBeenLastCalledWith(expect.objectContaining({ userName: 'user7' }));
+    emit({ type: 'loginSuccess', payload: { userName: 'user7', seq: loginSeq(-1) } });
+    expect(clientMock.joinOrCreateRoom).not.toHaveBeenCalled();
+  });
+
+  it('seats a typed name in its typed room when the server answers it cleaned', async () => {
+    setupDomGlobals({ name: 'user1' });
+    const mod = await loadCreateStore();
+    mod.createStore();
+    clientMock.dispatchEvent(new Event('connected'));
+    emit({ type: 'loginSuccess', payload: { userName: 'user1', seq: loginSeq(-1) } });
+    // A pasted name carrying a zero-width space and a bidi mark: a new name,
+    // so the server strips both and answers the rest.
+    mod.useZustandStore.getState().dispatch({ type: 'chooseRoom', payload: { roomName: 'new-room' } });
+    mod.useZustandStore.getState().dispatch({ type: 'login', payload: { userName: 'user\u200b7\u200f' } });
+    emit({ type: 'loginSuccess', payload: { userName: 'user7', seq: loginSeq(-1) } });
+    expect(clientMock.joinOrCreateRoom).toHaveBeenCalledTimes(1);
+    expect(clientMock.joinOrCreateRoom).toHaveBeenCalledWith({ roomName: 'new-room' });
+  });
+
   it('reclaims a typed name still in flight when the socket drops', async () => {
     setupDomGlobals({ name: 'user1' });
     const mod = await loadCreateStore();
@@ -269,7 +476,7 @@ describe('reconnect identity', () => {
     clientMock.login.mockClear();
     clientMock.dispatchEvent(new Event('disconnected'));
     clientMock.dispatchEvent(new Event('connected'));
-    expect(clientMock.login).toHaveBeenCalledWith({ userName: 'user5' });
+    expect(clientMock.login).toHaveBeenCalledWith(expect.objectContaining({ userName: 'user5' }));
   });
 
   it('joins a room typed after a refused rejoin, not the room refused', async () => {
@@ -318,7 +525,7 @@ describe('reconnect identity', () => {
     localStore.set('courRoom', 'r2');
     await reloadTab('https://cour.example.com/?roomName=r1');
     clientMock.dispatchEvent(new Event('connected'));
-    expect(clientMock.login).toHaveBeenCalledWith({ userName: 'user1' });
+    expect(clientMock.login).toHaveBeenCalledWith(expect.objectContaining({ userName: 'user1' }));
     emit({ type: 'loginSuccess', payload: { userName: 'user1' } });
     expect(clientMock.joinOrCreateRoom).toHaveBeenCalledWith({ roomName: 'r1' });
     emit({ type: 'joinRoomSuccess', payload: { roomName: 'r1', media: [], users: [] } });
@@ -337,7 +544,7 @@ describe('reconnect identity', () => {
     localStore.set('courRoom', 'r2');
     await reloadTab();
     clientMock.dispatchEvent(new Event('connected'));
-    expect(clientMock.login).toHaveBeenCalledWith({ userName: 'user1' });
+    expect(clientMock.login).toHaveBeenCalledWith(expect.objectContaining({ userName: 'user1' }));
     emit({ type: 'loginSuccess', payload: { userName: 'user1' } });
     expect(clientMock.joinOrCreateRoom).not.toHaveBeenCalled();
   });
@@ -435,7 +642,7 @@ describe('reconnect identity', () => {
     emit({ type: 'joinRoomError', payload: { name: 'UsernameTakenError', message: 'Pick a different name.' } });
     await reloadTab();
     clientMock.dispatchEvent(new Event('connected'));
-    expect(clientMock.login).toHaveBeenCalledWith({ userName: 'user5' });
+    expect(clientMock.login).toHaveBeenCalledWith(expect.objectContaining({ userName: 'user5' }));
     emit({ type: 'loginSuccess', payload: { userName: 'user5' } });
     expect(clientMock.joinOrCreateRoom).toHaveBeenCalledWith({ roomName: 'r5' });
     expect(clientMock.joinOrCreateRoom).not.toHaveBeenCalledWith({ roomName: 'r1' });
@@ -476,7 +683,7 @@ describe('reconnect identity', () => {
     clientMock.joinOrCreateRoom.mockClear();
     clientMock.dispatchEvent(new Event('disconnected'));
     clientMock.dispatchEvent(new Event('connected'));
-    expect(clientMock.login).toHaveBeenCalledWith({ userName: 'user5' });
+    expect(clientMock.login).toHaveBeenCalledWith(expect.objectContaining({ userName: 'user5' }));
     // The same member again: its room stays its own.
     emit({ type: 'loginSuccess', payload: { userName: 'user5' } });
     expect(clientMock.joinOrCreateRoom).toHaveBeenCalledWith({ roomName: 'r5' });
@@ -515,7 +722,7 @@ describe('reconnect identity', () => {
     expect([tabStore.get('courTabName'), tabStore.get('courTabJoining')]).toEqual(['user1', undefined]);
     await reloadTab();
     clientMock.dispatchEvent(new Event('connected'));
-    expect(clientMock.login).toHaveBeenCalledWith({ userName: 'user1' });
+    expect(clientMock.login).toHaveBeenCalledWith(expect.objectContaining({ userName: 'user1' }));
     emit({ type: 'loginSuccess', payload: { userName: 'user1' } });
     expect(clientMock.joinOrCreateRoom).not.toHaveBeenCalled();
   });
@@ -537,28 +744,33 @@ describe('reconnect identity', () => {
     expect([tabStore.get('courTabName'), tabStore.get('courTabRoom')]).toEqual(['user1', undefined]);
   });
 
-  it('keeps the room a double submit chose through a drop', async () => {
-    setupDomGlobals({ name: 'user1', room: 'r1' });
+  // Typed in another case, or with a character the server strips, or as a
+  // name on file that carries one: the server answers with the name it has.
+  it.each([
+    ['User1', 'user1'],
+    ['USER1\u200b', 'user1'],
+    ['user1\u200b', 'user1\u200b'],
+  ])('keeps the room a double submit chose through a drop (typed %j, on file as %j)', async (typed, member) => {
+    setupDomGlobals({ name: member, room: 'r1' });
     const mod = await loadCreateStore();
     mod.createStore();
     clientMock.dispatchEvent(new Event('connected'));
-    emit({ type: 'loginSuccess', payload: { userName: 'user1' } });
+    emit({ type: 'loginSuccess', payload: { userName: member } });
     emit({ type: 'joinRoomSuccess', payload: { roomName: 'r1', media: [], users: [] } });
     emit({ type: 'leaveRoomSuccess' });
-    // Typed in another case: the server answers with the name it has.
     const submit = () => {
       mod.useZustandStore.getState().dispatch({ type: 'chooseRoom', payload: { roomName: 'r2' } });
-      mod.useZustandStore.getState().dispatch({ type: 'login', payload: { userName: 'User1' } });
+      mod.useZustandStore.getState().dispatch({ type: 'login', payload: { userName: typed } });
     };
     submit();
-    emit({ type: 'loginSuccess', payload: { userName: 'user1' } });
+    emit({ type: 'loginSuccess', payload: { userName: member } });
     // The second click's login meets the join in flight.
     submit();
     emit({ type: 'loginError', payload: { message: 'Leave the room before switching names.' } });
     clientMock.joinOrCreateRoom.mockClear();
     clientMock.dispatchEvent(new Event('disconnected'));
     clientMock.dispatchEvent(new Event('connected'));
-    emit({ type: 'loginSuccess', payload: { userName: 'user1' } });
+    emit({ type: 'loginSuccess', payload: { userName: member } });
     expect(clientMock.joinOrCreateRoom).toHaveBeenCalledWith({ roomName: 'r2' });
   });
 
@@ -625,7 +837,7 @@ describe('reconnect identity', () => {
     const mod = await loadCreateStore();
     mod.createStore();
     clientMock.dispatchEvent(new Event('connected'));
-    expect(clientMock.login).toHaveBeenCalledWith({ userName: 'user1' });
+    expect(clientMock.login).toHaveBeenCalledWith(expect.objectContaining({ userName: 'user1' }));
     emit({ type: 'config', payload: { requiresConfiguration: false } });
     expect(mod.useZustandStore.getState().route).toBe('loading');
   });
@@ -670,7 +882,7 @@ describe('reconnect identity', () => {
     clientMock.joinOrCreateRoom.mockClear();
     clientMock.dispatchEvent(new Event('disconnected'));
     clientMock.dispatchEvent(new Event('connected'));
-    expect(clientMock.login).toHaveBeenCalledWith({ userName: 'user1' });
+    expect(clientMock.login).toHaveBeenCalledWith(expect.objectContaining({ userName: 'user1' }));
     emit({ type: 'loginSuccess', payload: { userName: 'user1' } });
     expect(clientMock.joinOrCreateRoom).not.toHaveBeenCalled();
   });
@@ -1042,6 +1254,53 @@ describe('config frame routing', () => {
     expect(clientMock.joinOrCreateRoom).toHaveBeenCalledWith({ roomName: 'r5' });
   });
 
+  it('lifts nothing for the old name while a typed name is out, and nothing once it is refused', async () => {
+    setupDomGlobals({ name: 'user1', room: 'movie-night' });
+    const mod = await loadCreateStore();
+    mod.createStore();
+    lockedOut(mod);
+    clientMock.dispatchEvent(new Event('disconnected'));
+    clientMock.dispatchEvent(new Event('connected'));
+    // The reconnect's own login of user1 is out; a new name and room go out too.
+    mod.useZustandStore.getState().dispatch({ type: 'chooseRoom', payload: { roomName: 'r5' } });
+    mod.useZustandStore.getState().dispatch({ type: 'login', payload: { userName: 'user5' } });
+    emit({ type: 'config', payload: { requiresConfiguration: false, season: 'FALL', year: 2026 } });
+    emit({ type: 'loginSuccess', payload: { userName: 'user1', seq: loginSeq(-2) } });
+    expect(clientMock.joinOrCreateRoom).not.toHaveBeenCalled();
+    emit({ type: 'loginError', payload: { message: 'Names are 1 to 32 characters.', seq: loginSeq(-1) } });
+    expect(clientMock.joinOrCreateRoom).not.toHaveBeenCalled();
+  });
+
+  it("lifts the lockout into the tab's own room once a typed name is refused after the old login answered late", async () => {
+    setupDomGlobals({ name: 'user1' });
+    const mod = await loadCreateStore();
+    mod.createStore();
+    clientMock.dispatchEvent(new Event('connected'));
+    emit({ type: 'config', payload: { requiresConfiguration: false, season: 'SUMMER', year: 2026 } });
+    emit({ type: 'loginSuccess', payload: { userName: 'user1', seq: loginSeq(-1) } });
+    enterRoom(mod, 'r');
+    // A drop; the rejoin is refused by the lockout.
+    clientMock.dispatchEvent(new Event('disconnected'));
+    clientMock.dispatchEvent(new Event('connected'));
+    emit({ type: 'loginSuccess', payload: { userName: 'user1', seq: loginSeq(-1) } });
+    emit({ type: 'joinRoomError', payload: { name: 'ProviderDownError', message: 'The anime provider is down.' } });
+    // Another drop; this reconnect's login times out, a typed name goes out,
+    // the old login answers late, and the typed name is refused.
+    clientMock.login = vi.fn().mockRejectedValueOnce(new Error('timeout')).mockResolvedValue(undefined);
+    clientMock.dispatchEvent(new Event('disconnected'));
+    clientMock.dispatchEvent(new Event('connected'));
+    await vi.waitFor(() => expect(mod.useZustandStore.getState().reclaimPending).toBeUndefined());
+    mod.useZustandStore.getState().dispatch({ type: 'chooseRoom', payload: { roomName: 'r9' } });
+    mod.useZustandStore.getState().dispatch({ type: 'login', payload: { userName: 'user9' } });
+    emit({ type: 'loginSuccess', payload: { userName: 'user1', seq: loginSeq(0) } });
+    emit({ type: 'loginError', payload: { message: 'Names are 1 to 32 characters.', seq: loginSeq(1) } });
+    clientMock.joinOrCreateRoom.mockClear();
+    // The server is user1 now, so the lift rejoins user1's own room at once.
+    emit({ type: 'config', payload: { requiresConfiguration: false, season: 'FALL', year: 2026 } });
+    expect(clientMock.joinOrCreateRoom).toHaveBeenCalledTimes(1);
+    expect(clientMock.joinOrCreateRoom).toHaveBeenCalledWith({ roomName: 'r' });
+  });
+
   it('takes the lifted room back from a typed name the server refuses', async () => {
     setupDomGlobals({ name: 'user1', room: 'movie-night' });
     const mod = await loadCreateStore();
@@ -1053,7 +1312,7 @@ describe('config frame routing', () => {
     emit({ type: 'loginError', payload: { message: 'Names are 1 to 32 characters.' } });
     clientMock.dispatchEvent(new Event('disconnected'));
     clientMock.dispatchEvent(new Event('connected'));
-    expect(clientMock.login).toHaveBeenLastCalledWith({ userName: 'user1' });
+    expect(clientMock.login).toHaveBeenLastCalledWith(expect.objectContaining({ userName: 'user1' }));
     emit({ type: 'loginSuccess', payload: { userName: 'user1' } });
     expect(clientMock.joinOrCreateRoom).not.toHaveBeenCalled();
   });
@@ -1148,6 +1407,94 @@ describe('room membership side effects', () => {
     enterRoom(mod, 'movie-night');
     emit({ type: 'leaveRoomSuccess' });
     expect(localStore.get('courRoom')).toBeUndefined();
+  });
+
+  it('clears the remembered room this tab typed, however the server spelled it', async () => {
+    setupDomGlobals({ name: 'user1' });
+    const mod = await loadCreateStore();
+    mod.createStore();
+    clientMock.dispatchEvent(new Event('connected'));
+    emit({ type: 'loginSuccess', payload: { userName: 'user1' } });
+    enterRoom(mod, 'movie night');
+    // Back on the join form (a refused rejoin, say), the member retypes the
+    // same room in their own spelling; the server names it as before, so
+    // landing leaves the typed spelling in the browser's memory.
+    mod.useZustandStore.getState().dispatch({ type: 'chooseRoom', payload: { roomName: 'movie night.' } });
+    mod.useZustandStore.getState().dispatch({ type: 'login', payload: { userName: 'user1' } });
+    emit({ type: 'loginSuccess', payload: { userName: 'user1' } });
+    expect(clientMock.joinOrCreateRoom).toHaveBeenLastCalledWith({ roomName: 'movie night.' });
+    emit({ type: 'joinRoomSuccess', payload: { roomName: 'movie night', media: [], users: [] } });
+    expect(localStore.get('courRoom')).toBe('movie night.');
+    emit({ type: 'leaveRoomSuccess' });
+    expect(localStore.get('courRoom')).toBeUndefined();
+  });
+
+  it('clears a typed spelling of the room left, after a reload too', async () => {
+    setupDomGlobals({ name: 'user1' });
+    let mod = await loadCreateStore();
+    mod.createStore();
+    clientMock.dispatchEvent(new Event('connected'));
+    emit({ type: 'loginSuccess', payload: { userName: 'user1' } });
+    enterRoom(mod, 'movie night');
+    mod.useZustandStore.getState().dispatch({ type: 'chooseRoom', payload: { roomName: 'movie night.' } });
+    mod.useZustandStore.getState().dispatch({ type: 'login', payload: { userName: 'user1' } });
+    emit({ type: 'loginSuccess', payload: { userName: 'user1' } });
+    emit({ type: 'joinRoomSuccess', payload: { roomName: 'movie night', media: [], users: [] } });
+    expect(localStore.get('courRoom')).toBe('movie night.');
+    mod = await reloadTab('https://cour.example.com/?roomName=movie%20night');
+    clientMock.dispatchEvent(new Event('connected'));
+    emit({ type: 'loginSuccess', payload: { userName: 'user1' } });
+    emit({ type: 'joinRoomSuccess', payload: { roomName: 'movie night', media: [], users: [] } });
+    emit({ type: 'leaveRoomSuccess' });
+    expect(localStore.get('courRoom')).toBeUndefined();
+  });
+
+  it('forgets the room a join in flight was headed for when the member leaves it', async () => {
+    setupDomGlobals({ name: 'user1', room: 'movie-night' });
+    const mod = await loadCreateStore();
+    mod.createStore();
+    clientMock.dispatchEvent(new Event('connected'));
+    emit({ type: 'loginSuccess', payload: { userName: 'user1' } });
+    expect(clientMock.joinOrCreateRoom).toHaveBeenCalledWith({ roomName: 'movie-night' });
+    mod.useZustandStore.getState().dispatch({ type: 'leaveRoom' });
+    emit({ type: 'leaveRoomError', payload: { errorType: 'NOT_JOINED', message: 'x' } });
+    expect(localStore.get('courRoom')).toBeUndefined();
+  });
+
+  it("keeps another tab's room that this tab once typed and never entered", async () => {
+    setupDomGlobals({ name: 'user1', room: 'r1' });
+    const mod = await loadCreateStore();
+    mod.createStore();
+    clientMock.dispatchEvent(new Event('connected'));
+    emit({ type: 'loginSuccess', payload: { userName: 'user1' } });
+    emit({ type: 'joinRoomSuccess', payload: { roomName: 'r1', media: [], users: [] } });
+    clientMock.dispatchEvent(new Event('disconnected'));
+    clientMock.dispatchEvent(new Event('connected'));
+    emit({ type: 'loginSuccess', payload: { userName: 'user1' } });
+    emit({ type: 'joinRoomError', payload: { name: 'UsernameTakenError', message: 'Pick a different name.' } });
+    // On the join form the member tries room x under a name the server refuses.
+    mod.useZustandStore.getState().dispatch({ type: 'chooseRoom', payload: { roomName: 'x' } });
+    mod.useZustandStore.getState().dispatch({ type: 'login', payload: { userName: 'user9' } });
+    emit({ type: 'loginError', payload: { message: 'Names are 1 to 32 characters.' } });
+    // Back in its own room later; meanwhile another tab landed in x.
+    clientMock.dispatchEvent(new Event('disconnected'));
+    clientMock.dispatchEvent(new Event('connected'));
+    emit({ type: 'loginSuccess', payload: { userName: 'user1' } });
+    emit({ type: 'joinRoomSuccess', payload: { roomName: 'r1', media: [], users: [] } });
+    localStore.set('courRoom', 'x');
+    emit({ type: 'leaveRoomSuccess' });
+    expect(localStore.get('courRoom')).toBe('x');
+  });
+
+  it("keeps the remembered room when it is another tab's", async () => {
+    setupDomGlobals({ name: 'user1', room: 'movie-night' });
+    const mod = await loadCreateStore();
+    mod.createStore();
+    enterRoom(mod, 'movie-night');
+    // Another tab landed in its own room since.
+    localStore.set('courRoom', 'couch-club');
+    emit({ type: 'leaveRoomSuccess' });
+    expect(localStore.get('courRoom')).toBe('couch-club');
   });
 });
 

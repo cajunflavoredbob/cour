@@ -2,6 +2,7 @@ import { create } from "zustand";
 import type { StoreApi, UseBoundStore } from "zustand";
 import { ReelyClient } from "../api/reely";
 import type { ClientMessage } from "../../../../types/reely";
+import { sanitizeRoomNameCanonical, sanitizeUserName } from "../../../../types/sanitize";
 import { reducer, initialState } from "./reducer";
 import type { Actions, ClientActions, Dispatch, Store } from "./types";
 import { replaceUrl } from "../utils/backSteps";
@@ -72,6 +73,7 @@ const dispatchToClient = (
     case "chooseRoom":
     case "finalizing":
     case "rejoinOverdue":
+    case "reclaimPending":
       return undefined;
     default: {
       const _exhaustive: never = msg;
@@ -99,6 +101,10 @@ let listenerController: AbortController | undefined;
 // else folded.
 const foldAscii = (name: string) => name.replace(/[A-Z]/g, (c) => c.toLowerCase());
 const sameName = (a: string, b: string) => foldAscii(a) === foldAscii(b);
+// Whether a login of `typed` answers as `answer`: the server answers a name
+// on file as stored, and a new name cleaned of the characters it strips.
+const answersAs = (typed: string, answer: string) =>
+  sameName(typed, answer) || sameName(sanitizeUserName(typed), answer);
 
 // Timeout toasts mint their id here instead of in the reducer's
 // toastCounter path; a bare Date.now() collided when two requests timed
@@ -128,6 +134,10 @@ export const createStore = () => {
   let chosenName: string | undefined;
   // A room the tab was still joining when it reloaded is still its choice.
   let chosenRoom = tabName === undefined ? undefined : getTabJoining();
+  // The logins this page has sent, numbered. The server echoes the number
+  // in its answer, and only the latest login's answer decides the room.
+  let loginSeq = 0;
+  const answersEarlierLogin = (seq: number | undefined) => seq !== undefined && seq !== loginSeq;
   // The member this tab logs in as on a (re)connect: a typed name still in
   // flight, else the one it already is, else the stored one.
   const ownName = () => chosenName ?? useZustandStore.getState().user?.userName ?? tabName ?? getStoredName();
@@ -138,7 +148,11 @@ export const createStore = () => {
       // ServerMessage variants forward to a ReelyClient method;
       // ClientAction-only variants (addToast / removeToast / navigate)
       // return undefined from the dispatch and skip the catch attach.
-      const result: unknown = dispatchToClient(client, action);
+      // A login goes out numbered.
+      const result: unknown = dispatchToClient(
+        client,
+        action.type === "login" ? { ...action, payload: { ...action.payload, seq: ++loginSeq } } : action,
+      );
       // Request methods (login / joinRoom / leaveRoom / createRoom /
       // joinOrCreateRoom / verdict / review / ...) reject if the
       // server reply times out (REQUEST_TIMEOUT_MS in
@@ -179,6 +193,7 @@ export const createStore = () => {
           if (action.type === "lockIn" || action.type === "submitRankings" || action.type === "submitRefinedRankings") {
             set((state) => reducer(state, { type: "finalizing", payload: null }));
           }
+          if (action.type === "login") set((state) => reducer(state, { type: "reclaimPending", payload: { pending: false } }));
           // A login that never got an answer must not strand the wordmark
           // pulse: the 5s loading escape was already cleared on connect
           // (audit 17 M8). Fall back to the join form so the user can act.
@@ -344,6 +359,7 @@ export const createStore = () => {
     // at all -> the join form (home fallback).
     const relogin = ownName();
     if (relogin) {
+      apply({ type: "reclaimPending", payload: { pending: true } });
       // Storage keeps the name the member last chose, in whichever tab.
       reclaiming = true;
       try {
@@ -454,14 +470,15 @@ export const createStore = () => {
 
     if (msg.type === "loginSuccess") {
       // This connection's login has answered, so from here on the lockout
-      // rejoin above dispatches for itself rather than handing off.
+      // rejoin above dispatches for itself rather than handing off (a typed
+      // login still out keeps the handoff).
       loginSettledThisSocket = true;
+      apply({ type: "reclaimPending", payload: { pending: false } });
       // A new tab's first login may take the remembered room; after that
       // the tab goes back to its own.
       const firstLogin = useZustandStore.getState().user == null;
       const previous = useZustandStore.getState().user?.userName ?? tabName;
       apply(msg as Actions);
-      chosenName = undefined;
       setTabName(msg.payload.userName);
       // A different member starts without the last one's room, or its link.
       if (previous !== undefined && previous !== msg.payload.userName) {
@@ -470,6 +487,11 @@ export const createStore = () => {
         url.searchParams.delete("roomName");
         replaceUrl(url.href);
       }
+      // An earlier login's answer, with a later one still out, only says who
+      // the tab is for now: the server takes that later login before anything
+      // sent from here, so its answer decides the room.
+      if (answersEarlierLogin(msg.payload.seq)) return;
+      chosenName = undefined;
       // Rooms are permanent and membership durable (0.12.0), so every
       // login -- cold start or reconnect -- simply rejoins the ?roomName
       // deep link or the remembered room. No rejoin window: there is no
@@ -504,8 +526,12 @@ export const createStore = () => {
       // and a lifted lockout's room handed to its login with it. A second
       // login of the tab's own member, refused while its join is in flight
       // (a double submit), keeps the room that member is joining.
+      apply({ type: "reclaimPending", payload: { pending: false } });
+      // An earlier login's refusal, with a later one still out, changes
+      // nothing: the later login's answer decides.
+      if (answersEarlierLogin(msg.payload.seq)) return;
       const member = useZustandStore.getState().user?.userName ?? tabName;
-      const ownRetry = member !== undefined && chosenName !== undefined && sameName(chosenName, member);
+      const ownRetry = member !== undefined && chosenName !== undefined && answersAs(chosenName, member);
       chosenName = undefined;
       chosenRoom = ownRetry ? getTabJoining() : undefined;
       if (lockoutHandoff) pendingRoomJoin = null;
@@ -640,13 +666,18 @@ export const createStore = () => {
         resyncLeaves -= 1;
         return;
       }
+      const left = sessionRoom ?? chosenRoom;
       setSessionRoom(undefined);
       setTabJoining(undefined);
       chosenRoom = undefined;
-      // Explicit leave forgets the remembered room: the user
-      // deliberately left, so neither a reconnect nor the next page
-      // load should pull them back in.
-      clearStoredRoom();
+      // Explicit leave forgets the remembered room: the user deliberately
+      // left, so neither a reconnect nor the next page load should pull
+      // them back in. Only when it is the room left, however it was typed:
+      // another tab's room still starts the next new tab.
+      const stored = getStoredRoom();
+      if (stored !== undefined && left !== undefined && sanitizeRoomNameCanonical(stored) === sanitizeRoomNameCanonical(left)) {
+        clearStoredRoom();
+      }
       // A late ledger for the room just left must not navigate.
       routeOnNextReview = false;
       apply(msg as Actions);

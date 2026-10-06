@@ -205,7 +205,7 @@ export class Client {
     this.isLoggedIn = true;
   }
 
-  private courOr(errType: 'loginError' | VerdictFlowError): CourStore | undefined {
+  private courOr(errType: VerdictFlowError): CourStore | undefined {
     if (this.ctx.cour) return this.ctx.cour;
     this.sendMessage({
       type: errType,
@@ -215,20 +215,25 @@ export class Client {
   }
 
   private handleLogin(payload: unknown) {
-    const cour = this.courOr('loginError');
-    if (!cour) return;
+    // Every answer echoes the login's seq, so the client can tell which of
+    // its logins it answers.
+    const seq = (payload as { seq?: unknown } | null)?.seq;
+    const echo = Number.isSafeInteger(seq) ? { seq: seq as number } : {};
+    const refuse = (message: string) => this.sendMessage({ type: 'loginError', payload: { message, ...echo } });
+    const cour = this.ctx.cour;
+    if (!cour) {
+      refuse('This server has no account storage.');
+      return;
+    }
     const raw = (payload as { userName?: unknown } | null)?.userName;
     if (typeof raw !== 'string') {
-      this.sendMessage({ type: 'loginError', payload: { message: 'Invalid login payload.' } });
+      refuse('Invalid login payload.');
       return;
     }
     // Far longer than any name, even one carrying invisible characters:
     // refused before any cleaning or lookup.
     if (raw.length > MAX_USERNAME_LEN * 8) {
-      this.sendMessage({
-        type: 'loginError',
-        payload: { message: `Names are 1 to ${MAX_USERNAME_LEN} characters.` },
-      });
+      refuse(`Names are 1 to ${MAX_USERNAME_LEN} characters.`);
       return;
     }
     // A name already on file logs in as stored; only a new name is cleaned.
@@ -236,10 +241,7 @@ export class Client {
     const existing = typed ? cour.users.byName(typed) : undefined;
     const userName = existing?.username ?? sanitizeUserName(raw);
     if (userName.length < 1 || userName.length > MAX_USERNAME_LEN) {
-      this.sendMessage({
-        type: 'loginError',
-        payload: { message: `Names are 1 to ${MAX_USERNAME_LEN} characters.` },
-      });
+      refuse(`Names are 1 to ${MAX_USERNAME_LEN} characters.`);
       return;
     }
     if (this.room || this.joinInFlight) {
@@ -248,10 +250,7 @@ export class Client {
       // joinInFlight half closes the mid-join window, where this.room is
       // still unset across the join's awaits but membership is about to
       // be installed under the current name.
-      this.sendMessage({
-        type: 'loginError',
-        payload: { message: 'Leave the room before switching names.' },
-      });
+      refuse('Leave the room before switching names.');
       return;
     }
     // First sight creates the row (case-insensitive: the same name in any
@@ -259,10 +258,7 @@ export class Client {
     let user = existing ?? cour.users.byName(userName);
     if (!user) {
       if (cour.users.count() >= MAX_USERS) {
-        this.sendMessage({
-          type: 'loginError',
-          payload: { message: 'This server has reached its user limit.' },
-        });
+        refuse('This server has reached its user limit.');
         return;
       }
       try {
@@ -277,16 +273,13 @@ export class Client {
         if (!(err instanceof CourUsernameTakenError)) throw err;
         user = cour.users.byName(userName);
         if (!user) {
-          this.sendMessage({
-            type: 'loginError',
-            payload: { message: 'Logging in failed. Please try again.' },
-          });
+          refuse('Logging in failed. Please try again.');
           return;
         }
       }
     }
     this.assumeIdentity(user);
-    this.sendMessage({ type: 'loginSuccess', payload: { userName: user.username } });
+    this.sendMessage({ type: 'loginSuccess', payload: { userName: user.username, ...echo } });
   }
 
   /** Shared gate for the verdict flow: store + identity + current room. */

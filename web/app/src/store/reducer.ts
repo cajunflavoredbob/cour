@@ -110,6 +110,8 @@ const reduce = (state: Store, action: Actions): Store => {
         rejoining: action.payload !== "connected" && state.room?.joined ? true : state.rejoining,
         // A new drop starts the wait for its rejoin over.
         rejoinOverdue: action.payload === "connected" ? state.rejoinOverdue : undefined,
+        // A dropped socket's login will never answer.
+        reclaimPending: action.payload === "connected" ? state.reclaimPending : undefined,
       };
     }
     case "config": {
@@ -139,6 +141,8 @@ const reduce = (state: Store, action: Actions): Store => {
     }
     case "rejoinOverdue":
       return state.rejoining ? { ...state, rejoinOverdue: true } : state;
+    case "reclaimPending":
+      return { ...state, reclaimPending: action.payload.pending || undefined };
     case "exitDeckScope":
       return { ...state, deckScope: undefined, route: "home" };
     case "reviewView":

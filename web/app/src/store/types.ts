@@ -67,6 +67,8 @@ export type ClientActions =
   | { type: "exitDeckScope" }
   // The rejoin after a dropped socket went unanswered on a live one.
   | { type: "rejoinOverdue" }
+  // A (re)connect's own login of the tab's member is out, or has answered.
+  | { type: "reclaimPending"; payload: { pending: boolean } }
   | { type: "reviewView"; payload: ReviewView }
   // Local-only since 0.12.0: autoplay preference lives in localStorage,
   // not on a server account.
@@ -147,6 +149,9 @@ export interface Store {
   rejoining?: boolean;
   // The rejoin went unanswered; Leave room opens as a way out.
   rejoinOverdue?: boolean;
+  // A (re)connect's login of the tab's member has yet to answer; the join
+  // form waits for it.
+  reclaimPending?: boolean;
 
   toasts: Toast[];
   config?: AppConfig;

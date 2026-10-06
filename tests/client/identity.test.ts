@@ -114,6 +114,35 @@ describe('login (passwordless identity)', () => {
     expect(cour.users.byName('user1')?.username).toBe('User1');
   });
 
+  it("echoes the login's seq in its answer, success or refusal", async () => {
+    const { ws } = makeClient();
+    push(ws, { type: 'login', payload: { userName: 'user1', seq: 7 } });
+    await flush();
+    expect(last(ws, 'loginSuccess')?.payload).toEqual({ userName: 'user1', seq: 7 });
+    push(ws, { type: 'login', payload: { userName: '', seq: 8 } });
+    await flush();
+    expect(last(ws, 'loginError')?.payload).toEqual({ message: 'Names are 1 to 32 characters.', seq: 8 });
+  });
+
+  it('echoes no seq for a login without a whole-number one', async () => {
+    const { ws } = makeClient();
+    push(ws, { type: 'login', payload: { userName: 'user1' } });
+    push(ws, { type: 'login', payload: { userName: 'user1', seq: '3' } });
+    push(ws, { type: 'login', payload: { userName: 'user1', seq: 1.5 } });
+    await flush();
+    const answers = sent(ws).filter((m) => m.type === 'loginSuccess');
+    expect(answers.map((m) => m.payload)).toEqual([{ userName: 'user1' }, { userName: 'user1' }, { userName: 'user1' }]);
+  });
+
+  it('answers a login with no account storage as refused, echoing its seq', async () => {
+    const ws = makeWs();
+    new Client(ws, [makeProvider()]);
+    ws.send.mockClear();
+    push(ws, { type: 'login', payload: { userName: 'user1', seq: 4 } });
+    await flush();
+    expect(last(ws, 'loginError')?.payload).toEqual({ message: 'This server has no account storage.', seq: 4 });
+  });
+
   it('claims a new name without bidi controls or invisible marks', async () => {
     const { ws } = makeClient();
     push(ws, { type: 'login', payload: { userName: 'user1\u{202E}\u{200B}' } });

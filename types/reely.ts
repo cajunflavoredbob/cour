@@ -64,8 +64,9 @@ export type ServerMessage =
   // password; the owner's call after the recommendation-engine framing was
   // dropped). Creates the user on first sight; verdicts and locks stay
   // persistent because the user ROW is persistent, the credential isn't.
-  // Refused while in a room (leave first).
-  | { type: "login"; payload: { userName: string } }
+  // Refused while in a room (leave first). `seq` comes back in the
+  // answer, so the client can tell which of its logins it answers.
+  | { type: "login"; payload: { userName: string; seq?: number } }
   // Verdict on a title in the current room. Idempotent UPSERT -- also the
   // review screen's tap-to-change path. Rejected after lock-in.
   | { type: "verdict"; payload: VerdictRequest }
@@ -102,8 +103,8 @@ export type ClientMessage =
   // PUSHED when the deck swaps under an open room (the pinned-season
   // daily pre-freeze refresh, stills enrichment, season rotation re-deck).
   | { type: "mediaChanged"; payload: { media: Media[] } }
-  | { type: "loginSuccess"; payload: { userName: string } }
-  | { type: "loginError"; payload: { message: string } }
+  | { type: "loginSuccess"; payload: { userName: string; seq?: number } }
+  | { type: "loginError"; payload: { message: string; seq?: number } }
   | { type: "verdictSuccess"; payload: { titleId: number; verdict: VerdictValue } }
   | { type: "verdictError"; payload: { message: string } }
   | { type: "reviewSuccess"; payload: ReviewPayload }

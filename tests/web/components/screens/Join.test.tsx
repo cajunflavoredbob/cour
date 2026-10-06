@@ -125,6 +125,17 @@ describe('JoinScreen (passwordless)', () => {
     expect(cta2.disabled).toBe(false);
   });
 
+  it("holds the CTA while a reconnect's own login is out", () => {
+    withState({ reclaimPending: true });
+    render(<JoinScreen />);
+    fireEvent.change(screen.getByLabelText('Your name'), { target: { value: 'user2' } });
+    fireEvent.change(screen.getByLabelText('Room name'), { target: { value: 'r' } });
+    const cta = screen.getByText(/connecting/).closest('button') as HTMLButtonElement;
+    expect(cta.disabled).toBe(true);
+    fireEvent.submit(cta.closest('form') as HTMLFormElement);
+    expect(dispatch).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'login' }));
+  });
+
   it('shows join errors even without a submit in this mount (audit 17 M8)', () => {
     // The auto-rejoin's UsernameTakenError (second device, same stored
     // name) lands on a FRESH join form -- the old submit gate hid it.

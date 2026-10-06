@@ -14,12 +14,15 @@ import { useSeason } from "../../hooks/useSeason";
  * there's no joined room.
  */
 export const JoinScreen = () => {
-  const [{ user, error, joinError, connectionStatus }, dispatch] = useStore([
+  const [{ user, error, joinError, connectionStatus, reclaimPending }, dispatch] = useStore([
     "user",
     "error",
     "joinError",
     "connectionStatus",
+    "reclaimPending",
   ]);
+  // Connected, and a reconnect's own login has answered.
+  const ready = connectionStatus === "connected" && !reclaimPending;
   // This tab's own member first: storage holds whichever tab chose last.
   const [name, setName] = useState(() => user?.userName ?? getTabName() ?? getStoredName() ?? "");
   // Beside this tab's member, the room this tab is joining or last landed
@@ -31,10 +34,7 @@ export const JoinScreen = () => {
   });
 
   const { season, year } = useSeason();
-  const canSubmit =
-    name.trim().length > 0 &&
-    roomName.trim().length > 0 &&
-    connectionStatus === "connected";
+  const canSubmit = name.trim().length > 0 && roomName.trim().length > 0 && ready;
 
   const roomErrorText =
     typeof error === "object" && error !== null && "message" in error
@@ -124,7 +124,7 @@ export const JoinScreen = () => {
           </div>
 
           <button type="submit" className={styles.ctaButton} disabled={!canSubmit}>
-            {connectionStatus === "connected" ? "open the room" : "connecting\u2026"}
+            {ready ? "open the room" : "connecting\u2026"}
           </button>
         </form>
 
