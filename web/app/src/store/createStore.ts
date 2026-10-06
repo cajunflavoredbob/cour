@@ -4,6 +4,7 @@ import { ReelyClient } from "../api/reely";
 import type { ClientMessage } from "../../../../types/reely";
 import { reducer, initialState } from "./reducer";
 import type { Actions, ClientActions, Dispatch, Store } from "./types";
+import { replaceUrl } from "../utils/backSteps";
 import { applySeasonTheme } from "../utils/season";
 import {
   clearStoredRoom,
@@ -220,7 +221,7 @@ export const createStore = () => {
         // On a reload as well.
         const url = new URL(location.href);
         url.searchParams.delete("roomName");
-        history.replaceState(null, document.title, url.href);
+        replaceUrl(url.href);
       }
       if (action.type === "joinOrCreateRoom" || action.type === "joinRoom" || action.type === "createRoom") {
         chosenRoom = action.payload.roomName;
@@ -467,7 +468,7 @@ export const createStore = () => {
         setSessionRoom(undefined);
         const url = new URL(location.href);
         url.searchParams.delete("roomName");
-        history.replaceState(null, document.title, url.href);
+        replaceUrl(url.href);
       }
       // Rooms are permanent and membership durable (0.12.0), so every
       // login -- cold start or reconnect -- simply rejoins the ?roomName
@@ -555,7 +556,7 @@ export const createStore = () => {
         chosenRoom = undefined;
         const newUrl = new URL(location.href);
         newUrl.searchParams.set("roomName", roomName);
-        history.replaceState(null, document.title, newUrl.href);
+        replaceUrl(newUrl.href);
       }
       // The deck needs the verdict ledger (progress chip, current card,
       // resume point) -- fetch it as part of entering the room.
@@ -651,7 +652,7 @@ export const createStore = () => {
       apply(msg as Actions);
       const newUrl = new URL(location.href);
       newUrl.searchParams.delete("roomName");
-      history.replaceState(null, document.title, newUrl.href);
+      replaceUrl(newUrl.href);
       return;
     }
 

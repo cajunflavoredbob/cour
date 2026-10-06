@@ -1,4 +1,6 @@
 .btn {
+  composes: hitBox from "../shared.module.css";
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;

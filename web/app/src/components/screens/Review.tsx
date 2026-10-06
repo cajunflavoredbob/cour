@@ -4,18 +4,22 @@ import { AppHeader } from "../organisms/AppHeader";
 import { MobileHeader } from "../organisms/MobileHeader";
 import { DialogScrim } from "../molecules/DialogScrim";
 import { PillTabs, tabId, tabPanelProps } from "../molecules/PillTabs";
+import { useBackStep } from "../../hooks/useBackStep";
 import { DESKTOP_QUERY, useMediaQuery } from "../../hooks/useMediaQuery";
 import { useDispatch, useStore } from "../../store";
 import { roomOffline } from "../../store/offline";
 import { useSeason } from "../../hooks/useSeason";
 import { placeKey, placeOf } from "../../utils/drafts";
-import { focusLost } from "../../utils/overlay";
+import { focusLost, swallowSecondClick } from "../../utils/overlay";
 import { rerankOpen } from "../../utils/standingsText";
 import { posterSrc } from "../../utils/poster";
 import styles from "./Review.module.css";
 
 // Rows shown per pile on a phone before the SHOW ALL reveal.
 const ROWS_BEFORE_OVERFLOW = 12;
+
+const NO_IDS: ReadonlySet<number> = new Set();
+const NO_ORDER: readonly number[] = [];
 
 const NEXT_VERDICT: Record<VerdictValue, VerdictValue> = {
   like: "dislike",
@@ -66,6 +70,21 @@ export const ReviewScreen = () => {
   // checkbox.
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmChecked, setConfirmChecked] = useState(false);
+  // Rows whose pill changed their verdict here keep their place in this
+  // pile until the pile changes: a tap cycles the pill, the row stays put.
+  // The pile keeps the order it opened with, too: a refetch (the server
+  // sorts by last change) must not move the row just changed.
+  const pileIds = (p: VerdictValue): readonly number[] =>
+    (review?.verdicts ?? []).filter((v) => v.verdict === p).map((v) => v.titleId);
+  const [held, setHeld] = useState<{ pile: VerdictValue; ids: ReadonlySet<number>; order: readonly number[] }>(
+    () => ({ pile, ids: NO_IDS, order: pileIds(pile) }),
+  );
+  const heldIds = held.pile === pile ? held.ids : NO_IDS;
+  const pileOrder = held.pile === pile ? held.order : NO_ORDER;
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the order is the pile's as it opened, read only when the pile changes.
+  useEffect(() => {
+    setHeld((h) => (h.pile === pile ? h : { pile, ids: NO_IDS, order: pileIds(pile) }));
+  }, [pile]);
 
   const mediaById = useMemo(() => {
     const map = new Map<number, Media>();
@@ -84,6 +103,15 @@ export const ReviewScreen = () => {
   const { season, year } = useSeason();
   const offline = roomOffline({ connectionStatus, rejoining });
   const lockingIn = finalizing?.kind === "lock";
+  // The read-only peek of a locked review: Back returns to the standings.
+  const peeking = review?.lockedAt != null && !lockingIn;
+  useBackStep(peeking, () => dispatch({ type: "viewLockedReview", payload: { open: false } }));
+  // Opened from the standings' menu, the peek's heading takes the focus
+  // the menu item took with it.
+  const headlineRef = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    if (peeking && focusLost()) headlineRef.current?.focus();
+  }, [peeking]);
 
   // The lock confirm lives only while a lock is still possible: a deck
   // that grew while it was open (the daily refresh) takes it away, and
@@ -153,9 +181,14 @@ export const ReviewScreen = () => {
     (m) => m.anilistId != null && !verdictedIds.has(m.anilistId),
   );
 
+  const place = new Map(pileOrder.map((id, i) => [id, i]));
   const pileRows = review.verdicts
-    .filter((v) => v.verdict === pile)
-    .map((v) => ({ ...v, media: mediaById.get(v.titleId) }));
+    .filter((v) => v.verdict === pile || heldIds.has(v.titleId))
+    .map((v) => ({ ...v, media: mediaById.get(v.titleId) }))
+    // Rows new to the pile go after, in the ledger's order.
+    .sort((a, b) => (place.get(a.titleId) ?? Number.POSITIVE_INFINITY) - (place.get(b.titleId) ?? Number.POSITIVE_INFINITY));
+  // The rows still in the pile, for the way through them on the deck.
+  const inPile = pileRows.filter((r) => r.verdict === pile);
   // Desktop scrolls the ledger internally, so there's no reason to
   // truncate -- show every row. Mobile keeps the "SHOW ALL" reveal.
   const visibleRows = isDesktop || showAll ? pileRows : pileRows.slice(0, ROWS_BEFORE_OVERFLOW);
@@ -174,7 +207,9 @@ export const ReviewScreen = () => {
 
   const headlineBlock = (
     <div className={styles.headlineBlock}>
-      <h1 className={styles.headline}>your {season.toLowerCase()} review.</h1>
+      <h1 className={styles.headline} ref={headlineRef} tabIndex={-1}>
+        your {season.toLowerCase()} review.
+      </h1>
       <p className={styles.contextLine}>
         {done} / {total} VERDICTS
         {/* Room pulse (audit 17 UX 3): pre-lock the room used to be
@@ -183,7 +218,14 @@ export const ReviewScreen = () => {
         {memberStates.length > 1 &&
           ` · ${lockedCount} OF ${memberStates.length} LOCKED`}
       </p>
-      <div className={styles.progressTrack} role="progressbar" aria-valuenow={done} aria-valuemin={0} aria-valuemax={total}>
+      <div
+        className={styles.progressTrack}
+        role="progressbar"
+        aria-label="Verdicts"
+        aria-valuenow={done}
+        aria-valuemin={0}
+        aria-valuemax={total}
+      >
         <div className={styles.progressFill} style={{ width: `${total > 0 ? (done / total) * 100 : 0}%` }} />
       </div>
     </div>
@@ -228,14 +270,18 @@ export const ReviewScreen = () => {
     />
   );
 
-  const pileReviewEl = pileRows.length > 0 && !frozen && (
+  const pileReviewEl = inPile.length > 0 && !frozen && (
     <button
       type="button"
       className={styles.pileReviewBtn}
-      onClick={() => openOnDeck(pileRows.map((r) => r.titleId))}
+      onClick={(e) => {
+        if (e.detail > 1) return;
+        swallowSecondClick();
+        openOnDeck(inPile.map((r) => r.titleId));
+      }}
       data-test-handle="review-pile"
     >
-      {pileRows.length === 1 ? "REVIEW 1" : `REVIEW ALL ${pileRows.length}`} {PILE_LABELS[pile].toUpperCase()}{" "}
+      {inPile.length === 1 ? "REVIEW 1" : `REVIEW ALL ${inPile.length}`} {PILE_LABELS[pile].toUpperCase()}{" "}
       <span aria-hidden="true">&rarr;</span>
     </button>
   );
@@ -283,12 +329,17 @@ export const ReviewScreen = () => {
             data-verdict={row.verdict}
             data-offline={offline && !locked}
             disabled={frozen || offline}
-            onClick={() =>
+            onClick={() => {
+              setHeld((h) =>
+                h.pile === pile
+                  ? { ...h, ids: new Set(h.ids).add(row.titleId) }
+                  : { pile, ids: new Set([row.titleId]), order: pileIds(pile) },
+              );
               dispatch({
                 type: "verdict",
                 payload: { titleId: row.titleId, verdict: NEXT_VERDICT[row.verdict] },
-              })
-            }
+              });
+            }}
           >
             {row.verdict === "like" ? "KEPT" : row.verdict === "dislike" ? "PASSED" : "UNSURE"}
           </button>
@@ -323,7 +374,7 @@ export const ReviewScreen = () => {
     </p>
   );
 
-  const lockControls = locked ? (
+  const lockControls = locked && !lockingIn ? (
     // Read-only peek after lock-in (audit 17 UX 6): the way back to the
     // standings, in the slot the lock button occupied.
     <>

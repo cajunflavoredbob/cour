@@ -1,10 +1,14 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AvatarButton } from "../atoms/AvatarButton";
 import { DialogScrim } from "../molecules/DialogScrim";
+import { useBackStep } from "../../hooks/useBackStep";
 import { useEscape } from "../../hooks/useEscape";
 import { useDispatch, useStore } from "../../store";
 import { roomOffline } from "../../store/offline";
 import styles from "./AccountMenu.module.css";
+
+// The items the menu's keys move through.
+const MENU_ITEMS = '[role^="menuitem"]:not(:disabled)';
 
 /**
  * The account popover: a speech bubble hanging off the avatar. Your name,
@@ -40,6 +44,32 @@ export const AccountMenu = () => {
     setOpen(false);
   };
   useEscape(close, open);
+  // Back closes the open menu, before anything under it.
+  useBackStep(open, close, "overlay");
+
+  // A menu's keys: the first item takes focus as it opens, the arrows,
+  // Home and End move through the items.
+  useEffect(() => {
+    if (open) bubbleRef.current?.querySelector<HTMLElement>(MENU_ITEMS)?.focus();
+  }, [open]);
+  const onMenuKey = (e: React.KeyboardEvent) => {
+    const list = [...(bubbleRef.current?.querySelectorAll<HTMLElement>(MENU_ITEMS) ?? [])];
+    if (list.length === 0) return;
+    const at = list.indexOf(document.activeElement as HTMLElement);
+    const next =
+      e.key === "ArrowDown"
+        ? (at + 1) % list.length
+        : e.key === "ArrowUp"
+          ? (at <= 0 ? list.length : at) - 1
+          : e.key === "Home"
+            ? 0
+            : e.key === "End"
+              ? list.length - 1
+              : undefined;
+    if (next === undefined) return;
+    e.preventDefault();
+    list[next].focus();
+  };
 
   if (!user) return null;
 
@@ -97,7 +127,7 @@ export const AccountMenu = () => {
 
   return (
     <div className={styles.anchor}>
-      <AvatarButton ref={avatarRef} userName={user.userName} onClick={() => setOpen((o) => !o)} />
+      <AvatarButton ref={avatarRef} userName={user.userName} expanded={open} onClick={() => setOpen((o) => !o)} />
       {open && (
         <>
           {/* The second click of the double-click that opened the menu does not close it. */}
@@ -110,7 +140,7 @@ export const AccountMenu = () => {
               close();
             }}
           />
-          <div ref={bubbleRef} className={styles.bubble} role="menu" aria-label="Account">
+          <div ref={bubbleRef} className={styles.bubble} role="menu" aria-label="Account" onKeyDown={onMenuKey}>
             <div className={styles.caret} aria-hidden="true" />
 
             <div className={styles.header}>
@@ -122,7 +152,7 @@ export const AccountMenu = () => {
               <button
                 type="button"
                 className={styles.togglePill}
-                role="switch"
+                role="menuitemcheckbox"
                 aria-checked={soundPref ?? false}
                 aria-label="Autoplay PVs with sound"
                 data-on={soundPref ?? false}
@@ -137,6 +167,7 @@ export const AccountMenu = () => {
             {showKeepGoing && (
               <button
                 type="button"
+                role="menuitem"
                 className={styles.keepGoing}
                 onClick={() => navigate("room")}
                 data-test-handle="menu-keep-going"
@@ -148,6 +179,7 @@ export const AccountMenu = () => {
             {showReview && (
               <button
                 type="button"
+                role="menuitem"
                 className={styles.rowButton}
                 onClick={() => navigate("home")}
                 data-test-handle="menu-review"
@@ -159,6 +191,7 @@ export const AccountMenu = () => {
             {showLockedReview && (
               <button
                 type="button"
+                role="menuitem"
                 className={styles.rowButton}
                 onClick={() => {
                   dispatch({ type: "viewLockedReview", payload: { open: true } });
@@ -173,6 +206,7 @@ export const AccountMenu = () => {
             {inRoom && (
               <button
                 type="button"
+                role="menuitem"
                 className={styles.rowButton}
                 onClick={shareRoom}
                 data-test-handle="menu-share"
@@ -183,6 +217,7 @@ export const AccountMenu = () => {
 
             <button
               type="button"
+              role="menuitem"
               className={styles.rowButton}
               onClick={() => {
                 dispatch({ type: "tutorial", payload: { open: true } });
@@ -196,6 +231,7 @@ export const AccountMenu = () => {
             {inRoom && (
               <button
                 type="button"
+                role="menuitem"
                 className={styles.logoutButton}
                 disabled={offline}
                 onClick={() => {

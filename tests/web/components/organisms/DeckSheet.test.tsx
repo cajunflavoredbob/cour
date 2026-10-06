@@ -154,20 +154,105 @@ describe('DeckSheet', () => {
 });
 
 describe('DeckSheet media box', () => {
-  it('without the autoplay setting the video is passive: no autoplay, bar up, sound ready', () => {
+  it('without the autoplay setting the video is a facade: no player until asked, bar up', () => {
     vi.useFakeTimers();
     const { container } = render(<DeckSheet media={withTrailer} remaining={12} />);
     openSheet();
-    const frame = document.querySelector('iframe') as HTMLIFrameElement;
-    expect(frame.src).toContain('youtube-nocookie.com/embed/pv-abc');
-    // No autoplay, but unmuted -- a native play tap carries audio.
-    expect(frame.src).toContain('autoplay=0');
-    expect(frame.src).toContain('mute=0');
-    expect(screen.queryByText('TAP FOR SOUND')).toBeNull();
+    expect(document.querySelector('iframe')).toBeNull();
+    expect(screen.getByRole('button', { name: `Play the ${withTrailer.title} PV` })).toBeDefined();
     expect(container.querySelector('[class*="holdBar"]')).not.toBeNull();
     // Untouched, it rotates on like any image tile.
     act(() => vi.advanceTimersByTime(7100));
+    expect(screen.queryByRole('button', { name: `Play the ${withTrailer.title} PV` })).toBeNull();
+  });
+
+  it('a second press of the facade on the same card parks the rotation again', () => {
+    vi.useFakeTimers();
+    render(<DeckSheet media={withStills} remaining={12} />);
+    openSheet();
+    const play = () => screen.getByRole('button', { name: `Play the ${withStills.title} PV` });
+    fireEvent.click(play());
+    // It plays, then the viewer pauses it: the tile goes back to rotating.
+    for (const state of [1, 2]) {
+      act(() => {
+        window.dispatchEvent(
+          new MessageEvent('message', {
+            data: JSON.stringify({ event: 'infoDelivery', info: { playerState: state } }),
+            origin: 'https://www.youtube-nocookie.com',
+          }),
+        );
+      });
+    }
+    act(() => vi.advanceTimersByTime(7100));
     expect(document.querySelector('iframe')).toBeNull();
+    // Round the strip back to the PV tile, and press play late in its hold.
+    fireEvent.click(screen.getByLabelText('Trailer'));
+    act(() => vi.advanceTimersByTime(6000));
+    fireEvent.click(play());
+    act(() => vi.advanceTimersByTime(3000));
+    expect(document.querySelector('iframe')).not.toBeNull();
+    expect(screen.getByLabelText('Trailer').getAttribute('data-active')).toBe('true');
+  });
+
+  it("ignores a double-click's second click landing on the facade", () => {
+    render(<DeckSheet media={withTrailer} remaining={12} />);
+    openSheet();
+    fireEvent.click(screen.getByRole('button', { name: `Play the ${withTrailer.title} PV` }), { detail: 2 });
+    expect(document.querySelector('iframe')).toBeNull();
+  });
+
+  it("never carries a started player over to the next card's trailer", () => {
+    const next = makeMedia({
+      id: '109',
+      anilistId: 109,
+      title: 'Next Show',
+      posterUrl: '/api/poster/0/109/0',
+      trailer: { site: 'youtube', id: 'pv-next' },
+    });
+    const view = render(<DeckSheet media={withTrailer} remaining={12} />);
+    openSheet();
+    fireEvent.click(screen.getByRole('button', { name: `Play the ${withTrailer.title} PV` }));
+    expect(document.querySelector('iframe')).not.toBeNull();
+    // Every src any iframe takes on the way, read from the records themselves.
+    const srcs: string[] = [];
+    const record = (records: MutationRecord[]) => {
+      for (const r of records) {
+        if (r.type === 'attributes' && r.target instanceof HTMLIFrameElement) srcs.push(r.target.src);
+        for (const node of r.addedNodes) if (node instanceof HTMLIFrameElement) srcs.push(node.src);
+      }
+    };
+    const observer = new MutationObserver(record);
+    observer.observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['src'] });
+    view.rerender(<DeckSheet media={next} remaining={11} />);
+    record(observer.takeRecords());
+    observer.disconnect();
+    expect(srcs.some((src) => src.includes('pv-next'))).toBe(false);
+    expect(document.querySelector('iframe')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Play the Next Show PV' })).toBeDefined();
+  });
+
+  it('a keyboard press hands focus to the player it starts', () => {
+    render(<DeckSheet media={withTrailer} remaining={12} />);
+    openSheet();
+    const play = screen.getByRole('button', { name: `Play the ${withTrailer.title} PV` });
+    play.focus();
+    fireEvent.click(play, { detail: 0 });
+    expect(document.activeElement).toBe(document.querySelector('iframe'));
+  });
+
+  it('the facade loads the player playing, with sound, and parks the rotation', () => {
+    vi.useFakeTimers();
+    const { container } = render(<DeckSheet media={withTrailer} remaining={12} />);
+    openSheet();
+    fireEvent.click(screen.getByRole('button', { name: `Play the ${withTrailer.title} PV` }));
+    const frame = document.querySelector('iframe') as HTMLIFrameElement;
+    expect(frame.src).toContain('youtube-nocookie.com/embed/pv-abc');
+    expect(frame.src).toContain('autoplay=1');
+    expect(frame.src).toContain('mute=0');
+    expect(screen.queryByText('TAP FOR SOUND')).toBeNull();
+    expect(container.querySelector('[class*="holdBar"]')).toBeNull();
+    act(() => vi.advanceTimersByTime(20_000));
+    expect(document.querySelector('iframe')).not.toBeNull();
   });
 
   it('the autoplay setting buys exactly ONE automatic play per card', () => {
@@ -188,10 +273,9 @@ describe('DeckSheet media box', () => {
     });
     expect(document.querySelector('iframe')).toBeNull();
     act(() => vi.advanceTimersByTime(7100));
-    // ...which is now passive: no second autoplay, bar running.
-    const frame = document.querySelector('iframe') as HTMLIFrameElement;
-    expect(frame.src).toContain('autoplay=0');
-    expect(frame.src).toContain('mute=0');
+    // ...which is now passive: the facade, no second autoplay, bar running.
+    expect(document.querySelector('iframe')).toBeNull();
+    expect(screen.getByRole('button', { name: `Play the ${withTrailer.title} PV` })).toBeDefined();
     expect(container.querySelector('[class*="holdBar"]')).not.toBeNull();
   });
 
@@ -238,6 +322,7 @@ describe('DeckSheet media box', () => {
     vi.useFakeTimers();
     render(<DeckSheet media={withStills} remaining={12} />);
     openSheet();
+    fireEvent.click(screen.getByRole('button', { name: `Play the ${withStills.title} PV` }));
     // Rotation is parked on the PV; the ended event (state 0) via the
     // IFrame-API postMessage protocol advances and resumes it.
     act(() => {
@@ -258,6 +343,7 @@ describe('DeckSheet media box', () => {
     vi.useFakeTimers();
     render(<DeckSheet media={withStills} remaining={12} />);
     openSheet();
+    fireEvent.click(screen.getByRole('button', { name: `Play the ${withStills.title} PV` }));
     act(() => {
       window.dispatchEvent(
         new MessageEvent('message', {
@@ -333,6 +419,7 @@ describe('DeckSheet media box', () => {
   it('the PV embed opts into the IFrame API for the ended signal', () => {
     render(<DeckSheet media={withTrailer} remaining={12} />);
     openSheet();
+    fireEvent.click(screen.getByRole('button', { name: `Play the ${withTrailer.title} PV` }));
     const frame = document.querySelector('iframe') as HTMLIFrameElement;
     expect(frame.src).toContain('enablejsapi=1');
   });
@@ -374,7 +461,8 @@ describe('DeckSheet media box', () => {
     openSheet();
     // Passive video: bar counting.
     expect(container.querySelector('[class*="holdBar"]')).not.toBeNull();
-    // The user taps the native player -> playing state arrives.
+    // The user asks for the video, and the player reports playing.
+    fireEvent.click(screen.getByRole('button', { name: `Play the ${withStills.title} PV` }));
     act(() => {
       window.dispatchEvent(
         new MessageEvent('message', {

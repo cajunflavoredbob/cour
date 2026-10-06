@@ -17,6 +17,8 @@ interface VerdictRowProps {
    * re-review passes halo the matching button so the original choice
    * is visible at the moment of re-deciding. */
   currentVerdict?: VerdictValue;
+  /** The U key is held on desktop: Unsure shows the same countdown. */
+  keyHolding?: boolean;
 }
 
 // Hold duration for skip-all (design section 04 skip-states card).
@@ -30,7 +32,13 @@ const SKIP_ALL_HOLD_MS = 1500;
  * verdictSuccess); there is no undo here -- corrections happen on the
  * review screen.
  */
-export const VerdictRow = ({ titleId, remaining, allowSkipAll = true, currentVerdict }: VerdictRowProps) => {
+export const VerdictRow = ({
+  titleId,
+  remaining,
+  allowSkipAll = true,
+  currentVerdict,
+  keyHolding = false,
+}: VerdictRowProps) => {
   const dispatch = useDispatch();
   // Verdicts are disabled while offline, since one sent before the
   // reconnect rejoins the room is lost; the row is dimmed then.
@@ -58,8 +66,10 @@ export const VerdictRow = ({ titleId, remaining, allowSkipAll = true, currentVer
     prevTitleId.current = titleId;
   }, [titleId]);
 
-  // One disabled flag for all three buttons: offline (audit 17 M7) or
-  // the brief post-advance settle (audit v1.2.0 #16).
+  // One flag for all three buttons: offline, or the brief post-advance
+  // settle. Offline disables them; the settle only refuses presses
+  // (aria-disabled), so a button pressed from the keyboard keeps its focus
+  // as the next card arrives.
   const inputsDisabled = offline || settling;
 
   // True from a pointerdown that started on the Unsure button until its
@@ -89,8 +99,10 @@ export const VerdictRow = ({ titleId, remaining, allowSkipAll = true, currentVer
   // the finger) must not skip the rest of the season after the fact.
   useEffect(() => () => clearTimeout(holdTimer.current), []);
 
-  const verdict = (v: "like" | "dislike" | "skip") =>
+  const verdict = (v: "like" | "dislike" | "skip") => {
+    if (inputsDisabled) return;
     dispatch({ type: "verdict", payload: { titleId, verdict: v } });
+  };
 
   const startHold = (e: React.PointerEvent<HTMLButtonElement>) => {
     // A right or middle press, or a Mac ctrl+click, opens a menu or
@@ -159,7 +171,8 @@ export const VerdictRow = ({ titleId, remaining, allowSkipAll = true, currentVer
           if (e.key === "Enter" && e.repeat) e.preventDefault();
         }}
         onClick={() => verdict("dislike")}
-        disabled={inputsDisabled}
+        disabled={offline}
+        aria-disabled={settling || undefined}
         data-test-handle="verdict-dislike"
       >
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
@@ -173,8 +186,8 @@ export const VerdictRow = ({ titleId, remaining, allowSkipAll = true, currentVer
         className={styles.skipBtn}
         data-current={currentVerdict === "skip"}
         aria-label={currentVerdict === "skip" ? "Unsure (your current pick)" : undefined}
-        data-holding={holding}
-        data-pressed={pressed}
+        data-holding={holding || keyHolding}
+        data-pressed={pressed || keyHolding}
         onPointerDown={startHold}
         onPointerUp={endHold}
         onPointerLeave={cancelHold}
@@ -190,12 +203,13 @@ export const VerdictRow = ({ titleId, remaining, allowSkipAll = true, currentVer
             verdict("skip");
           }
         }}
-        disabled={inputsDisabled}
+        disabled={offline}
+        aria-disabled={settling || undefined}
         data-test-handle="verdict-skip"
       >
         <span className={styles.skipFill} aria-hidden="true" />
         <span className={styles.skipLabel}>
-          {holding ? `all ${remaining} unsure\u2026` : "unsure"}
+          {holding || keyHolding ? `all ${remaining} unsure\u2026` : "unsure"}
         </span>
       </button>
 
@@ -208,7 +222,8 @@ export const VerdictRow = ({ titleId, remaining, allowSkipAll = true, currentVer
           if (e.key === "Enter" && e.repeat) e.preventDefault();
         }}
         onClick={() => verdict("like")}
-        disabled={inputsDisabled}
+        disabled={offline}
+        aria-disabled={settling || undefined}
         data-test-handle="verdict-like"
       >
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">

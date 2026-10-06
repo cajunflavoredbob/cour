@@ -7,6 +7,7 @@ import { Loading } from "./Loading";
 import { DeckDetails } from "../organisms/DeckDetails";
 import { DeckSheet } from "../organisms/DeckSheet";
 import { VerdictRow } from "../molecules/VerdictRow";
+import { useBackStep } from "../../hooks/useBackStep";
 import { DESKTOP_QUERY, useMediaQuery } from "../../hooks/useMediaQuery";
 import { useStore } from "../../store";
 import { roomOffline } from "../../store/offline";
@@ -19,6 +20,9 @@ import styles from "./Deck.module.css";
 // Keyboard verdicts (desktop only): a deliberate keypress is a button
 // in spirit -- the guide's "buttons, not gestures, decide" is about
 // commitment being explicit, not about the input device.
+// As long as the Unsure button's hold (VerdictRow).
+const SKIP_ALL_HOLD_MS = 1500;
+
 const KEY_VERDICTS: Record<string, VerdictValue> = {
   k: "like",
   p: "dislike",
@@ -47,6 +51,11 @@ export const DeckScreen = () => {
     "ledgerStalled",
   ]);
   const isDesktop = useMediaQuery(DESKTOP_QUERY);
+  // Back from the deck lands where the chip goes: the review (ending a
+  // scoped pass), or home.
+  useBackStep(true, () =>
+    dispatch(deckScope ? { type: "exitDeckScope" } : { type: "navigate", payload: { route: "home" } }),
+  );
 
   const verdictedIds = useMemo(
     () => new Set((review?.verdicts ?? []).map((v) => v.titleId)),
@@ -130,11 +139,27 @@ export const DeckScreen = () => {
   // shortcuts win).
   const currentId = current?.anilistId;
   const connected = !roomOffline({ connectionStatus, rejoining });
+  // Holding U for 1.5s marks the rest of the season unsure, as holding the
+  // Unsure button does; a shorter press is one unsure.
+  const skipAllByKey = !deckScope && (review ? review.total - verdictedIds.size : 0) >= 2;
+  const [keyHolding, setKeyHolding] = useState(false);
   useEffect(() => {
     // `connected`: keyboard verdicts disable while disconnected, same as
     // the button row -- a parked verdict fires before the auto-rejoin
     // completes and is lost to "Set your name first." (audit 17 M7).
     if (!isDesktop || currentId == null || !connected) return;
+    let hold: ReturnType<typeof setTimeout> | undefined;
+    let holdFired = false;
+    const endHold = () => {
+      clearTimeout(hold);
+      hold = undefined;
+      setKeyHolding(false);
+    };
+    const onKeyUp = (e: KeyboardEvent) => {
+      if (e.key.toLowerCase() !== "u" || hold === undefined) return;
+      endHold();
+      if (!holdFired) dispatch({ type: "verdict", payload: { titleId: currentId, verdict: "skip" } });
+    };
     const onKey = (e: KeyboardEvent) => {
       // OS key-repeat: a held key fires one keydown per repeat tick, and
       // each success advances the card -- a two-second hold would verdict
@@ -150,11 +175,30 @@ export const DeckScreen = () => {
       const verdict = KEY_VERDICTS[e.key.toLowerCase()];
       if (!verdict) return;
       e.preventDefault();
+      if (verdict === "skip" && skipAllByKey) {
+        if (hold !== undefined) return;
+        holdFired = false;
+        setKeyHolding(true);
+        hold = setTimeout(() => {
+          holdFired = true;
+          setKeyHolding(false);
+          dispatch({ type: "skipRemaining" });
+        }, SKIP_ALL_HOLD_MS);
+        return;
+      }
       dispatch({ type: "verdict", payload: { titleId: currentId, verdict } });
     };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [isDesktop, currentId, connected, dispatch]);
+    window.addEventListener("keyup", onKeyUp);
+    // A hold the page loses (another window, a dialog) does nothing.
+    window.addEventListener("blur", endHold);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("keyup", onKeyUp);
+      window.removeEventListener("blur", endHold);
+      endHold();
+    };
+  }, [isDesktop, currentId, connected, skipAllByKey, dispatch]);
 
   // Hook: must run before the early return below.
   const { season } = useSeason();
@@ -293,10 +337,18 @@ export const DeckScreen = () => {
     </button>
   );
 
+  // The title on screen, said as the deck advances to it.
+  const advanceNote = (
+    <p className={styles.srOnly} role="status">
+      {`Now: ${current.title}`}
+    </p>
+  );
+
   // ── Desktop: two-pane stage (docs/DESKTOP.md) ──
   if (isDesktop) {
     return (
       <div className={styles.deskScreen}>
+        {advanceNote}
         <AppHeader leading={progressControl} roomLabel={room.displayName ?? room.name} />
 
         <div className={styles.stage}>
@@ -334,6 +386,7 @@ export const DeckScreen = () => {
                 remaining={total - done}
                 allowSkipAll={!deckScope}
                 currentVerdict={currentVerdict}
+                keyHolding={keyHolding}
               />
               <p className={styles.kbdHint} aria-hidden="true">
                 <span><kbd>P</kbd> pass</span>
@@ -350,6 +403,7 @@ export const DeckScreen = () => {
   // ── Mobile: full-bleed poster + bottom sheet (design section 03) ──
   return (
     <div className={styles.screen}>
+      {advanceNote}
       {poster && (
         <img
           key={current.id}

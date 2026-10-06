@@ -7,6 +7,7 @@ import { PillTabs, tabPanelProps } from "../molecules/PillTabs";
 import { DeckDetails } from "../organisms/DeckDetails";
 import { SharePreview } from "../organisms/SharePreview";
 import { Loading } from "./Loading";
+import { useBackStep } from "../../hooks/useBackStep";
 import { useDragReorder } from "../../hooks/useDragReorder";
 import { useStandingsCardImage } from "../../hooks/useStandingsCardImage";
 import { DESKTOP_QUERY, useMediaQuery } from "../../hooks/useMediaQuery";
@@ -14,7 +15,7 @@ import { usePageVisible } from "../../hooks/usePageVisible";
 import { useStore } from "../../store";
 import { roomOffline } from "../../store/offline";
 import { draftOf, keepDraft, keepPlace, placeKey, placeOf } from "../../utils/drafts";
-import { focusLost, overlayOpen } from "../../utils/overlay";
+import { focusLost, overlayOpen, swallowSecondClick } from "../../utils/overlay";
 import { posterSrc } from "../../utils/poster";
 import { getRerankTold, setRerankTold } from "../../utils/prefs";
 import { reconcileOrder } from "../../utils/rankOrder";
@@ -185,6 +186,12 @@ export const RankScreen = ({ fromLock = false, onFocusTaken }: RankScreenProps =
   const canRerank = rerankOpen(results);
   // The re-rank editor holds through its own ceremony, as the ranking's does.
   const editingRefine = round != null && ((refining && canRerank) || refineSubmitting);
+  // Back closes the re-rank editor, as its STANDINGS chip does; not while
+  // its order is being sent, when the step stays.
+  useBackStep(editingRefine, () => {
+    if (refineSubmitting) return false;
+    setRefining(false);
+  });
   // Where the standings stood, for a trip away from the screen.
   useEffect(() => {
     keepPlace(draftKey, { view: standingsView, showAll, refining: editingRefine });
@@ -326,6 +333,8 @@ export const RankScreen = ({ fromLock = false, onFocusTaken }: RankScreenProps =
   useEffect(() => {
     if (!(returning.current || fromLock) || !results) return;
     returning.current = false;
+    // Arriving back, the standings start at the top of the page.
+    window.scrollTo(0, 0);
     if (fromLock) onFocusTaken?.();
     if (!focusLost() || overlayOpen() || editingRefine) return;
     if (rankingDone) setHeadFocus({ scroll: true });
@@ -399,7 +408,9 @@ export const RankScreen = ({ fromLock = false, onFocusTaken }: RankScreenProps =
   };
 
   // The draft carries over from an earlier visit.
-  const openRefine = () => {
+  const openRefine = (e: React.MouseEvent) => {
+    if (e.detail > 1) return;
+    swallowSecondClick();
     showView("shared");
     setRefining(true);
   };
@@ -631,7 +642,9 @@ export const RankScreen = ({ fromLock = false, onFocusTaken }: RankScreenProps =
         <button
           type="button"
           className={styles.shareLink}
-          onClick={() => {
+          onClick={(e) => {
+            if (e.detail > 1) return;
+            swallowSecondClick();
             cardImage.refresh();
             setShareOpen(true);
           }}
@@ -753,7 +766,19 @@ export const RankScreen = ({ fromLock = false, onFocusTaken }: RankScreenProps =
       <p className={styles.topPicksLabel}>EVERYONE&apos;S #1</p>
       <div className={styles.topPicksRow}>
         {topPicks.map((pick) => (
-          <div key={pick.titleId} className={styles.pickCard} data-test-handle="top-pick">
+          // A poster opens the show's details, as a standings row does.
+          <button
+            key={pick.titleId}
+            type="button"
+            className={styles.pickCard}
+            onClick={(e) => {
+              // The second click of a double-click (a dialog's Close above)
+              // opens nothing.
+              if (e.detail > 1) return;
+              setDetailTitleId(pick.titleId);
+            }}
+            data-test-handle="top-pick"
+          >
             <span className={styles.pickPoster}>
               {posterOf(pick.titleId) && (
                 <img className={styles.pickPosterImg} src={posterOf(pick.titleId)} alt="" />
@@ -762,7 +787,7 @@ export const RankScreen = ({ fromLock = false, onFocusTaken }: RankScreenProps =
             {/* The no-break space keeps each + with the name after it. */}
             <span className={styles.pickName}>{pick.names.join(" +\u00a0")}</span>
             <span className={styles.pickTitle}>{titleOf(pick.titleId)}</span>
-          </div>
+          </button>
         ))}
       </div>
     </div>

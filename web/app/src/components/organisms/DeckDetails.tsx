@@ -64,6 +64,16 @@ export const DeckDetails = ({ media }: DeckDetailsProps) => {
   // ...). The tile stays in rotation but renders the watch-on-YouTube
   // card instead of the embed.
   const [pvError, setPvError] = useState(false);
+  // Outside the autoplay round the PV shows as a facade (the cover and a
+  // play button) and the player loads only when it is asked to play. Both
+  // are kept per card, so the next card never inherits a started player.
+  const [pvStartedFor, setPvStartedFor] = useState<string | null>(null);
+  const pvStarted = pvStartedFor === media.id;
+  // Asked to play and not playing yet: the rotation waits for it.
+  const [pvWaitingFor, setPvWaitingFor] = useState<string | null>(null);
+  const pvWaiting = pvWaitingFor === media.id;
+  // A facade pressed from the keyboard hands its focus to the player.
+  const focusPlayer = useRef(false);
   const sawPlaying = useRef(false);
   // The autoplay setting buys ONE automatic play per card. After that
   // -- or with the setting off -- the video tile is a passive rotation
@@ -104,6 +114,8 @@ export const DeckDetails = ({ media }: DeckDetailsProps) => {
     setImageHold(0);
     setPvPlaying(false);
     setPvError(false);
+    setPvStartedFor(null);
+    setPvWaitingFor(null);
   }, [media.id]);
 
   const pvFrameRef = useRef<HTMLIFrameElement>(null);
@@ -145,7 +157,9 @@ export const DeckDetails = ({ media }: DeckDetailsProps) => {
   // Parked: the rotation waits on the video -- during its one autoplay
   // round, or whenever the user set it playing. An errored video is
   // never parked: its watch-on-YouTube card rides the normal 7s hold.
-  const pvParked = pvActive && !pvError && (pvAuto || pvPlaying);
+  // A play asked for from the facade parks it too, until the video plays;
+  // a pause after that hands the tile back.
+  const pvParked = pvActive && !pvError && (pvAuto || pvPlaying || pvWaiting);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: active + imageHold key the per-tile hold; tiles.length is stable per card.
   useEffect(() => {
@@ -156,10 +170,20 @@ export const DeckDetails = ({ media }: DeckDetailsProps) => {
     return () => clearTimeout(timer);
   }, [pvParked, active, imageHold, tiles.length]);
 
-  // Leaving the video tile always clears its playing latch.
+  // Leaving the video tile always clears its playing latch, and brings the
+  // facade back for the next visit.
   useEffect(() => {
-    if (!pvActive) setPvPlaying(false);
+    if (pvActive) return;
+    setPvPlaying(false);
+    setPvStartedFor(null);
+    setPvWaitingFor(null);
   }, [pvActive]);
+
+  useEffect(() => {
+    if (!pvStarted || !focusPlayer.current) return;
+    focusPlayer.current = false;
+    pvFrameRef.current?.focus();
+  }, [pvStarted]);
 
   // The strip follows the cycler: the active thumb scrolls into view.
   const stripRef = useRef<HTMLDivElement>(null);
@@ -187,6 +211,7 @@ export const DeckDetails = ({ media }: DeckDetailsProps) => {
   // the IFrame-API postMessage handshake by hand (no YouTube script).
   // After the `listening` handshake the player streams state events;
   // state 0 is ENDED -> un-pin and advance, which restarts the cycle.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: pvStarted mounts the player under a live tile; the effect must see it.
   useEffect(() => {
     if (!pvActive) return;
     const frame = pvFrameRef.current;
@@ -229,6 +254,7 @@ export const DeckDetails = ({ media }: DeckDetailsProps) => {
       if (state === 1 || state === 3) {
         sawPlaying.current = true;
         setPvPlaying(true);
+        setPvWaitingFor(null);
       } else if (state === 2) {
         setPvPlaying(false);
       }
@@ -269,7 +295,7 @@ export const DeckDetails = ({ media }: DeckDetailsProps) => {
       clearInterval(handshake);
       clearTimeout(stopHandshake);
     };
-  }, [pvActive, tiles.length]);
+  }, [pvActive, pvStarted, tiles.length]);
 
   return (
     <div className={styles.details}>
@@ -291,6 +317,33 @@ export const DeckDetails = ({ media }: DeckDetailsProps) => {
               watch directly on YouTube
             </a>
           </div>
+        ) : activeTile?.kind === "pv" && media.trailer && !pvAuto && !pvStarted ? (
+          <>
+            <button
+              type="button"
+              className={styles.pvFacade}
+              onClick={(e) => {
+                // The second click of a double-click elsewhere lands here.
+                if (e.detail > 1) return;
+                // A keyboard press (no click count) hands focus to the player.
+                focusPlayer.current = e.detail === 0;
+                setPvStartedFor(media.id);
+                setPvWaitingFor(media.id);
+              }}
+              aria-label={`Play the ${media.title} PV`}
+              data-test-handle="pv-play"
+            >
+              {(media.screenshotUrls?.[0] ?? poster) && (
+                <img className={styles.pvFacadeImg} src={media.screenshotUrls?.[0] ?? (poster as string)} alt="" />
+              )}
+              <span className={styles.pvPlay} aria-hidden="true">
+                <svg width="22" height="22" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                  <path d="M3.5 2.5v7l6-3.5-6-3.5Z" fill="currentColor" />
+                </svg>
+              </span>
+            </button>
+            <span className={styles.pvChip}>PV</span>
+          </>
         ) : activeTile?.kind === "pv" && media.trailer ? (
           <>
             <iframe
@@ -299,7 +352,8 @@ export const DeckDetails = ({ media }: DeckDetailsProps) => {
               // Privacy-enhanced host; muted by default per the design.
               // soundPref ON starts unmuted -- the autoplay-with-sound
               // preference.
-              src={`https://www.youtube-nocookie.com/embed/${encodeURIComponent(media.trailer.id)}?autoplay=${pvAuto ? 1 : 0}&mute=${pvAuto ? embedMute : 0}&playsinline=1&rel=0&enablejsapi=1&origin=${encodeURIComponent(window.location.origin)}`}
+              // Asked to play from the facade: it starts at once, with sound.
+              src={`https://www.youtube-nocookie.com/embed/${encodeURIComponent(media.trailer.id)}?autoplay=1&mute=${pvAuto ? embedMute : 0}&playsinline=1&rel=0&enablejsapi=1&origin=${encodeURIComponent(window.location.origin)}`}
               title={`${media.title} PV`}
               allow="autoplay; encrypted-media; picture-in-picture"
               allowFullScreen

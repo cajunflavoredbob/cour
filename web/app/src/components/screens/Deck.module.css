@@ -113,6 +113,10 @@
   color: rgba(255, 255, 255, 0.5);
 }
 
+.srOnly {
+  composes: srOnly from "../shared.module.css";
+}
+
 
 .infoBlock {
   position: absolute;
@@ -249,6 +253,15 @@
   font-size: 11px;
   color: white;
   cursor: pointer;
+}
+
+/* On the narrowest phones the chip slims so the centered wordmark keeps
+   its room beside it, even with a three-digit count. */
+@media (max-width: 359px) {
+  .backChip {
+    padding-inline: 8px;
+    gap: 4px;
+  }
 }
 
 /* ══════════════════════════════════════════════════════════════════

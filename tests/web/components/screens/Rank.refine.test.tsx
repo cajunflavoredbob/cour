@@ -212,6 +212,15 @@ describe('RankScreen re-rank round', () => {
     expect(screen.getByText('THE 2 SHOWS EVERYONE KEPT')).toBeDefined();
   });
 
+  it("opens a show's details from everyone's #1", () => {
+    render(<RankScreen />);
+    expect(screen.queryByTestId('deck-details')).toBeNull();
+    const picks = document.querySelectorAll('[data-test-handle="top-pick"]');
+    fireEvent.click(picks[1] as HTMLElement);
+    expect(screen.getByRole('dialog').getAttribute('aria-label')).toBe('Third Show');
+    expect(screen.getByTestId('deck-details')).toBeDefined();
+  });
+
   it('puts members with the same #1 under one poster', () => {
     withState({
       results: results({
@@ -266,6 +275,32 @@ describe('RankScreen re-rank round', () => {
     expect(screen.getAllByRole('tab')[1].getAttribute('aria-selected')).toBe('true');
     fireEvent.click(handle('open-refine') as HTMLElement);
     expect(editorTitles()).toEqual(['Third Show', 'Iron Bloom']);
+  });
+
+  it('closes the re-rank editor on Back', () => {
+    render(<RankScreen />);
+    openEditor();
+    expect(screen.getByText('re-rank these 2.')).toBeDefined();
+    act(() => {
+      window.dispatchEvent(new PopStateEvent('popstate', { state: null }));
+    });
+    expect(screen.queryByText('re-rank these 2.')).toBeNull();
+  });
+
+  it('keeps the re-rank editor on Back while its order is being sent', () => {
+    const view = render(<RankScreen />);
+    openEditor();
+    withState({ finalizing: { kind: 'refine', startedAt: Date.now() } });
+    view.rerender(<RankScreen />);
+    act(() => {
+      window.dispatchEvent(new PopStateEvent('popstate', { state: null }));
+    });
+    expect(screen.getByText('re-rank these 2.')).toBeDefined();
+    // The send fails and the ceremony ends: the editor is still open, as
+    // it was before Back.
+    withState({});
+    view.rerender(<RankScreen />);
+    expect(screen.getByText('re-rank these 2.')).toBeDefined();
   });
 
   it('scores only the slots the shows can fill', () => {
@@ -435,6 +470,16 @@ describe('RankScreen re-rank round', () => {
     render(<RankScreen />);
     expect(screen.getAllByRole('tab')[1].getAttribute('aria-selected')).toBe('true');
     expect(handle('standings-reveal')?.textContent).toBe('SHOW TOP 5');
+  });
+
+  it('starts at the top of the page on coming back, not on first arrival', () => {
+    const scrollTo = vi.spyOn(window, 'scrollTo').mockImplementation(() => {});
+    const first = render(<RankScreen />);
+    expect(scrollTo).not.toHaveBeenCalled();
+    first.unmount();
+    render(<RankScreen />);
+    expect(scrollTo).toHaveBeenCalledWith(0, 0);
+    scrollTo.mockRestore();
   });
 
   it('keeps each view its own reveal', () => {

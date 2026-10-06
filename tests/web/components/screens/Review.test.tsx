@@ -81,7 +81,7 @@ describe('ReviewScreen (design section 07)', () => {
     // The room is named once, in the header.
     expect(screen.getByText('Couch-Club')).toBeDefined();
     expect(screen.getByText(/^2 \/ 3 VERDICTS/)).toBeDefined();
-    expect(screen.getByRole('progressbar').getAttribute('aria-valuenow')).toBe('2');
+    expect(screen.getByRole('progressbar', { name: 'Verdicts' }).getAttribute('aria-valuenow')).toBe('2');
   });
 
   it('resume banner names the next unverdicted title and routes to the deck', () => {
@@ -128,6 +128,69 @@ describe('ReviewScreen (design section 07)', () => {
     expect(screen.getByText('Second Show')).toBeDefined();
     expect(screen.queryByText('Iron Bloom')).toBeNull();
     expect(screen.getByText('Unsure 1').getAttribute('aria-selected')).toBe('true');
+  });
+
+  it('keeps a cycled row in its pile until the pile changes', () => {
+    const view = render(<ReviewScreen />);
+    fireEvent.click(screen.getByText('KEPT'));
+    // The verdict lands: Iron Bloom is passed now, and stays on the Kept pile.
+    withState({
+      review: reviewState({
+        verdicts: [
+          { titleId: 101, verdict: 'dislike', updatedAt: 3 },
+          { titleId: 102, verdict: 'skip', updatedAt: 2 },
+        ],
+      }),
+    });
+    view.rerender(<ReviewScreen />);
+    expect(screen.getByText('Iron Bloom')).toBeDefined();
+    expect(screen.getByText('PASSED')).toBeDefined();
+    expect(screen.getByText('Kept 0')).toBeDefined();
+    // Nothing kept is left to review on the deck.
+    expect(document.querySelector('[data-test-handle="review-pile"]')).toBeNull();
+    // Another pile, then back: the row has moved on.
+    withState({
+      review: reviewState({
+        verdicts: [
+          { titleId: 101, verdict: 'dislike', updatedAt: 3 },
+          { titleId: 102, verdict: 'skip', updatedAt: 2 },
+        ],
+      }),
+      reviewView: { pile: 'dislike', showAll: false },
+    });
+    view.rerender(<ReviewScreen />);
+    withState({
+      review: reviewState({
+        verdicts: [
+          { titleId: 101, verdict: 'dislike', updatedAt: 3 },
+          { titleId: 102, verdict: 'skip', updatedAt: 2 },
+        ],
+      }),
+      reviewView: { pile: 'like', showAll: false },
+    });
+    view.rerender(<ReviewScreen />);
+    expect(screen.queryByText('Iron Bloom')).toBeNull();
+  });
+
+  it('keeps the pile in the order it opened with through a refetch', () => {
+    const kept = [101, 102, 103].map((titleId, i) => ({ titleId, verdict: 'like' as const, updatedAt: i + 1 }));
+    withState({ review: reviewState({ verdicts: kept }) });
+    const view = render(<ReviewScreen />);
+    const titles = () => [...document.querySelectorAll('[class*="rowTitle"]')].map((el) => el.textContent);
+    expect(titles()).toEqual(['Iron Bloom', 'Second Show', 'Third Show']);
+    fireEvent.click(screen.getAllByText('KEPT')[0]);
+    // The refetch answers in the server's order: the changed row last.
+    withState({
+      review: reviewState({
+        verdicts: [
+          { titleId: 102, verdict: 'like', updatedAt: 2 },
+          { titleId: 103, verdict: 'like', updatedAt: 3 },
+          { titleId: 101, verdict: 'dislike', updatedAt: 4 },
+        ],
+      }),
+    });
+    view.rerender(<ReviewScreen />);
+    expect(titles()).toEqual(['Iron Bloom', 'Second Show', 'Third Show']);
   });
 
   it('tapping a verdict pill cycles the verdict via the normal UPSERT', () => {
@@ -258,6 +321,31 @@ describe('ReviewScreen (design section 07)', () => {
     const lock = document.querySelector('[data-test-handle="lock-in"]') as HTMLButtonElement;
     expect(lock.disabled).toBe(true);
     expect(lock.textContent).toContain('locking in');
+  });
+
+  it('keeps saying "locking in" once the lock lands, until the ceremony ends', () => {
+    withState({
+      review: { ...reviewState(), lockedAt: 12345 },
+      finalizing: { kind: 'lock', startedAt: Date.now() },
+    });
+    render(<ReviewScreen />);
+    expect(screen.queryByText('back to standings')).toBeNull();
+    const lock = document.querySelector('[data-test-handle="lock-in"]') as HTMLButtonElement;
+    expect(lock.disabled).toBe(true);
+    expect(lock.textContent).toContain('locking in');
+  });
+
+  it('gives the peek heading the focus lost on the way in', () => {
+    withState({ review: { ...reviewState(), lockedAt: 12345 } });
+    render(<ReviewScreen />);
+    expect(document.activeElement).toBe(screen.getByRole('heading', { level: 1 }));
+  });
+
+  it('closes the peek on Back', () => {
+    withState({ review: { ...reviewState(), lockedAt: 12345 } });
+    render(<ReviewScreen />);
+    window.dispatchEvent(new PopStateEvent('popstate', { state: null }));
+    expect(dispatch).toHaveBeenCalledWith({ type: 'viewLockedReview', payload: { open: false } });
   });
 
   it('the locked peek offers a way back to the standings (audit 17 UX 6)', () => {

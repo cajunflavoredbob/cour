@@ -140,17 +140,25 @@ describe('VerdictRow', () => {
     expect(verdicts).toHaveLength(1);
   });
 
-  it('briefly disables after the card advances (audit v1.2.0 #16)', () => {
+  it('briefly refuses presses after the card advances, keeping focus (audit v1.2.0 #16)', () => {
     vi.useFakeTimers();
     const { rerender } = render(<VerdictRow titleId={101} remaining={12} />);
+    const like = document.querySelector('[data-test-handle="verdict-like"]') as HTMLButtonElement;
+    like.focus();
     // The deck advanced: same coordinates, new title.
     rerender(<VerdictRow titleId={102} remaining={11} />);
-    const like = document.querySelector('[data-test-handle="verdict-like"]') as HTMLButtonElement;
-    expect(like.disabled).toBe(true);
+    expect(like.getAttribute('aria-disabled')).toBe('true');
+    // Still a live element: the keyboard's focus stays on it.
+    expect(like.disabled).toBe(false);
+    expect(document.activeElement).toBe(like);
+    fireEvent.click(like);
+    expect(dispatch).not.toHaveBeenCalled();
     act(() => {
       vi.advanceTimersByTime(350);
     });
-    expect(like.disabled).toBe(false);
+    expect(like.getAttribute('aria-disabled')).toBeNull();
+    fireEvent.click(like);
+    expect(dispatch).toHaveBeenCalledWith({ type: 'verdict', payload: { titleId: 102, verdict: 'like' } });
   });
 
   it('dragging the pointer away cancels the hold with no dispatch', () => {
@@ -161,6 +169,13 @@ describe('VerdictRow', () => {
     fireEvent.pointerLeave(skip);
     vi.advanceTimersByTime(3000);
     expect(dispatch).not.toHaveBeenCalled();
+  });
+
+  it("shows the deck's U-key hold as its own countdown", () => {
+    render(<VerdictRow titleId={101} remaining={12} keyHolding />);
+    const button = document.querySelector('[data-test-handle="verdict-skip"]') as HTMLElement;
+    expect(button.getAttribute('data-holding')).toBe('true');
+    expect(screen.getByText(/all 12 unsure/)).toBeDefined();
   });
 
   it('drops a running hold when the row unmounts', () => {

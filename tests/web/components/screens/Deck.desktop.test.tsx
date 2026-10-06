@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 
 const { useStoreMock } = vi.hoisted(() => ({ useStoreMock: vi.fn() }));
 let dispatch: ReturnType<typeof vi.fn>;
@@ -26,8 +26,13 @@ vi.mock('../../../../web/app/src/components/organisms/DeckSheet', () => ({
   DeckSheet: () => <div data-testid="deck-sheet" />,
 }));
 vi.mock('../../../../web/app/src/components/molecules/VerdictRow', () => ({
-  VerdictRow: ({ titleId, remaining }: { titleId: number; remaining: number }) => (
-    <div data-testid="verdict-row" data-title-id={titleId} data-remaining={remaining} />
+  VerdictRow: ({ titleId, remaining, keyHolding }: { titleId: number; remaining: number; keyHolding?: boolean }) => (
+    <div
+      data-testid="verdict-row"
+      data-title-id={titleId}
+      data-remaining={remaining}
+      data-key-holding={String(Boolean(keyHolding))}
+    />
   ),
 }));
 
@@ -114,10 +119,41 @@ describe('DeckScreen desktop stage', () => {
     render(<DeckScreen />);
     fireEvent.keyDown(window, { key: 'k' });
     expect(dispatch).toHaveBeenCalledWith({ type: 'verdict', payload: { titleId: 101, verdict: 'like' } });
+    // U acts as it is let go: a press is one unsure.
     fireEvent.keyDown(window, { key: 'u' });
+    expect(dispatch).not.toHaveBeenCalledWith({ type: 'verdict', payload: { titleId: 101, verdict: 'skip' } });
+    fireEvent.keyUp(window, { key: 'u' });
     expect(dispatch).toHaveBeenCalledWith({ type: 'verdict', payload: { titleId: 101, verdict: 'skip' } });
     fireEvent.keyDown(window, { key: 'p' });
     expect(dispatch).toHaveBeenCalledWith({ type: 'verdict', payload: { titleId: 101, verdict: 'dislike' } });
+  });
+
+  it('holding U for 1.5s marks the rest unsure, with the countdown on the button', () => {
+    vi.useFakeTimers();
+    render(<DeckScreen />);
+    fireEvent.keyDown(window, { key: 'u' });
+    expect(screen.getByTestId('verdict-row').getAttribute('data-key-holding')).toBe('true');
+    act(() => {
+      vi.advanceTimersByTime(1500);
+    });
+    expect(dispatch).toHaveBeenCalledWith({ type: 'skipRemaining' });
+    fireEvent.keyUp(window, { key: 'u' });
+    expect(dispatch).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'verdict' }));
+    expect(screen.getByTestId('verdict-row').getAttribute('data-key-holding')).toBe('false');
+    vi.useRealTimers();
+  });
+
+  it('a U hold the window loses does nothing', () => {
+    vi.useFakeTimers();
+    render(<DeckScreen />);
+    fireEvent.keyDown(window, { key: 'u' });
+    fireEvent.blur(window);
+    act(() => {
+      vi.advanceTimersByTime(3000);
+    });
+    fireEvent.keyUp(window, { key: 'u' });
+    expect(dispatch).not.toHaveBeenCalled();
+    vi.useRealTimers();
   });
 
   it('ignores verdict keys while an input is focused', () => {

@@ -145,6 +145,7 @@
 }
 
 .moveBtn {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -162,6 +163,26 @@
     border-color: var(--cour-text-3);
     color: var(--cour-text-0);
   }
+}
+
+/* Each button's target is 44px wide and reaches halfway into the gap
+   between the two, so a tap there still picks the nearer one. */
+.moveBtn::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  width: max(100%, 44px);
+  transform: translateX(-50%);
+}
+
+.moveButtons > :first-child::after {
+  top: -7px;
+  bottom: -2px;
+}
+
+.moveButtons > :last-child::after {
+  top: -2px;
+  bottom: -7px;
 }
 
 /* Frozen by the ceremony, or at the end of the list (still focusable). */
@@ -318,10 +339,12 @@
   overflow-y: auto;
   scrollbar-width: thin;
   /* Room for the focus ring, which the scroll box would clip, at rest and
-     when Tab scrolls a row into view. */
+     when Tab scrolls a row into view. The move buttons' wide targets stay
+     inside it rather than scroll it sideways. */
   padding: 4px 4px 20px;
   margin: -4px;
   scroll-padding: 4px;
+  overflow-x: hidden;
 }
 
 /* The point legend in the editor rail. */
@@ -392,8 +415,9 @@
   touch-action: none;
   user-select: none;
   -webkit-user-select: none;
-  padding: 8px;
-  margin: -8px;
+  /* A 44px grab target around the 14px glyph, without moving it. */
+  padding: 15px;
+  margin: -15px;
 }
 .grip:active {
   cursor: grabbing;
@@ -562,11 +586,25 @@
   flex-wrap: wrap;
 }
 
+/* A button that opens the show's details. */
 .pickCard {
   display: flex;
   flex-direction: column;
   gap: 6px;
   width: 96px;
+  padding: 0;
+  border: none;
+  border-radius: 16px;
+  background: transparent;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+
+@media (hover: hover) {
+  .pickCard:hover .pickTitle {
+    color: var(--cour-accent-bright);
+  }
 }
 
 .pickPoster {

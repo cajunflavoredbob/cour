@@ -108,12 +108,32 @@ describe('DeckScreen', () => {
     expect(screen.getByText('/ 3')).toBeDefined();
   });
 
+  it('says the title on screen as the deck advances', () => {
+    const view = render(<DeckScreen />);
+    expect(screen.getByRole('status').textContent).toBe('Now: Iron Bloom');
+    withState({ review: review([101]) });
+    view.rerender(<DeckScreen />);
+    expect(screen.getByRole('status').textContent).toBe('Now: Second Show');
+  });
+
   it('takes the progress chip back to the review', () => {
     withState({ review: review([101, 102]) });
     render(<DeckScreen />);
     const chip = screen.getByRole('button', { name: 'Back to your review: 2 / 3' });
     fireEvent.click(chip);
     expect(dispatch).toHaveBeenCalledWith({ type: 'navigate', payload: { route: 'home' } });
+  });
+
+  it('goes back to the review on Back, ending a scoped pass', () => {
+    const view = render(<DeckScreen />);
+    window.dispatchEvent(new PopStateEvent('popstate', { state: null }));
+    expect(dispatch).toHaveBeenCalledWith({ type: 'navigate', payload: { route: 'home' } });
+    view.unmount();
+    dispatch.mockClear();
+    withState({ review: review([101, 102]), deckScope: { titleIds: [101], position: 0 } });
+    render(<DeckScreen />);
+    window.dispatchEvent(new PopStateEvent('popstate', { state: null }));
+    expect(dispatch).toHaveBeenCalledWith({ type: 'exitDeckScope' });
   });
 
   it('names the standings as the way back once the member has locked in', () => {

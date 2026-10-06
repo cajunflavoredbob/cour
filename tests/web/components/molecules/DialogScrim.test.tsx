@@ -98,6 +98,17 @@ describe('DialogScrim', () => {
     expect(document.activeElement).toBe(screen.getByRole('alertdialog'));
   });
 
+  it('dismisses on Back', () => {
+    const onDismiss = vi.fn();
+    render(
+      <DialogScrim label="Test dialog" onDismiss={onDismiss} backdropClassName="b" dialogClassName="d">
+        <p>Body</p>
+      </DialogScrim>,
+    );
+    window.dispatchEvent(new PopStateEvent('popstate', { state: null }));
+    expect(onDismiss).toHaveBeenCalledTimes(1);
+  });
+
   it('dismisses on Escape and on a backdrop click, not on a click inside', () => {
     const onDismiss = vi.fn();
     render(

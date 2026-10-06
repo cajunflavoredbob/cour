@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { Media, VerdictValue } from "../../../../../types/reely";
 import { DeckDetails } from "./DeckDetails";
 import { VerdictRow } from "../molecules/VerdictRow";
+import { useBackStep } from "../../hooks/useBackStep";
 import { useEscape } from "../../hooks/useEscape";
 import styles from "./DeckSheet.module.css";
 
@@ -97,6 +98,8 @@ export const DeckSheet = ({ media, remaining, allowSkipAll = true, currentVerdic
   }, [open, dragging]);
 
   useEscape(() => setOpen(false), open);
+  // Back closes the open details, as Escape does.
+  useBackStep(open, () => setOpen(false), "overlay");
 
   const handleDown = (e: React.PointerEvent) => {
     const range = travelRange();

@@ -19,6 +19,11 @@
   margin-bottom: 6px;
 }
 
+/* The headline takes focus to orient a screen change; it is not a control. */
+.headline:focus {
+  outline: none;
+}
+
 .contextLine {
   font-family: var(--cour-font-mono);
   font-size: 11px;
@@ -220,6 +225,8 @@
 
 /* Tap-to-change verdict pill: LIKED carries the accent border. */
 .verdictPill {
+  composes: hitBox from "../shared.module.css";
+  position: relative;
   padding: 6px 10px;
   border-radius: 999px;
   border: 1px solid var(--cour-line-strong);

@@ -1,4 +1,5 @@
 import { type ReactNode, useEffect, useRef, useState } from "react";
+import { useBackStep } from "../../hooks/useBackStep";
 
 interface DialogScrimProps {
   /** Accessible name for the dialog. */
@@ -31,6 +32,8 @@ export const DialogScrim = ({
   children,
 }: DialogScrimProps) => {
   const dialogRef = useRef<HTMLDivElement>(null);
+  // Back closes the dialog, the same path as Escape.
+  useBackStep(true, onDismiss, "overlay");
 
   // Focus goes back where it was when the dialog closes. Read on the first
   // render, before an autoFocus inside the dialog commits.

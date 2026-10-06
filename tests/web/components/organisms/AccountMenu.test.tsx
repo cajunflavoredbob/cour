@@ -58,11 +58,35 @@ describe('AccountMenu (popover, passwordless)', () => {
   it('the autoplay toggle dispatches the flipped soundPref', () => {
     render(<AccountMenu />);
     openMenu();
-    fireEvent.click(screen.getByRole('switch'));
+    fireEvent.click(screen.getByRole('menuitemcheckbox', { name: 'Autoplay PVs with sound' }));
     expect(dispatch).toHaveBeenCalledWith({
       type: 'soundPref',
       payload: { enabled: true },
     });
+  });
+
+  it('is a menu the keys can move through, opened from an avatar that says so', () => {
+    render(<AccountMenu />);
+    const avatar = screen.getByRole('button', { name: 'Account' });
+    expect(avatar.getAttribute('aria-haspopup')).toBe('menu');
+    expect(avatar.getAttribute('aria-expanded')).toBe('false');
+    openMenu();
+    expect(avatar.getAttribute('aria-expanded')).toBe('true');
+    const items = [...screen.getByRole('menu').querySelectorAll('[role^="menuitem"]')];
+    expect(items.length).toBeGreaterThan(2);
+    // The first item takes focus as the menu opens.
+    expect(document.activeElement).toBe(items[0]);
+    const menu = screen.getByRole('menu');
+    fireEvent.keyDown(menu, { key: 'ArrowDown' });
+    expect(document.activeElement).toBe(items[1]);
+    fireEvent.keyDown(menu, { key: 'End' });
+    expect(document.activeElement).toBe(items[items.length - 1]);
+    fireEvent.keyDown(menu, { key: 'ArrowDown' });
+    expect(document.activeElement).toBe(items[0]);
+    fireEvent.keyDown(menu, { key: 'ArrowUp' });
+    expect(document.activeElement).toBe(items[items.length - 1]);
+    fireEvent.keyDown(menu, { key: 'Home' });
+    expect(document.activeElement).toBe(items[0]);
   });
 
   it('Leave room dispatches leaveRoom and closes', () => {
