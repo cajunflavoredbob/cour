@@ -257,6 +257,31 @@ describe('Client joinOrCreateRoom routing', () => {
     expect(sent(ws).some((m) => m.type === 'createRoomSuccess')).toBe(true);
   });
 
+  it('seats a name cut at the cap without a trailing space, so a rejoin by it finds the room', async () => {
+    const seated = 'a'.repeat(47);
+    mockedHasRoom.mockReturnValue(false);
+    mockedCreateRoom.mockResolvedValue(makeFakeRoom(seated));
+
+    push(ws, { type: 'joinOrCreateRoom', payload: { roomName: `${seated} bcd` } });
+    await flush();
+    expect(mockedCreateRoom).toHaveBeenCalledWith(
+      expect.objectContaining({ roomName: seated, displayName: seated }),
+      expect.anything(),
+    );
+
+    // The rejoin by the seated name asks for the same room.
+    mockedHasRoom.mockReset();
+    mockedHasRoom.mockReturnValue(true);
+    mockedGetRoom.mockReturnValue(makeFakeRoom(seated));
+    const again = makeWs();
+    const rejoiner = new Client(again, []);
+    rejoiner.userName = 'user2';
+    rejoiner.isLoggedIn = true;
+    push(again, { type: 'joinOrCreateRoom', payload: { roomName: seated } });
+    await flush();
+    expect(mockedHasRoom).toHaveBeenCalledWith(seated);
+  });
+
   it('does not install a client whose socket died mid-join (audit 17 ghost member)', async () => {
     // The socket closes while createRoom's media fetch is in flight:
     // handleClose has already run (no room set, nothing to clean), so

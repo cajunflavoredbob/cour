@@ -105,6 +105,11 @@ describe('sanitizeRoomNameDisplay', () => {
     expect(sanitizeRoomNameDisplay('a'.repeat(100))).toBe('a'.repeat(48));
   });
 
+  it('drops a space the 48-character cut leaves at the end', () => {
+    expect(sanitizeRoomNameDisplay(`${'a'.repeat(47)} bcd`)).toBe('a'.repeat(47));
+    expect(sanitizeRoomNameDisplay(`${'a'.repeat(46)}   bcd`)).toBe(`${'a'.repeat(46)} b`);
+  });
+
   it('returns empty for entirely-invalid input', () => {
     expect(sanitizeRoomNameDisplay('###???"""')).toBe('');
   });
@@ -125,6 +130,10 @@ describe('sanitizeRoomNameCanonical', () => {
   it('is idempotent', () => {
     const out = sanitizeRoomNameCanonical("Movie Night's Best!");
     expect(sanitizeRoomNameCanonical(out)).toBe(out);
+    // A name cut at the cap, so a rejoin by the seated name finds its room.
+    const cut = sanitizeRoomNameCanonical(`Movie Night ${'A'.repeat(35)} Extra`);
+    expect(cut.endsWith(' ')).toBe(false);
+    expect(sanitizeRoomNameCanonical(cut)).toBe(cut);
   });
 
   it('returns empty for entirely-invalid input', () => {

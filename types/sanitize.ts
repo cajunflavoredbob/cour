@@ -41,7 +41,9 @@ export const sanitizeRoomNameDisplay = (raw: string): string =>
     .replace(ROOM_NAME_ALLOWLIST, '')
     .replace(/\s+/g, ' ')  // collapse internal whitespace runs
     .trim()
-    .slice(0, ROOM_NAME_MAX_LEN);
+    .slice(0, ROOM_NAME_MAX_LEN)
+    // The cut can land just after a space.
+    .trimEnd();
 
 // Canonical form -- used as Map key, filename, and URL parameter value.
 // Lowercased so case-variant inputs ("Movie Night" / "MOVIE NIGHT") match
