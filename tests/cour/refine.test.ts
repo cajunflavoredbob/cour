@@ -63,15 +63,32 @@ describe('scoreOrders', () => {
     ]);
   });
 
-  it('breaks point ties by the better best position, then the lower title id', () => {
+  it('gives shows level on points, rankers and best position a shared place, then skips', () => {
     const rows = scoreOrders([
       { userName: 'user1', order: [7, 5] },
       { userName: 'user2', order: [5, 7] },
       { userName: 'user3', order: [9, 8] },
     ]);
-    // 7 and 5 both score 21 with a best of 1; 9 scores 12; 8 scores 9.
-    expect(rows.map((s) => s.titleId)).toEqual([5, 7, 9, 8]);
+    // 7 and 5 both score 21, from two rankers, with a best of 1; 9 scores 12; 8 scores 9.
+    expect(rows.map((s) => [s.titleId, s.rank])).toEqual([
+      [5, 1],
+      [7, 1],
+      [9, 3],
+      [8, 4],
+    ]);
     expect(rows[0]).toMatchObject({ points: 21, bestRank: 1, rankedBy: 2 });
+  });
+
+  it('breaks a points tie by more rankers, then the better best position', () => {
+    const rows = scoreOrders([
+      { userName: 'user1', order: [1, 2, 11, 12, 13, 3] },
+      { userName: 'user2', order: [4, 21, 22, 2, 23, 1] },
+      { userName: 'user3', order: [3] },
+    ]);
+    // 1: 12 + 0, two rankers, best 1. 2: 9 + 3, two rankers, best 2.
+    // 3: 0 + 12, two rankers, best 1, level with 1. 4: 12, one ranker.
+    const place = (id: number) => rows.find((s) => s.titleId === id)?.rank;
+    expect([place(1), place(3), place(2), place(4)]).toEqual([1, 1, 3, 4]);
   });
 
   it('names the rankers in name order, ignoring ASCII case', () => {

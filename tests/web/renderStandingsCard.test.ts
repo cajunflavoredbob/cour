@@ -10,6 +10,9 @@ const fakeContext = (canvas: HTMLCanvasElement) => {
   return {
     canvas,
     drawn: [] as string[],
+    // Where each text went, and each rectangle filled.
+    at: [] as Array<[string, number, number]>,
+    rects: [] as Array<[number, number, number, number]>,
     font: '',
     letterSpacing: '0px',
     fillStyle: '',
@@ -22,8 +25,9 @@ const fakeContext = (canvas: HTMLCanvasElement) => {
     shadowBlur: 0,
     shadowOffsetY: 0,
     measureText: (text: string) => ({ width: text.length * 10 }),
-    fillText(text: string) {
+    fillText(text: string, x: number, y: number) {
       this.drawn.push(text);
+      this.at.push([text, x, y]);
     },
     beginPath: noop,
     moveTo: noop,
@@ -35,7 +39,9 @@ const fakeContext = (canvas: HTMLCanvasElement) => {
     clip: noop,
     save: noop,
     restore: noop,
-    fillRect: noop,
+    fillRect(x: number, y: number, w: number, h: number) {
+      this.rects.push([x, y, w, h]);
+    },
     strokeRect: noop,
     drawImage: noop,
     createLinearGradient: () => ({ addColorStop: noop }),
@@ -128,6 +134,80 @@ describe('renderStandingsCard', () => {
     const standings = card().standings.map((s) => (s.rank === 2 ? { ...s, title: 'A Runner Title On Two Lines' } : s));
     await drawnText(card({ standings }));
     expect(contexts[0].canvas.height).toBe(CARD_USUAL_HEIGHT);
+  });
+
+  it('draws a shared #1 side by side, each show with its own title and points', async () => {
+    const tied = card({
+      standings: [{ ...standing(101, 1), points: 21 }, { ...standing(102, 1), points: 21 }, standing(103, 3), standing(104, 4)],
+    });
+    const drawn = await drawnText(tied);
+    expect(drawn).toContain('TIED FOR NO. 1');
+    expect(drawn).not.toContain('NO. 1');
+    expect(drawn.filter((t) => t === '21')).toHaveLength(2);
+    expect(drawn).toEqual(expect.arrayContaining(['3', '4']));
+    // Each tied show once, at the top, and not again in the strip.
+    expect(drawn.filter((t) => t === 'Show 101')).toHaveLength(1);
+    expect(drawn.filter((t) => t === 'Show 102')).toHaveLength(1);
+  });
+
+  it('names a three-way tie, and wraps a wider one to a second row', async () => {
+    const three = card({ standings: [101, 102, 103, 104, 105].map((id, i) => standing(id, i < 3 ? 1 : i + 1)) });
+    const drawn3 = await drawnText(three);
+    expect(drawn3).toContain('3-WAY TIE FOR NO. 1');
+    // The rest of the top five still gets its row.
+    expect(drawn3).toEqual(expect.arrayContaining(['Show 104', 'Show 105', '4', '5']));
+    contexts = [];
+    const four = card({ standings: [101, 102, 103, 104].map((id) => standing(id, 1)) });
+    const drawn4 = await drawnText(four);
+    expect(drawn4).toContain('4-WAY TIE FOR NO. 1');
+    expect(drawn4).toEqual(expect.arrayContaining(['Show 101', 'Show 102', 'Show 103', 'Show 104']));
+  });
+
+  it('counts every show sharing first place, more than the card holds', async () => {
+    const drawn = await drawnText(card({ standings: [101, 102, 103, 104, 105, 106].map((id) => standing(id, 1)), firstPlaceCount: 7 }));
+    expect(drawn).toContain('7-WAY TIE FOR NO. 1');
+  });
+
+  it('wraps a strip of more than four shows onto another row of the same size', async () => {
+    const six = card({ standings: [standing(101, 1), ...[102, 103, 104, 105, 106, 107].map((id) => standing(id, 2))] });
+    await drawnText(six);
+    const numerals = contexts[0].at.filter(([t]) => t === '2');
+    expect(numerals).toHaveLength(6);
+    const [first, , , , fifth, sixth] = numerals;
+    // The fifth starts the next row where the first started its own, a
+    // whole poster and its caption lower.
+    expect(fifth[1]).toBe(first[1]);
+    expect(fifth[2] - first[2]).toBeGreaterThanOrEqual(300 + 44);
+    expect(sixth[1] - fifth[1]).toBe(numerals[1][1] - first[1]);
+    // The footer clears the second row.
+    const lastPoints = Math.max(...contexts[0].at.filter(([t]) => t.endsWith(' PTS')).map(([, , y]) => y));
+    const footer = contexts[0].at.find(([t]) => t.includes('RANKINGS IN'));
+    expect(footer?.[2]).toBeGreaterThan(lastPoints);
+  });
+
+  it('notes the shows within the top five it has no room for', async () => {
+    const drawn = await drawnText(card({ hiddenCount: 1 }));
+    expect(drawn).toContain('+1 MORE IN THE TOP 5');
+    contexts = [];
+    expect(await drawnText(card())).not.toContain('+1 MORE IN THE TOP 5');
+  });
+
+  it('fills the backdrop of a shared #1 to a whole pixel', async () => {
+    const tied = card({
+      standings: [{ ...standing(101, 1), title: 'A title long enough to wrap onto lines' }, standing(102, 1), standing(103, 3)],
+    });
+    await drawnText(tied);
+    // The backdrop's fills: full width from the top, shorter than the card.
+    const height = contexts[0].canvas.height;
+    const backdrop = contexts[0].rects.filter(([x, y, w, h]) => x === 0 && y === 0 && w === 1080 && h < height);
+    expect(backdrop.length).toBeGreaterThanOrEqual(2);
+    for (const [, , , h] of backdrop) expect(Number.isInteger(h)).toBe(true);
+  });
+
+  it('numbers a shared place lower down on each show', async () => {
+    const drawn = await drawnText(card({ standings: [standing(101, 1), standing(102, 2), standing(103, 2), standing(104, 4)] }));
+    expect(drawn.filter((t) => t === '2')).toHaveLength(2);
+    expect(drawn).toContain('NO. 1');
   });
 
   it('labels the strip with the scoring positions', async () => {

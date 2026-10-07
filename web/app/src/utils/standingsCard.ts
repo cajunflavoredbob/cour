@@ -1,7 +1,7 @@
 import type { Media, RankingResults } from "../../../../types/reely";
 import { posterSrc } from "./poster";
 import type { CourSeason } from "./season";
-import { rankingsIn, standingsFinal } from "./standingsText";
+import { orderTies, rankingsIn, standingsFinal } from "./standingsText";
 
 export interface CardStanding {
   titleId: number;
@@ -26,11 +26,27 @@ export interface StandingsCardData {
   submittedCount: number;
   memberCount: number;
   standings: CardStanding[];
+  // Every show sharing first place, more than the card may hold.
+  firstPlaceCount?: number;
+  // Shows within the top five places the card has no room for.
+  hiddenCount?: number;
   topPicks: CardPick[];
 }
 
 // The card shows the scoring positions only.
 export const CARD_STANDINGS = 5;
+// Most shows a shared place can put on the card: in the top row, or in
+// the strip below it.
+export const CARD_TOP_MAX = 6;
+export const CARD_STRIP_MAX = 6;
+
+// The places within the scoring positions, shared ones whole, up to what
+// the card can hold.
+const cardRows = <T extends { rank: number }>(rows: readonly T[]): T[] => {
+  const scoring = rows.filter((s) => s.rank <= CARD_STANDINGS);
+  const top = scoring.filter((s) => s.rank === 1);
+  return [...top.slice(0, CARD_TOP_MAX), ...scoring.filter((s) => s.rank !== 1).slice(0, CARD_STRIP_MAX)];
+};
 
 export const buildStandingsCard = (input: {
   results: RankingResults;
@@ -41,13 +57,15 @@ export const buildStandingsCard = (input: {
 }): StandingsCardData => {
   const { results, mediaById } = input;
   const titleOf = (id: number) => mediaById.get(id)?.title ?? `#${id}`;
+  const ordered = orderTies(results.standings, titleOf);
+  const rows = cardRows(ordered);
   return {
     season: input.season,
     year: input.year,
     roomName: input.roomName,
     submittedCount: results.submittedCount,
     memberCount: results.memberCount,
-    standings: results.standings.slice(0, CARD_STANDINGS).map((s) => ({
+    standings: rows.map((s) => ({
       titleId: s.titleId,
       rank: s.rank,
       title: titleOf(s.titleId),
@@ -56,6 +74,8 @@ export const buildStandingsCard = (input: {
       rankedByNames: s.rankedByNames ?? [],
       poster: posterSrc(mediaById.get(s.titleId)?.posterUrl),
     })),
+    firstPlaceCount: ordered.filter((s) => s.rank === 1).length,
+    hiddenCount: ordered.filter((s) => s.rank <= CARD_STANDINGS).length - rows.length,
     topPicks: (results.topPicks ?? []).map((p) => ({
       titleId: p.titleId,
       userName: p.userName,
@@ -88,13 +108,16 @@ export const cardAltText = (d: StandingsCardData): string => {
     const ranked = s.rankedByNames.length > 0 ? `, ranked by ${listOf(s.rankedByNames)}` : "";
     const picks = d.topPicks.filter((p) => p.titleId === s.titleId).map((p) => `${p.userName}'s number 1`);
     const points = `${s.points} ${s.points === 1 ? "point" : "points"}`;
-    return `${s.rank}, ${s.title}, ${points}${ranked}${picks.length > 0 ? `, ${listOf(picks)}` : ""}.`;
+    const place = d.standings.some((o) => o !== s && o.rank === s.rank) ? `tied for ${s.rank}` : `${s.rank}`;
+    return `${place}, ${s.title}, ${points}${ranked}${picks.length > 0 ? `, ${listOf(picks)}` : ""}.`;
   });
+  const hidden = d.hiddenCount ?? 0;
+  const unshown = hidden > 0 ? [`${hidden} more ${hidden === 1 ? "show" : "shows"} in the top five.`] : [];
   const offCard = offCardPicks(d).map((p) => `${p.userName}'s number 1 is ${p.title}.`);
   const status = `${rankingsIn(d.submittedCount, d.memberCount).toLowerCase()}, ${
     standingsFinal(d.submittedCount, d.memberCount) ? "final" : "so far"
   }.`;
-  return [`Standings card for ${d.roomName}, ${d.season.toLowerCase()} ${d.year}.`, ...rows, ...offCard, status].join(" ");
+  return [`Standings card for ${d.roomName}, ${d.season.toLowerCase()} ${d.year}.`, ...rows, ...unshown, ...offCard, status].join(" ");
 };
 
 export const cardFilename = (d: StandingsCardData): string => {

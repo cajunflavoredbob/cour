@@ -141,29 +141,54 @@ describe('rankings (the couple-profile scoring, 0.13.0)', () => {
     lockAndSubmit(user1, [101, 102, 103, 104, 105, 106]);
     lockAndSubmit(user4, [102, 101]);
     const standings = store.rankings.standings(roomId);
-    // 101: 12 (user1 #1) + 9 (user2 #2) = 21; 102: 9 + 12 = 21 -- tie on
-    // points, broken by best single rank (both have a #1... user2 gave
-    // 102 a #1 and user1 gave 101 a #1: bestRank ties at 1, so titleId).
+    // 101: 12 (user1 #1) + 9 (user4 #2) = 21; 102: 9 + 12 = 21. Level on
+    // points, rankers and best rank, so they share first place.
     expect(standings[0]).toMatchObject({ titleId: 101, points: 21, rank: 1 });
-    expect(standings[1]).toMatchObject({ titleId: 102, points: 21, rank: 2 });
+    expect(standings[1]).toMatchObject({ titleId: 102, points: 21, rank: 1 });
+    expect(standings[2]).toMatchObject({ titleId: 103, points: 6, rank: 3 });
     // User1's #6 scored zero but still appears, ranked by the others.
     const deep = standings.find((row) => row.titleId === 106);
     expect(deep?.points).toBe(0);
   });
 
-  it('breaks point ties by the better single best rank', () => {
+  it('breaks a points tie by more rankers first', () => {
+    const user4 = store.users.create('user4').id;
+    lockAndSubmit(user1, [401, 501, 502, 503, 504, 402]);
+    lockAndSubmit(user4, [402]);
+    // 401: user1's #1, 12. 402: user1's #6 (0) + user4's #1 (12) = 12, from two rankers.
+    const standings = store.rankings.standings(roomId);
+    const s401 = standings.find((row) => row.titleId === 401);
+    const s402 = standings.find((row) => row.titleId === 402);
+    expect([s401?.points, s402?.points]).toEqual([12, 12]);
+    expect([s402?.rank, s401?.rank]).toEqual([1, 2]);
+  });
+
+  it('then by the better single best rank', () => {
+    const user4 = store.users.create('user4').id;
+    lockAndSubmit(user1, [601, 602, 701, 702, 703]);
+    lockAndSubmit(user4, [801, 802, 803, 602, 804, 601]);
+    // 601: 12 + 0 = 12, best #1. 602: 9 + 3 = 12, best #2. Both ranked by two.
+    const standings = store.rankings.standings(roomId);
+    const s601 = standings.find((row) => row.titleId === 601);
+    const s602 = standings.find((row) => row.titleId === 602);
+    expect([s601?.points, s601?.rankedBy, s602?.points, s602?.rankedBy]).toEqual([12, 2, 12, 2]);
+    expect((s601?.rank ?? 0) < (s602?.rank ?? 0)).toBe(true);
+  });
+
+  it('gives shows level on all three a shared place, and the next place skips', () => {
     const user4 = store.users.create('user4').id;
     const user5 = store.users.create('user5').id;
     lockAndSubmit(user1, [201, 202]);
     lockAndSubmit(user4, [301, 302]);
     lockAndSubmit(user5, [302, 301]);
-    // 301: 12 + 9 = 21; 302: 9 + 12 = 21; bestRank both 1 -> titleId.
+    // 301 and 302: 12 + 9 = 21 each, both ranked by two, both with a #1.
     const standings = store.rankings.standings(roomId);
-    const s301 = standings.find((row) => row.titleId === 301);
-    const s302 = standings.find((row) => row.titleId === 302);
-    expect(s301?.points).toBe(21);
-    expect(s302?.points).toBe(21);
-    expect((s301?.rank ?? 0) < (s302?.rank ?? 0)).toBe(true);
+    expect(standings.map((row) => [row.titleId, row.points, row.rank])).toEqual([
+      [301, 21, 1],
+      [302, 21, 1],
+      [201, 12, 3],
+      [202, 9, 4],
+    ]);
   });
 
   it('progress reports submitted over member count', () => {

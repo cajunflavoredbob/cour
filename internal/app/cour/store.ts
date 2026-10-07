@@ -1,4 +1,5 @@
 import type { DatabaseSync } from 'node:sqlite';
+import { withPlaces } from './places';
 
 /**
  * Accessors over the cour database.
@@ -449,9 +450,8 @@ export const createCourStore = (db: DatabaseSync) => {
 
     /**
      * Combined standings across every submitted ranking. Points per the
-     * couple profile (#1=12 #2=9 #3=6 #4=3 #5=1, deeper ranks 0);
-     * tiebreaks: better single best rank, then titleId (the profile's
-     * coin flip, made deterministic).
+     * couple profile (#1=12 #2=9 #3=6 #4=3 #5=1, deeper ranks 0), ordered
+     * and placed by places.ts; within a shared place, by titleId.
      */
     standings: (roomId: number): Array<{
       titleId: number; points: number; bestRank: number; rankedBy: number; rank: number;
@@ -464,18 +464,19 @@ export const createCourStore = (db: DatabaseSync) => {
                   COUNT(*) AS ranked_by
            FROM rankings WHERE room_id = ?
            GROUP BY title_id
-           ORDER BY points DESC, best_rank ASC, title_id ASC`,
+           ORDER BY points DESC, ranked_by DESC, best_rank ASC, title_id ASC`,
         )
         .all(roomId) as unknown as Array<{
           title_id: number; points: number; best_rank: number; ranked_by: number;
         }>;
-      return rows.map((r, i) => ({
-        titleId: r.title_id,
-        points: r.points,
-        bestRank: r.best_rank,
-        rankedBy: r.ranked_by,
-        rank: i + 1,
-      }));
+      return withPlaces(
+        rows.map((r) => ({
+          titleId: r.title_id,
+          points: r.points,
+          bestRank: r.best_rank,
+          rankedBy: r.ranked_by,
+        })),
+      );
     },
 
     /** Who ranked each title (any position), name-ordered -- feeds the

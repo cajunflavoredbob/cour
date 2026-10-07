@@ -49,3 +49,13 @@ export const groupTopPicks = (
   }
   return [...groups].map(([titleId, names]) => ({ titleId, names }));
 };
+
+// English collation for every viewer, so a shared place lists the same
+// way in any browser language.
+const byTitle = new Intl.Collator("en", { sensitivity: "base" }).compare;
+
+/** Standings with the shows of each shared place in title order, A to Z. */
+export const orderTies = <T extends { rank: number; titleId: number }>(
+  rows: readonly T[],
+  titleOf: (titleId: number) => string,
+): T[] => [...rows].sort((a, b) => a.rank - b.rank || byTitle(titleOf(a.titleId), titleOf(b.titleId)));

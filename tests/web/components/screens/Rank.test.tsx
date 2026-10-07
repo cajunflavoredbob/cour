@@ -564,6 +564,27 @@ describe('RankScreen standings (after submitting)', () => {
     expect(screen.queryByText('submit rankings')).toBeNull();
   });
 
+  it('numbers each show of a shared place, A to Z, with the same medal', () => {
+    withState({
+      results: {
+        ...standings,
+        submittedCount: 2,
+        standings: [
+          { titleId: 101, points: 24, bestRank: 1, rankedBy: 2, rankedByNames: ['user1', 'user2'], rank: 1 },
+          { titleId: 103, points: 15, bestRank: 2, rankedBy: 2, rankedByNames: ['user1', 'user2'], rank: 2 },
+          { titleId: 102, points: 15, bestRank: 2, rankedBy: 2, rankedByNames: ['user1', 'user2'], rank: 2 },
+        ],
+      },
+    });
+    const { container } = render(<RankScreen />);
+    const rows = [...container.querySelectorAll('[data-rank]')];
+    expect(rows.map((r) => [r.getAttribute('data-rank'), r.getAttribute('data-medal'), r.querySelector('[class*="rowTitle"]')?.textContent])).toEqual([
+      ['1', '1', 'Iron Bloom'],
+      ['2', '2', 'Second Show'],
+      ['2', '2', 'Third Show'],
+    ]);
+  });
+
   it('says so when the rankings in kept nothing', () => {
     withState({ results: { ...standings, standings: [] } });
     const { rerender } = render(<RankScreen />);

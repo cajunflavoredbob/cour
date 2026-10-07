@@ -334,6 +334,75 @@ describe('RankScreen desktop standings', () => {
     expect(reveal.textContent).toContain('SHOW TOP 5');
   });
 
+  it('raises each show of a shared #1, lists a shared place A to Z, and numbers each show', () => {
+    withState({
+      results: {
+        submittedCount: 2,
+        memberCount: 2,
+        mySubmitted: true,
+        myRanking: [],
+        standings: [
+          { titleId: 102, points: 21, bestRank: 1, rankedBy: 2, rank: 1 },
+          { titleId: 101, points: 21, bestRank: 1, rankedBy: 2, rank: 1 },
+          { titleId: 103, points: 12, bestRank: 3, rankedBy: 2, rank: 3 },
+        ],
+      },
+    });
+    const { container } = render(<RankScreen />);
+    const rows = [...container.querySelectorAll('[data-rank]')];
+    expect(rows.map((r) => [r.getAttribute('data-rank'), r.getAttribute('data-hero'), r.textContent?.match(/Iron Bloom|Second Show|Third Show/)?.[0]])).toEqual([
+      ['1', 'true', 'Iron Bloom'],
+      ['1', 'true', 'Second Show'],
+      ['3', 'false', 'Third Show'],
+    ]);
+  });
+
+  it('shows the top five places by default, a shared place whole', () => {
+    const ranks = [1, 1, 3, 3, 5, 5, 7];
+    withState({
+      results: {
+        submittedCount: 2,
+        memberCount: 2,
+        mySubmitted: true,
+        myRanking: [],
+        standings: ranks.map((rank, i) => ({ titleId: 101 + i, points: 30 - rank, bestRank: 1, rankedBy: 1, rank })),
+      },
+    });
+    const { container } = render(<RankScreen />);
+    expect([...container.querySelectorAll('[data-rank]')].map((r) => r.getAttribute('data-rank'))).toEqual(['1', '1', '3', '3', '5', '5']);
+    expect(document.querySelector('[data-test-handle="standings-reveal"]')?.textContent).toContain('SHOW ALL 7');
+  });
+
+  it('has nothing to reveal when the list ends at fifth place', () => {
+    withState({
+      results: {
+        submittedCount: 2,
+        memberCount: 2,
+        mySubmitted: true,
+        myRanking: [],
+        standings: [1, 2, 3, 4, 5].map((rank) => ({ titleId: 100 + rank, points: 20 - rank, bestRank: 1, rankedBy: 1, rank })),
+      },
+    });
+    const { container } = render(<RankScreen />);
+    expect(container.querySelectorAll('[data-rank]').length).toBe(5);
+    expect(document.querySelector('[data-test-handle="standings-reveal"]')).toBeNull();
+  });
+
+  it('raises every show of a wide shared #1, and has nothing to reveal within five places', () => {
+    withState({
+      results: {
+        submittedCount: 6,
+        memberCount: 6,
+        mySubmitted: true,
+        myRanking: [],
+        standings: Array.from({ length: 6 }, (_, i) => ({ titleId: 101 + i, points: 12, bestRank: 1, rankedBy: 1, rank: 1 })),
+      },
+    });
+    const { container } = render(<RankScreen />);
+    expect(container.querySelectorAll('[data-hero="true"]').length).toBe(6);
+    expect(document.querySelector('[data-test-handle="standings-reveal"]')).toBeNull();
+  });
+
   it("shows the everyone's-#1 strip with each member's name + pick", () => {
     withState({
       results: {

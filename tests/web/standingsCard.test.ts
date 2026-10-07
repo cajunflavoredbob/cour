@@ -24,17 +24,28 @@ const mediaById = new Map(
 );
 
 // Two members, scored 12/9/6/3/1: user1 ranked 101,102,103,104,105 and user2
-// ranked 102,101,106,103,107. Ties break on best rank, then title id, as the
-// server does, so rank and bestRank differ below the top two.
+// ranked 102,101,106,103,107. Places as the server gives them: 101 and 102
+// are level on points, rankers and best rank, so they share first place, as
+// 105 and 107 share sixth.
 const standings: RankingResults['standings'] = [
   { titleId: 101, points: 21, bestRank: 1, rankedBy: 2, rankedByNames: ['user1', 'user2'], rank: 1 },
-  { titleId: 102, points: 21, bestRank: 1, rankedBy: 2, rankedByNames: ['user1', 'user2'], rank: 2 },
+  { titleId: 102, points: 21, bestRank: 1, rankedBy: 2, rankedByNames: ['user1', 'user2'], rank: 1 },
   { titleId: 103, points: 9, bestRank: 3, rankedBy: 2, rankedByNames: ['user1', 'user2'], rank: 3 },
   { titleId: 106, points: 6, bestRank: 3, rankedBy: 1, rankedByNames: ['user2'], rank: 4 },
   { titleId: 104, points: 3, bestRank: 4, rankedBy: 1, rankedByNames: ['user1'], rank: 5 },
   { titleId: 105, points: 1, bestRank: 5, rankedBy: 1, rankedByNames: ['user1'], rank: 6 },
-  { titleId: 107, points: 1, bestRank: 5, rankedBy: 1, rankedByNames: ['user2'], rank: 7 },
+  { titleId: 107, points: 1, bestRank: 5, rankedBy: 1, rankedByNames: ['user2'], rank: 6 },
 ];
+
+// A standings row with just what ordering and the card read.
+const row = (titleId: number, rank: number, points = 12): RankingResults['standings'][number] => ({
+  titleId,
+  points,
+  bestRank: 1,
+  rankedBy: 1,
+  rankedByNames: ['user1'],
+  rank,
+});
 
 const results = (overrides: Partial<RankingResults> = {}): RankingResults => ({
   submittedCount: 2,
@@ -63,12 +74,12 @@ afterEach(() => {
 });
 
 describe('buildStandingsCard', () => {
-  it('keeps the scoring positions with their ranks, titles and posters', () => {
+  it('keeps the scoring positions with their places, titles and posters', () => {
     const c = card();
     expect(c.standings).toHaveLength(CARD_STANDINGS);
     expect(c.standings.map((s) => [s.titleId, s.rank, s.title, s.poster])).toEqual([
       [101, 1, 'Show 101', '/api/poster/101'],
-      [102, 2, 'Show 102', '/api/poster/102'],
+      [102, 1, 'Show 102', '/api/poster/102'],
       [103, 3, 'Show 103', '/api/poster/103'],
       [106, 4, 'Show 106', '/api/poster/106'],
       [104, 5, 'Show 104', '/api/poster/104'],
@@ -78,6 +89,50 @@ describe('buildStandingsCard', () => {
       { titleId: 101, userName: 'user1', title: 'Show 101' },
       { titleId: 102, userName: 'user2', title: 'Show 102' },
     ]);
+  });
+
+  it('lists the shows of a shared place A to Z', () => {
+    const titled = new Map([
+      [201, makeMedia({ id: '201', anilistId: 201, title: 'zeta' })],
+      [202, makeMedia({ id: '202', anilistId: 202, title: 'Alpha' })],
+      [203, makeMedia({ id: '203', anilistId: 203, title: 'beta' })],
+    ]);
+    const r = results({ standings: [row(201, 1), row(202, 1), row(203, 3, 6)] });
+    const c = buildStandingsCard({ results: r, season: 'FALL', year: 2026, roomName: 'x', mediaById: titled });
+    expect(c.standings.map((s) => s.title)).toEqual(['Alpha', 'zeta', 'beta']);
+  });
+
+  it('keeps every show sharing the last scoring place', () => {
+    const r = results({
+      standings: [row(101, 1), row(102, 2, 9), row(103, 3, 6), row(104, 4, 3), row(105, 5, 1), row(106, 5, 1), row(107, 7, 0)],
+    });
+    const c = buildStandingsCard({ results: r, season: 'FALL', year: 2026, roomName: 'x', mediaById });
+    expect(c.standings.map((s) => [s.titleId, s.rank])).toEqual([
+      [101, 1],
+      [102, 2],
+      [103, 3],
+      [104, 4],
+      [105, 5],
+      [106, 5],
+    ]);
+  });
+
+  it('holds at most six shows on the top row and six below it, and counts every show sharing first', () => {
+    const many = Array.from({ length: 30 }, (_, i) => 300 + i);
+    const titled = new Map(many.map((id) => [id, makeMedia({ id: String(id), anilistId: id, title: `Show ${id}` })]));
+    const tiedFirst = results({ standings: many.slice(0, 8).map((id) => row(id, 1)), topPicks: [] });
+    const first = buildStandingsCard({ results: tiedFirst, season: 'FALL', year: 2026, roomName: 'x', mediaById: titled });
+    expect(first.standings).toHaveLength(6);
+    expect(first.firstPlaceCount).toBe(8);
+    expect(first.hiddenCount).toBe(2);
+    expect(cardAltText(first)).toContain('2 more shows in the top five.');
+    const tiedSecond = results({ standings: [row(many[0], 1), ...many.slice(1, 8).map((id) => row(id, 2, 9))], topPicks: [] });
+    const c = buildStandingsCard({ results: tiedSecond, season: 'FALL', year: 2026, roomName: 'x', mediaById: titled });
+    expect(c.standings.map((s) => s.rank)).toEqual([1, 2, 2, 2, 2, 2, 2]);
+    expect(c.hiddenCount).toBe(1);
+    expect(cardAltText(c)).toContain('1 more show in the top five.');
+    expect(card().hiddenCount).toBe(0);
+    expect(cardAltText(card())).not.toContain('more show');
   });
 
   it('prefixes posters with the mount path', () => {
@@ -136,8 +191,8 @@ describe('cardAltText', () => {
   it('reads the card in words: rows, rankers, whose #1, and the status', () => {
     expect(cardAltText(card())).toBe(
       'Standings card for Couch-Coop, fall 2026. ' +
-        "1, Show 101, 21 points, ranked by user1 and user2, user1's number 1. " +
-        "2, Show 102, 21 points, ranked by user1 and user2, user2's number 1. " +
+        "tied for 1, Show 101, 21 points, ranked by user1 and user2, user1's number 1. " +
+        "tied for 1, Show 102, 21 points, ranked by user1 and user2, user2's number 1. " +
         '3, Show 103, 9 points, ranked by user1 and user2. ' +
         '4, Show 106, 6 points, ranked by user2. ' +
         '5, Show 104, 3 points, ranked by user1. ' +

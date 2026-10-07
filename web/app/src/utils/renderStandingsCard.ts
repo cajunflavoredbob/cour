@@ -23,6 +23,9 @@ const HERO_H = 495;
 // Widest runner poster; the strip narrows them if more have to fit.
 const RUNNER_W = 200;
 const RUNNER_GAP = 40;
+// A shared #1 sets its posters this many to a row, this far apart.
+const TIED_ACROSS = 3;
+const TIED_GAP = 40;
 // How long the render waits on fonts and posters before drawing without them.
 const ASSET_TIMEOUT_MS = 3000;
 
@@ -200,7 +203,69 @@ const drawCard = (
     text(label, x + 12, y + 22, { font: tagFont, color: t.bg0, spacing: "0.08em" });
   };
 
-  const [hero, ...rest] = d.standings;
+  const heroes = d.standings.filter((s) => s.rank === 1);
+  const hero = heroes.length === 1 ? heroes[0] : undefined;
+  const rest = d.standings.filter((s) => s.rank !== 1);
+  // Backdrop: the #1 posters, softened, side by side, tinted, fading into the card.
+  const backdrop = (imgs: (HTMLImageElement | null)[], height: number) => {
+    // A whole number of pixels, so the fade reaches the last row.
+    const backH = Math.ceil(height);
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, 0, CARD_WIDTH, backH);
+    ctx.clip();
+    ctx.imageSmoothingQuality = "high";
+    const shown = imgs.filter((img): img is HTMLImageElement => img !== null);
+    if (imgs.length === 1 && shown[0]) {
+      ctx.globalAlpha = 0.5;
+      drawCover(ctx, softened(shown[0]), -60, -60, CARD_WIDTH + 120, backH + 120);
+      ctx.globalAlpha = 1;
+    } else if (shown.length > 0) {
+      // Each poster takes its band, crossfading into the next over one
+      // opaque layer, so the seams are as light as the bands.
+      const blend = document.createElement("canvas");
+      blend.width = CARD_WIDTH;
+      blend.height = backH;
+      const b = blend.getContext("2d");
+      if (b) {
+        b.imageSmoothingQuality = "high";
+        const band = 1 / imgs.length;
+        let first = true;
+        imgs.forEach((img, i) => {
+          if (!img) return;
+          const layer = document.createElement("canvas");
+          layer.width = CARD_WIDTH;
+          layer.height = backH;
+          const l = layer.getContext("2d");
+          if (!l) return;
+          l.imageSmoothingQuality = "high";
+          drawCover(l, softened(img), -60, -60, CARD_WIDTH + 120, backH + 120);
+          if (!first) {
+            l.globalCompositeOperation = "destination-in";
+            const fadeIn = l.createLinearGradient(0, 0, CARD_WIDTH, 0);
+            fadeIn.addColorStop(Math.max(0, i * band - band * 0.35), "rgba(0, 0, 0, 0)");
+            fadeIn.addColorStop(Math.min(1, i * band + band * 0.35), "rgba(0, 0, 0, 1)");
+            l.fillStyle = fadeIn;
+            l.fillRect(0, 0, CARD_WIDTH, backH);
+          }
+          b.drawImage(layer, 0, 0);
+          first = false;
+        });
+        ctx.globalAlpha = 0.5;
+        ctx.drawImage(blend, 0, 0);
+        ctx.globalAlpha = 1;
+      }
+    }
+    ctx.restore();
+    ctx.fillStyle = t.accentSoft;
+    ctx.fillRect(0, 0, CARD_WIDTH, backH);
+    const fade = ctx.createLinearGradient(0, 0, 0, backH);
+    fade.addColorStop(0, "rgba(0, 0, 0, 0.42)");
+    fade.addColorStop(0.6, "rgba(0, 0, 0, 0.55)");
+    fade.addColorStop(1, t.bg0);
+    ctx.fillStyle = fade;
+    ctx.fillRect(0, 0, CARD_WIDTH, backH);
+  };
 
   // Header layout; painted after the backdrop.
   const top = PAD + 4;
@@ -231,29 +296,7 @@ const drawCard = (
     const textTop = heroTop + Math.max(0, (HERO_H - textH) / 2);
     heroBottom = Math.max(heroBottom, textTop + textH);
 
-    const heroImg = imageOf(hero.poster);
-    if (paint) {
-      // Backdrop: the #1 poster, softened, tinted, fading into the card.
-      const backH = heroBottom + 90;
-      ctx.save();
-      ctx.beginPath();
-      ctx.rect(0, 0, CARD_WIDTH, backH);
-      ctx.clip();
-      if (heroImg) {
-        ctx.imageSmoothingQuality = "high";
-        ctx.globalAlpha = 0.5;
-        drawCover(ctx, softened(heroImg), -60, -60, CARD_WIDTH + 120, backH + 120);
-      }
-      ctx.restore();
-      ctx.fillStyle = t.accentSoft;
-      ctx.fillRect(0, 0, CARD_WIDTH, backH);
-      const fade = ctx.createLinearGradient(0, 0, 0, backH);
-      fade.addColorStop(0, "rgba(0, 0, 0, 0.42)");
-      fade.addColorStop(0.6, "rgba(0, 0, 0, 0.55)");
-      fade.addColorStop(1, t.bg0);
-      ctx.fillStyle = fade;
-      ctx.fillRect(0, 0, CARD_WIDTH, backH);
-    }
+    if (paint) backdrop([imageOf(hero.poster)], heroBottom + 90);
 
     poster(hero.poster, PAD, heroTop, HERO_W, HERO_H, 18);
     text("NO. 1", textX, textTop + 22, { font: font.mono(22), color: t.accentBright, spacing: "0.24em" });
@@ -271,6 +314,64 @@ const drawCard = (
       text(line, textX, textTop + rankedBase(i), { font: font.mono(20), color: t.text2, spacing: "0.08em" });
     });
     if (heroTag) tag(heroTag, textX, textTop + tagTop);
+  } else if (heroes.length > 1) {
+    // A shared #1: the posters side by side, up to three to a row, each with
+    // its own title, points and picks on baselines shared across the row.
+    const across = Math.min(heroes.length, TIED_ACROSS);
+    const colW = (CARD_WIDTH - PAD * 2 - TIED_GAP * (across - 1)) / across;
+    const posterW = across === 2 ? 300 : 230;
+    const posterH = posterW * 1.5;
+    const titlePx = across === 2 ? 46 : 36;
+    const titleLead = across === 2 ? 54 : 43;
+    const pointsPx = across === 2 ? 72 : 58;
+    let rowTop = heroTop + 56;
+    const rows: Array<{
+      top: number;
+      titleTop: number;
+      pointsBase: number;
+      tagTop: number;
+      cols: Array<{ s: (typeof heroes)[number]; x: number; titleLines: string[]; ranked: string[]; tag: string | undefined }>;
+    }> = [];
+    for (let first = 0; first < heroes.length; first += across) {
+      const cols = heroes.slice(first, first + across).map((s, i) => ({
+        s,
+        x: PAD + i * (colW + TIED_GAP),
+        titleLines: wrapText(measure(font.display(titlePx)), s.title, colW, 3),
+        ranked: wrapText(measure(font.mono(18), "0.08em"), rankedByText(s.rankedByNames, s.rankedBy), colW, 2),
+        tag: pickTag(tagMeasure, pickNames(d, s.titleId), colW - 24),
+      }));
+      const titleTop = rowTop + posterH + 30 + titlePx * 0.8;
+      const pointsBase = titleTop + (Math.max(...cols.map((c) => c.titleLines.length)) - 1) * titleLead + pointsPx + 12;
+      const rankedLines = Math.max(...cols.map((c) => c.ranked.length));
+      const rankedEnd = rankedLines ? pointsBase + 40 + (rankedLines - 1) * 28 + 8 : pointsBase + 8;
+      const tagTop = rankedEnd + 18;
+      rows.push({ top: rowTop, titleTop, pointsBase, tagTop, cols });
+      rowTop = (cols.some((c) => c.tag) ? tagTop + 32 : rankedEnd) + 56;
+    }
+    heroBottom = rowTop - 56;
+    if (paint) backdrop(heroes.slice(0, across).map((s) => imageOf(s.poster)), heroBottom + 90);
+    const tied = Math.max(d.firstPlaceCount ?? 0, heroes.length);
+    const label = tied === 2 ? "TIED FOR NO. 1" : `${tied}-WAY TIE FOR NO. 1`;
+    text(label, PAD, heroTop + 22, { font: font.mono(22), color: t.accentBright, spacing: "0.24em" });
+    for (const row of rows) {
+      for (const c of row.cols) {
+        poster(c.s.poster, c.x, row.top, posterW, posterH, 18);
+        c.titleLines.forEach((line, i) => {
+          text(line, c.x, row.titleTop + i * titleLead, { font: font.display(titlePx), color: t.text0 });
+        });
+        const pts = String(c.s.points);
+        text(pts, c.x, row.pointsBase, { font: font.display(pointsPx), color: t.accentBright });
+        text("PTS", c.x + measure(font.display(pointsPx))(pts) + 12, row.pointsBase, {
+          font: font.mono(22),
+          color: t.text1,
+          spacing: "0.14em",
+        });
+        c.ranked.forEach((line, i) => {
+          text(line, c.x, row.pointsBase + 40 + i * 28, { font: font.mono(18), color: t.text2, spacing: "0.08em" });
+        });
+        if (c.tag) tag(c.tag, c.x, row.tagTop);
+      }
+    }
   }
 
   if (paint) {
@@ -304,9 +405,13 @@ const drawCard = (
     const slots = CARD_STANDINGS - 1;
     const runnerW = Math.min(RUNNER_W, (CARD_WIDTH - PAD * 2 - RUNNER_GAP * (slots - 1)) / slots);
     const runnerH = runnerW * 1.5;
+    let rowTop = y;
     let stripBottom = y + runnerH;
     rest.forEach((s, i) => {
-      const x = PAD + i * (runnerW + RUNNER_GAP);
+      // A shared place that runs past the row goes on to another.
+      if (i > 0 && i % slots === 0) rowTop = stripBottom + 44;
+      const y = rowTop;
+      const x = PAD + (i % slots) * (runnerW + RUNNER_GAP);
       poster(s.poster, x, y, runnerW, runnerH, 14);
       if (paint) {
         // A dark foot on the poster so the rank numeral reads on any art.
@@ -331,9 +436,19 @@ const drawCard = (
       }
       ty += 30;
       text(`${s.points} PTS`, x, ty, { font: font.mono(18), color: t.text2, spacing: "0.12em" });
-      stripBottom = Math.max(stripBottom, ty);
+      stripBottom = Math.max(stripBottom, ty, y + runnerH);
     });
     y = stripBottom;
+  }
+
+  // Shows within the top five the card has no room for.
+  if (d.hiddenCount) {
+    y += 44;
+    text(`+${d.hiddenCount} MORE IN THE TOP ${CARD_STANDINGS}`, PAD, y, {
+      font: font.mono(18),
+      color: t.text2,
+      spacing: "0.12em",
+    });
   }
 
   // Picks that did not make the card.

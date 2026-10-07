@@ -1,4 +1,5 @@
 import type { RankingStanding, RefinedResults } from '../../../types/reely';
+import { byStanding, withPlaces } from './places';
 
 /**
  * The refine round: once every member's ranking is in, a member may
@@ -59,7 +60,8 @@ export const refinedOrder = (
 
 /**
  * Standings over full orders, by the ranking standings' rule: points by
- * position, ties to the better best position, then the lower title id.
+ * position, ordered and placed by places.ts; within a shared place, by
+ * the lower title id.
  */
 export const scoreOrders = (
   members: ReadonlyArray<{ userName: string; order: readonly number[] }>,
@@ -74,16 +76,14 @@ export const scoreOrders = (
       rows.set(titleId, row);
     });
   }
-  return [...rows.entries()]
-    .sort(([a, x], [b, y]) => y.points - x.points || x.bestRank - y.bestRank || a - b)
-    .map(([titleId, row], i) => ({
-      titleId,
-      points: row.points,
-      bestRank: row.bestRank,
-      rankedBy: row.names.length,
-      rankedByNames: [...row.names].sort(byName),
-      rank: i + 1,
-    }));
+  const scored = [...rows.entries()].map(([titleId, row]) => ({
+    titleId,
+    points: row.points,
+    bestRank: row.bestRank,
+    rankedBy: row.names.length,
+    rankedByNames: [...row.names].sort(byName),
+  }));
+  return withPlaces(scored.sort((a, b) => byStanding(a, b) || a.titleId - b.titleId));
 };
 
 export interface RefineMember {

@@ -160,3 +160,15 @@ it. The elevated-list call above stands; only the shell changed.
 Toasts on desktop now sit in the bottom-left corner of the content, which
 every desktop screen leaves empty; at the top they covered the main
 column's tabs. Phones keep them under the header row.
+
+# Shared places
+
+Shows level on points, on how many members ranked them and on their best
+single place share a place: each reads the same number, they list A to Z,
+and the next place skips (1, 2, 2, 4). The standings open on the top five
+places, a shared place whole. A shared #1 changes the layout: each of its
+shows gets its own raised #1 row, and the share card sets their posters
+side by side, up to three to a row, under TIED FOR NO. 1 (or 3-WAY TIE
+FOR NO. 1, and so on). Any other shared place keeps its usual rows; on
+the card the row below wraps at four posters. The card holds six shows at
+the top and six below, and notes any more within the top five.

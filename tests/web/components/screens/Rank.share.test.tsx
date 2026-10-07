@@ -36,7 +36,7 @@ const media = [
 ];
 const standings = [
   { titleId: 101, points: 21, bestRank: 1, rankedBy: 2, rankedByNames: ['user1', 'user2'], rank: 1 },
-  { titleId: 103, points: 21, bestRank: 1, rankedBy: 2, rankedByNames: ['user1', 'user2'], rank: 2 },
+  { titleId: 103, points: 21, bestRank: 1, rankedBy: 2, rankedByNames: ['user1', 'user2'], rank: 1 },
 ];
 const results = (over = {}) => ({
   submittedCount: 2,

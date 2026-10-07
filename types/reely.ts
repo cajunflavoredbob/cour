@@ -167,12 +167,14 @@ export interface RankingStanding {
   titleId: number;
   // Couple-profile points: #1=12 #2=9 #3=6 #4=3 #5=1 per submitter.
   points: number;
-  // The single best rank any submitter gave it (the tiebreaker).
+  // The single best rank any submitter gave it (a tiebreaker).
   bestRank: number;
   rankedBy: number;
   // Who ranked it (any position), ordered by name -- "RANKED BY 2" was
   // anonymous (audit 17 UX item 7).
   rankedByNames: string[];
+  // The place. Shows level on points, rankers and best rank share it, and
+  // the place after them skips (1, 2, 2, 4).
   rank: number;
 }
 

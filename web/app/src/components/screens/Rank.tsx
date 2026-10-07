@@ -24,6 +24,7 @@ import { buildStandingsCard, listOf } from "../../utils/standingsCard";
 import {
   groupTopPicks,
   KEPT_WORDS,
+  orderTies,
   RANK_POINTS,
   rankedByText,
   rankingsIn,
@@ -36,8 +37,8 @@ import styles from "./Rank.module.css";
 // The scoring, as the editors state it.
 const TOP_SCORE = `TOP ${RANK_POINTS.length} SCORE ${RANK_POINTS.join(" · ")}`;
 
-// Standings show the top 5 by default (the scoring positions); the rest
-// hide behind a reveal.
+// Standings show the top 5 places by default (the scoring positions), a
+// shared place whole; the rest hide behind a reveal.
 const STANDINGS_PREVIEW = 5;
 
 // The re-rank round's opening toast lets the revealed standings land
@@ -656,7 +657,7 @@ export const RankScreen = ({ fromLock = false, onFocusTaken }: RankScreenProps =
     </div>
   );
 
-  const allStandings = results.standings ?? [];
+  const allStandings = orderTies(results.standings ?? [], titleOf);
   const allRankOf = new Map(allStandings.map((s) => [s.titleId, s.rank]));
 
   // All picks, or the shows everyone kept, switched right above the list.
@@ -706,7 +707,7 @@ export const RankScreen = ({ fromLock = false, onFocusTaken }: RankScreenProps =
   // All picks rows name who ranked them and carry the medals; the rows of
   // the second view are quiet and point back to the room's result.
   const standingsList = (desktop: boolean, rows: RankingStanding[], all: boolean, listKey: string) => {
-    const visible = showAll[view] ? rows : rows.slice(0, STANDINGS_PREVIEW);
+    const visible = showAll[view] ? rows : rows.filter((s) => s.rank <= STANDINGS_PREVIEW);
     return (
       <ul className={desktop ? styles.standingsRows : styles.rows} key={desktop ? listKey : undefined}>
         {visible.map((standing) => {
@@ -794,7 +795,7 @@ export const RankScreen = ({ fromLock = false, onFocusTaken }: RankScreenProps =
   );
 
   const standingsRevealEl = (rows: RankingStanding[]) =>
-    rows.length > STANDINGS_PREVIEW && (
+    rows.some((s) => s.rank > STANDINGS_PREVIEW) && (
       <button
         type="button"
         className={styles.showAllBtn}
@@ -807,7 +808,7 @@ export const RankScreen = ({ fromLock = false, onFocusTaken }: RankScreenProps =
 
   // What the tabs switch: the view's own head, its list and the reveal.
   const sharedView = view === "shared" && round != null;
-  const viewRows = sharedView ? round.standings : allStandings;
+  const viewRows = sharedView ? orderTies(round.standings, titleOf) : allStandings;
   const standingsPanel = (desktop: boolean) => (
     <div className={styles.standingsPanel} {...(tabsShown ? tabPanelProps("standings", view) : {})}>
       {allKeptHead}

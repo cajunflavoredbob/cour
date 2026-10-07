@@ -46,7 +46,7 @@ const refined = (over = {}) => ({
   myOrder: [101, 103],
   standings: [
     { titleId: 101, points: 21, bestRank: 1, rankedBy: 2, rankedByNames: ['user1', 'user2'], rank: 1 },
-    { titleId: 103, points: 21, bestRank: 1, rankedBy: 2, rankedByNames: ['user1', 'user2'], rank: 2 },
+    { titleId: 103, points: 21, bestRank: 1, rankedBy: 2, rankedByNames: ['user1', 'user2'], rank: 1 },
   ],
   ...over,
 });
@@ -413,6 +413,17 @@ describe('RankScreen re-rank round', () => {
     expect(screen.getByText('TOP 5 SCORE 12 · 9 · 6 · 3 · 1')).toBeDefined();
     const legend = [...(document.querySelector('aside') as HTMLElement).querySelectorAll('li')].map((li) => li.textContent);
     expect(legend.at(-1)).toBe('#6+0 PTS');
+  });
+
+  it('lists a shared place of the second view A to Z, whatever order it arrives in', () => {
+    const level = { points: 21, bestRank: 1, rankedBy: 2, rankedByNames: ['user1', 'user2'], rank: 1 };
+    withState({
+      results: results({ refined: refined({ standings: [{ titleId: 103, ...level }, { titleId: 101, ...level }] }) }),
+    });
+    render(<RankScreen />);
+    openAllKept();
+    expect(rowTitles()).toEqual(['Iron Bloom', 'Third Show']);
+    expect([...document.querySelectorAll('[data-rank]')].map((r) => r.getAttribute('data-rank'))).toEqual(['1', '1']);
   });
 
   it('gives medals to the top three of All picks only', () => {

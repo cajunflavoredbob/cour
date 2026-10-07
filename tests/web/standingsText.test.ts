@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { groupTopPicks, rankedByText, rankingsIn, rerankedByText, standingsFinal } from '../../web/app/src/utils/standingsText';
+import { describe, expect, it, vi } from 'vitest';
+import { groupTopPicks, orderTies, rankedByText, rankingsIn, rerankedByText, standingsFinal } from '../../web/app/src/utils/standingsText';
 
 describe('standingsFinal', () => {
   it('is final once every member has submitted', () => {
@@ -59,5 +59,55 @@ describe('rankedByText', () => {
     expect(rankedByText(undefined, 3)).toBe('RANKED BY 3');
     expect(rankedByText([], 3)).toBe('RANKED BY 3');
     expect(rankedByText([], 1)).toBe('');
+  });
+});
+
+describe('orderTies', () => {
+  const titles: Record<number, string> = { 1: 'zeta', 2: 'Alpha', 3: 'beta', 4: 'Gamma', 5: 'alpha' };
+  const titleOf = (id: number) => titles[id];
+
+  it('lists the shows of a shared place A to Z, ignoring case', () => {
+    const rows = [
+      { titleId: 1, rank: 1 },
+      { titleId: 2, rank: 1 },
+      { titleId: 4, rank: 3 },
+      { titleId: 3, rank: 3 },
+    ];
+    expect(orderTies(rows, titleOf).map((r) => titleOf(r.titleId))).toEqual(['Alpha', 'zeta', 'beta', 'Gamma']);
+  });
+
+  it('keeps places in order, whatever their titles', () => {
+    const rows = [
+      { titleId: 1, rank: 1 },
+      { titleId: 2, rank: 2 },
+      { titleId: 3, rank: 3 },
+    ];
+    expect(orderTies(rows, titleOf).map((r) => r.titleId)).toEqual([1, 2, 3]);
+  });
+
+  it('collates in English for every viewer, whatever the browser language', async () => {
+    const Real = Intl.Collator;
+    const locales: unknown[] = [];
+    vi.stubGlobal('Intl', {
+      ...Intl,
+      Collator: function Collator(locale: string, options: Intl.CollatorOptions) {
+        locales.push(locale);
+        return new Real(locale, options);
+      },
+    });
+    vi.resetModules();
+    const fresh = await import('../../web/app/src/utils/standingsText');
+    vi.unstubAllGlobals();
+    expect(locales).toEqual(['en']);
+    expect(fresh.orderTies([{ titleId: 1, rank: 1 }, { titleId: 2, rank: 1 }], titleOf).map((r) => r.titleId)).toEqual([2, 1]);
+  });
+
+  it('leaves the rows it was given alone', () => {
+    const rows = [
+      { titleId: 1, rank: 1 },
+      { titleId: 2, rank: 1 },
+    ];
+    orderTies(rows, titleOf);
+    expect(rows.map((r) => r.titleId)).toEqual([1, 2]);
   });
 });
