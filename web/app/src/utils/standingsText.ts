@@ -11,8 +11,15 @@ export const rerankOpen = (results: RankingResults | undefined): boolean => {
   return round != null && round.sharedTitleIds.length >= 2 && !round.myRefined;
 };
 
-/** How the shows every member kept are named, in a room of any size. */
-export const KEPT_WORDS = { tab: "All kept", phrase: "everyone kept", rankings: "All rankings" } as const;
+/**
+ * The standings views' tab names: the room's result, and the shows every
+ * member kept. The In common note and the re-rank confirm spell out "the
+ * overall standings" themselves.
+ */
+export const VIEW_NAMES = { all: "Overall", shared: "In common" } as const;
+
+/** How the copy speaks of every member at once, in a room of any size: their rankings, and the shows they all kept. */
+export const KEPT_WORDS = { phrase: "everyone kept", rankings: "All rankings" } as const;
 
 /** Whether every member has submitted, so the standings are final. */
 export const standingsFinal = (submittedCount: number, memberCount: number): boolean =>

@@ -63,11 +63,11 @@ const stubPointer = () =>
   }));
 
 let onClose: Mock<() => void>;
-const preview = (state = ready(), c = card(), allPicks = false, waitingOn: string[] = []) => (
-  <SharePreview card={c} image={state} allPicks={allPicks} waitingOn={waitingOn} onClose={onClose} />
+const preview = (state = ready(), c = card(), nameView = false, waitingOn: string[] = []) => (
+  <SharePreview card={c} image={state} nameView={nameView} waitingOn={waitingOn} onClose={onClose} />
 );
-const show = (state = ready(), c = card(), allPicks = false, waitingOn: string[] = []) =>
-  render(preview(state, c, allPicks, waitingOn));
+const show = (state = ready(), c = card(), nameView = false, waitingOn: string[] = []) =>
+  render(preview(state, c, nameView, waitingOn));
 const primary = () => document.querySelector('[data-test-handle="share-primary"]') as HTMLButtonElement;
 const caption = () => screen.getByRole('status').textContent;
 
@@ -100,7 +100,7 @@ describe('SharePreview', () => {
 
   it("repeats the card's status, and says which standings once the refine round is open", () => {
     show(ready(), card(), true);
-    expect(screen.getByText('ALL PICKS · ALL 2 RANKINGS IN · FINAL')).toBeDefined();
+    expect(screen.getByText('OVERALL · ALL 2 RANKINGS IN · FINAL')).toBeDefined();
     expect(screen.queryByText(/hasn't ranked yet|Not every ranking is in yet/)).toBeNull();
   });
 

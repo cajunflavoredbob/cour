@@ -81,7 +81,7 @@
 }
 
 /* Medals: #1 in the accent, #2 text-0, #3 text-1, on phones and desktop.
-   They are set only on All picks rows, so the second view's ranks stay
+   They are set only on Overall rows, so the second view's ranks stay
    quiet. */
 .row[data-medal="1"] .standingRank {
   color: var(--cour-accent-bright);
@@ -738,14 +738,14 @@
   cursor: pointer;
 }
 
-/* All picks / All kept: the review piles' pill tabs, right above the
+/* Overall / In common: the review piles' pill tabs, right above the
    list they switch. */
 .viewTabs {
   flex-shrink: 0;
   margin: 0 0 14px;
 }
 
-/* All kept: the note, who re-ranked, and the way into the re-rank. */
+/* In common: the note, who re-ranked, and the way into the re-rank. */
 .panelHead {
   flex-shrink: 0;
   display: flex;

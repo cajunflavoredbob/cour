@@ -31,6 +31,7 @@ import {
   rerankedByText,
   rerankOpen,
   standingsFinal,
+  VIEW_NAMES,
 } from "../../utils/standingsText";
 import styles from "./Rank.module.css";
 
@@ -53,8 +54,8 @@ const ARRIVAL_TOAST_DELAY_MS = 1500;
  *
  * Once every ranking is in and two or more shows were kept by everyone,
  * tabs over the list add a second view: the standings over just those
- * shows (All kept), and an optional one-shot re-rank of them. The head
- * above the tabs, and All picks, stay the room's result.
+ * shows (In common), and an optional one-shot re-rank of them. The head
+ * above the tabs, and Overall, stay the room's result.
  *
  * Desktop (docs/DESKTOP.md): every state is a rail beside a main column.
  * The editors put the headline, point legend and submit in the rail; the
@@ -208,7 +209,7 @@ export const RankScreen = ({ fromLock = false, onFocusTaken }: RankScreenProps =
   }, [standingsShown]);
 
   // Once per member, room and season, a toast says where the new view is,
-  // while All picks is in view and a re-rank is still open to me. It waits
+  // while Overall is in view and a re-rank is still open to me. It waits
   // for the standings to settle and for any dialog to close, and counts as
   // said once the member finds the view first.
   const announce = standingsShown && canRerank && pageVisible && standingsView === "all";
@@ -230,7 +231,7 @@ export const RankScreen = ({ fromLock = false, onFocusTaken }: RankScreenProps =
           id: arrivalToastId,
           appearance: "Success",
           showTimeMs: 6000,
-          message: `${KEPT_WORDS.rankings} are in. Compare the ${sharedCount} shows ${KEPT_WORDS.phrase} in the ${KEPT_WORDS.tab} tab.`,
+          message: `${KEPT_WORDS.rankings} are in. The ${VIEW_NAMES.shared} tab compares the ${sharedCount} shows ${KEPT_WORDS.phrase}.`,
         },
       });
     };
@@ -247,7 +248,7 @@ export const RankScreen = ({ fromLock = false, onFocusTaken }: RankScreenProps =
 
   // A round that closes (a new member joined) while I'm on its view or in
   // its editor, on screen or away on the review peek, says why and hands
-  // focus to the standings; from All picks it only moves the focus its tabs
+  // focus to the standings; from Overall it only moves the focus its tabs
   // held. The draft stays for a reopen.
   const roundOpen = round != null;
   const resultsIn = results != null;
@@ -262,7 +263,7 @@ export const RankScreen = ({ fromLock = false, onFocusTaken }: RankScreenProps =
     const closed = wasOpen.current && !roundOpen;
     wasOpen.current = roundOpen;
     if (!closed) return;
-    // The editor and its confirm open from All kept and keep the view there.
+    // The editor and its confirm open from In common and keep the view there.
     if (standingsView !== "shared") {
       if (focusLost()) setHeadFocus({ scroll: false });
       return;
@@ -660,17 +661,17 @@ export const RankScreen = ({ fromLock = false, onFocusTaken }: RankScreenProps =
   const allStandings = orderTies(results.standings ?? [], titleOf);
   const allRankOf = new Map(allStandings.map((s) => [s.titleId, s.rank]));
 
-  // All picks, or the shows everyone kept, switched right above the list.
+  // Overall, or the shows everyone kept, switched right above the list.
   const tabsEl = tabsShown && (
     <PillTabs
       label="Standings"
       idPrefix="standings"
       className={styles.viewTabs}
       tabs={[
-        { id: "all", label: `All picks ${allStandings.length}`, testHandle: "standings-all" },
+        { id: "all", label: `${VIEW_NAMES.all} ${allStandings.length}`, testHandle: "standings-all" },
         {
           id: "shared",
-          label: `${KEPT_WORDS.tab} ${sharedCount}`,
+          label: `${VIEW_NAMES.shared} ${sharedCount}`,
           testHandle: "standings-shared",
           ref: sharedTabRef,
         },
@@ -682,10 +683,10 @@ export const RankScreen = ({ fromLock = false, onFocusTaken }: RankScreenProps =
 
   // Who has re-ranked, said as it happened, never as a count still to go.
   const rerankedBy = rerankedByText(memberStates.filter((m) => m.refined).map((m) => m.userName));
-  const allKeptHead = view === "shared" && (
+  const sharedHead = view === "shared" && (
     <div className={styles.panelHead}>
       <p className={styles.sharedNote}>
-        scored as if these {sharedCount} were all you kept. the room&apos;s result doesn&apos;t change.
+        {`the ${sharedCount} shows ${KEPT_WORDS.phrase}, scored only against each other, without changing the overall standings.`}
       </p>
       <p className={styles.panelFacts} role="status">
         {rerankedBy}
@@ -704,8 +705,8 @@ export const RankScreen = ({ fromLock = false, onFocusTaken }: RankScreenProps =
     return text ? ` · ${text}` : "";
   };
 
-  // All picks rows name who ranked them and carry the medals; the rows of
-  // the second view are quiet and point back to the room's result.
+  // Overall rows name who ranked them and carry the medals; the rows of
+  // the second view are quiet and point back to their place overall.
   const standingsList = (desktop: boolean, rows: RankingStanding[], all: boolean, listKey: string) => {
     const visible = showAll[view] ? rows : rows.filter((s) => s.rank <= STANDINGS_PREVIEW);
     return (
@@ -744,7 +745,7 @@ export const RankScreen = ({ fromLock = false, onFocusTaken }: RankScreenProps =
                     {standing.points} PTS
                     {all
                       ? rankedBySuffix(standing.rankedByNames, standing.rankedBy)
-                      : allRank != null && ` · #${allRank} IN ALL PICKS`}
+                      : allRank != null && ` · #${allRank} ${VIEW_NAMES.all.toUpperCase()}`}
                   </span>
                 </span>
               </button>
@@ -811,7 +812,7 @@ export const RankScreen = ({ fromLock = false, onFocusTaken }: RankScreenProps =
   const viewRows = sharedView ? orderTies(round.standings, titleOf) : allStandings;
   const standingsPanel = (desktop: boolean) => (
     <div className={styles.standingsPanel} {...(tabsShown ? tabPanelProps("standings", view) : {})}>
-      {allKeptHead}
+      {sharedHead}
       {standingsList(
         desktop,
         viewRows,
@@ -866,7 +867,7 @@ export const RankScreen = ({ fromLock = false, onFocusTaken }: RankScreenProps =
     <SharePreview
       card={standingsCard}
       image={cardImage}
-      allPicks={tabsShown}
+      nameView={tabsShown}
       waitingOn={waitingOn}
       onClose={() => setShareOpen(false)}
     />
@@ -885,7 +886,7 @@ export const RankScreen = ({ fromLock = false, onFocusTaken }: RankScreenProps =
         <h2 className={styles.confirmTitle}>no turning back.</h2>
         <p className={styles.confirmText}>
           {confirmIsRefine
-            ? `This sends your order for the ${sharedCount} shows ${KEPT_WORDS.phrase}. You can't change it after this, and the room's result doesn't change.`
+            ? `This sends your order for the ${sharedCount} shows ${KEPT_WORDS.phrase}. You can't change it after this, and the overall standings don't change.`
             : "This submits your final ranking and reveals the standings. You can't change it after this."}
         </p>
         <label className={styles.confirmCheckRow}>

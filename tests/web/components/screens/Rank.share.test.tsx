@@ -48,6 +48,16 @@ const results = (over = {}) => ({
   topPicks: [],
   ...over,
 });
+// An open re-rank round over both shows, so the tabs are on screen.
+const round = (over = {}) => ({
+  sharedTitleIds: [101, 103],
+  refinedCount: 0,
+  myRefined: false,
+  myOrder: [101, 103],
+  standings,
+  topPicks: [],
+  ...over,
+});
 
 // biome-ignore lint/suspicious/noExplicitAny: store slice shape in tests is loose.
 const withState = (slice: any = {}) => {
@@ -72,6 +82,7 @@ const withState = (slice: any = {}) => {
 };
 
 const link = () => document.querySelector('[data-test-handle="share-standings"]') as HTMLButtonElement | null;
+const subtitle = () => screen.getByRole('dialog').querySelector('p')?.textContent;
 const settle = async (ms: number) => {
   await act(async () => {
     await vi.advanceTimersByTimeAsync(ms);
@@ -90,6 +101,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.useRealTimers();
+  vi.unstubAllGlobals();
 });
 
 describe('RankScreen sharing the standings', () => {
@@ -139,16 +151,16 @@ describe('RankScreen sharing the standings', () => {
       }),
     });
     render(<RankScreen />);
-    fireEvent.click(screen.getByText('All kept 2'));
+    fireEvent.click(screen.getByText('In common 2'));
     fireEvent.click(document.querySelector('[data-test-handle="open-refine"]') as HTMLElement);
     await settle(2000);
     expect(renderMock).not.toHaveBeenCalled();
     fireEvent.click(document.querySelector('[data-test-handle="refine-back"]') as HTMLElement);
     fireEvent.click(link() as HTMLElement);
-    expect(screen.getByText('ALL PICKS · ALL 2 RANKINGS IN · FINAL')).toBeDefined();
+    expect(screen.getByText('OVERALL · ALL 2 RANKINGS IN · FINAL')).toBeDefined();
   });
 
-  it('names All picks only while the tabs offer another view', () => {
+  it('names Overall only while the tabs offer another view', () => {
     withState({
       results: results({
         refined: {
@@ -165,6 +177,39 @@ describe('RankScreen sharing the standings', () => {
     expect(screen.queryByRole('tab')).toBeNull();
     fireEvent.click(link() as HTMLElement);
     expect(screen.getByRole('dialog').querySelector('p')?.textContent).toBe('ALL 2 RANKINGS IN · FINAL');
+  });
+
+  it('names Overall when the preview opens from the Overall tab', () => {
+    withState({ results: results({ refined: round() }) });
+    render(<RankScreen />);
+    expect(screen.getAllByRole('tab')[0].getAttribute('aria-selected')).toBe('true');
+    fireEvent.click(link() as HTMLElement);
+    expect(subtitle()).toBe('OVERALL · ALL 2 RANKINGS IN · FINAL');
+  });
+
+  it('names Overall once my own re-rank is in', () => {
+    withState({ results: results({ refined: round({ myRefined: true, refinedCount: 1 }) }) });
+    render(<RankScreen />);
+    fireEvent.click(link() as HTMLElement);
+    expect(subtitle()).toBe('OVERALL · ALL 2 RANKINGS IN · FINAL');
+  });
+
+  it('names Overall on desktop', () => {
+    vi.stubGlobal('matchMedia', (q: string) => ({
+      matches: true,
+      media: q,
+      onchange: null,
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+      addListener: () => undefined,
+      removeListener: () => undefined,
+      dispatchEvent: () => false,
+    }));
+    withState({ results: results({ refined: round() }) });
+    render(<RankScreen />);
+    expect(screen.getAllByRole('tab')).toHaveLength(2);
+    fireEvent.click(link() as HTMLElement);
+    expect(subtitle()).toBe('OVERALL · ALL 2 RANKINGS IN · FINAL');
   });
 
   it('does not make the image again when a push brings the same standings', async () => {

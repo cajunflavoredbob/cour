@@ -10,7 +10,7 @@ import {
   type StandingsCardData,
   statusLine,
 } from "../../utils/standingsCard";
-import { standingsFinal } from "../../utils/standingsText";
+import { standingsFinal, VIEW_NAMES } from "../../utils/standingsText";
 import { DialogScrim } from "../molecules/DialogScrim";
 import styles from "./SharePreview.module.css";
 
@@ -29,7 +29,7 @@ interface SharePreviewProps {
   card: StandingsCardData;
   image: CardImageState;
   // The standings offer another view, so say which one the image shows.
-  allPicks: boolean;
+  nameView: boolean;
   // Members whose ranking is still out.
   waitingOn: readonly string[];
   onClose: () => void;
@@ -41,7 +41,7 @@ interface SharePreviewProps {
  * files, a download everywhere else. The image is already made, so the
  * share runs inside the tap.
  */
-export const SharePreview = ({ card, image: state, allPicks, waitingOn, onClose }: SharePreviewProps) => {
+export const SharePreview = ({ card, image: state, nameView, waitingOn, onClose }: SharePreviewProps) => {
   const finePointer = useMediaQuery(FINE_POINTER_QUERY);
   const canShare = useMemo(() => canShareFiles(), []);
   // The share sheet is open.
@@ -113,7 +113,7 @@ export const SharePreview = ({ card, image: state, allPicks, waitingOn, onClose 
     >
       <h2 className={styles.title}>share the standings.</h2>
       <p className={styles.context}>
-        {allPicks && "ALL PICKS · "}
+        {nameView && `${VIEW_NAMES.all.toUpperCase()} · `}
         {statusLine(card)}
       </p>
       {!final && (
