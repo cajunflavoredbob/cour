@@ -13,6 +13,33 @@ repository; this changelog starts fresh at 0.1.0.
 
 ---
 
+## [1.6.0] - 2026-10-08
+
+Ties in the standings become shared places, a shared #1 gets its own
+look on the share card and on desktop, and the standings tabs get
+clearer names.
+
+### Added
+- A shared #1 sets the tied posters side by side on the share card,
+  under TIED FOR NO. 1, up to three to a row, with the rest of the top
+  five in the row below. On desktop each tied show gets its own raised
+  #1 row. The image's description names any shared places.
+
+### Changed
+- Shows level on points no longer land in an arbitrary order. The show
+  more members ranked goes first, then the one with the better single
+  best place. Shows still level on all three share a place: each reads
+  the same number, they list A to Z, and the next place skips (1, 2, 2,
+  4). In common follows the same rule.
+- The standings tabs are now Overall and In common, replacing All picks
+  and All kept, and the copy around them says what each holds. The
+  toast reads "The In common tab compares the 4 shows everyone kept.",
+  and the note above that list says they are scored only against each
+  other, without changing the overall standings.
+- The standings open on the top five places, with a shared place kept
+  whole. The share card keeps a shared place whole where it can and
+  notes any show in the top five it has no room for.
+
 ## [1.5.0] - 2026-10-06
 
 The standings gain a re-rank of the shows everyone kept and a preview
