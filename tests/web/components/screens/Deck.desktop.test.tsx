@@ -26,11 +26,17 @@ vi.mock('../../../../web/app/src/components/organisms/DeckSheet', () => ({
   DeckSheet: () => <div data-testid="deck-sheet" />,
 }));
 vi.mock('../../../../web/app/src/components/molecules/VerdictRow', () => ({
-  VerdictRow: ({ titleId, remaining, keyHolding }: { titleId: number; remaining: number; keyHolding?: boolean }) => (
+  VerdictRow: ({
+    titleId,
+    remaining,
+    keyPressed,
+    keyHolding,
+  }: { titleId: number; remaining: number; keyPressed?: boolean; keyHolding?: boolean }) => (
     <div
       data-testid="verdict-row"
       data-title-id={titleId}
       data-remaining={remaining}
+      data-key-pressed={String(Boolean(keyPressed))}
       data-key-holding={String(Boolean(keyHolding))}
     />
   ),
@@ -132,14 +138,49 @@ describe('DeckScreen desktop stage', () => {
     vi.useFakeTimers();
     render(<DeckScreen />);
     fireEvent.keyDown(window, { key: 'u' });
+    // The key looks pressed at once; the countdown shows once the press
+    // outlasts a tap.
+    expect(screen.getByTestId('verdict-row').getAttribute('data-key-pressed')).toBe('true');
+    act(() => {
+      vi.advanceTimersByTime(299);
+    });
+    expect(screen.getByTestId('verdict-row').getAttribute('data-key-holding')).toBe('false');
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
     expect(screen.getByTestId('verdict-row').getAttribute('data-key-holding')).toBe('true');
     act(() => {
-      vi.advanceTimersByTime(1500);
+      vi.advanceTimersByTime(1199);
+    });
+    expect(dispatch).not.toHaveBeenCalled();
+    act(() => {
+      vi.advanceTimersByTime(1);
     });
     expect(dispatch).toHaveBeenCalledWith({ type: 'skipRemaining' });
+    expect(screen.getByTestId('verdict-row').getAttribute('data-key-holding')).toBe('false');
     fireEvent.keyUp(window, { key: 'u' });
+    expect(screen.getByTestId('verdict-row').getAttribute('data-key-pressed')).toBe('false');
     expect(dispatch).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'verdict' }));
     expect(screen.getByTestId('verdict-row').getAttribute('data-key-holding')).toBe('false');
+    vi.useRealTimers();
+  });
+
+  it('never shows the countdown for a quick U press', () => {
+    vi.useFakeTimers();
+    render(<DeckScreen />);
+    fireEvent.keyDown(window, { key: 'u' });
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
+    expect(screen.getByTestId('verdict-row').getAttribute('data-key-pressed')).toBe('true');
+    fireEvent.keyUp(window, { key: 'u' });
+    expect(screen.getByTestId('verdict-row').getAttribute('data-key-pressed')).toBe('false');
+    act(() => {
+      vi.advanceTimersByTime(3000);
+    });
+    expect(screen.getByTestId('verdict-row').getAttribute('data-key-holding')).toBe('false');
+    expect(dispatch).toHaveBeenCalledTimes(1);
+    expect(dispatch).toHaveBeenCalledWith({ type: 'verdict', payload: { titleId: 101, verdict: 'skip' } });
     vi.useRealTimers();
   });
 

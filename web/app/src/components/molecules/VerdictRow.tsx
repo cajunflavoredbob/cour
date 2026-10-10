@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { VerdictValue } from "../../../../../types/reely";
 import { useDispatch, useSelector } from "../../store";
 import { roomOffline } from "../../store/offline";
+import { HOLD_SHOW_MS, SKIP_ALL_HOLD_MS } from "../../utils/hold";
 import styles from "./VerdictRow.module.css";
 
 interface VerdictRowProps {
@@ -17,12 +18,11 @@ interface VerdictRowProps {
    * re-review passes halo the matching button so the original choice
    * is visible at the moment of re-deciding. */
   currentVerdict?: VerdictValue;
+  /** The U key is down on desktop: Unsure looks pressed. */
+  keyPressed?: boolean;
   /** The U key is held on desktop: Unsure shows the same countdown. */
   keyHolding?: boolean;
 }
-
-// Hold duration for skip-all (design section 04 skip-states card).
-const SKIP_ALL_HOLD_MS = 1500;
 
 /**
  * The verdict row (design section 03): clay Pass pill, text-only Unsure
@@ -37,6 +37,7 @@ export const VerdictRow = ({
   remaining,
   allowSkipAll = true,
   currentVerdict,
+  keyPressed = false,
   keyHolding = false,
 }: VerdictRowProps) => {
   const dispatch = useDispatch();
@@ -48,7 +49,12 @@ export const VerdictRow = ({
   // browser's :active outlives a pointer dragged off the button).
   const [pressed, setPressed] = useState(false);
   const holdTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const showTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const holdFired = useRef(false);
+  const clearTimers = () => {
+    clearTimeout(holdTimer.current);
+    clearTimeout(showTimer.current);
+  };
 
   // Post-advance debounce (audit v1.2.0 #16): the next card's buttons
   // occupy the same coordinates the instant the deck advances, so a
@@ -87,7 +93,7 @@ export const VerdictRow = ({
   // moment the inputs disable.
   useEffect(() => {
     if (inputsDisabled) {
-      clearTimeout(holdTimer.current);
+      clearTimers();
       setHolding(false);
       setPressed(false);
       pressActive.current = false;
@@ -97,7 +103,7 @@ export const VerdictRow = ({
 
   // A hold still running when the row goes away (the screen changed under
   // the finger) must not skip the rest of the season after the fact.
-  useEffect(() => () => clearTimeout(holdTimer.current), []);
+  useEffect(() => clearTimers, []);
 
   const verdict = (v: "like" | "dislike" | "skip") => {
     if (inputsDisabled) return;
@@ -123,7 +129,7 @@ export const VerdictRow = ({
     // timer, so a quick two-finger tap fired a plain skip AND, 1.5s
     // later, a silent skip-all of the whole season (audit 17 M4). One
     // pending hold at a time.
-    clearTimeout(holdTimer.current);
+    clearTimers();
     holdFired.current = false;
     pressActive.current = true;
     setPressed(true);
@@ -131,16 +137,17 @@ export const VerdictRow = ({
     // tap: no timer, no hold UI, but pressActive still arms endHold's
     // tap-skip path.
     if (!allowSkipAll || remaining < 2) return;
-    setHolding(true);
+    showTimer.current = setTimeout(() => setHolding(true), HOLD_SHOW_MS);
     holdTimer.current = setTimeout(() => {
       holdFired.current = true;
+      clearTimeout(showTimer.current);
       setHolding(false);
       dispatch({ type: "skipRemaining" });
     }, SKIP_ALL_HOLD_MS);
   };
 
   const endHold = () => {
-    clearTimeout(holdTimer.current);
+    clearTimers();
     setHolding(false);
     setPressed(false);
     // Released before the hold completed, from a press that started here
@@ -151,7 +158,7 @@ export const VerdictRow = ({
   };
 
   const cancelHold = () => {
-    clearTimeout(holdTimer.current);
+    clearTimers();
     setHolding(false);
     setPressed(false);
     pressActive.current = false;
@@ -187,7 +194,7 @@ export const VerdictRow = ({
         data-current={currentVerdict === "skip"}
         aria-label={currentVerdict === "skip" ? "Unsure (your current pick)" : undefined}
         data-holding={holding || keyHolding}
-        data-pressed={pressed || keyHolding}
+        data-pressed={pressed || keyPressed || keyHolding}
         onPointerDown={startHold}
         onPointerUp={endHold}
         onPointerLeave={cancelHold}

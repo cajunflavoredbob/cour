@@ -12,7 +12,10 @@ vi.mock('../../../../web/app/src/store', () => ({
   createStore: vi.fn(),
 }));
 
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { VerdictRow } from '../../../../web/app/src/components/molecules/VerdictRow';
+import { HOLD_SHOW_MS, SKIP_ALL_HOLD_MS } from '../../../../web/app/src/utils/hold';
 
 beforeEach(() => {
   dispatch = vi.fn();
@@ -57,17 +60,71 @@ describe('VerdictRow', () => {
     render(<VerdictRow titleId={101} remaining={12} />);
     const skip = screen.getByText('unsure');
     fireEvent.pointerDown(skip);
-    // Mid-hold the label counts down against the remaining total.
-    vi.advanceTimersByTime(100);
+    // The countdown shows once the press outlasts a tap, against the
+    // remaining total.
+    const button = skip.closest('button') as HTMLElement;
+    act(() => {
+      vi.advanceTimersByTime(299);
+    });
+    expect(button.getAttribute('data-holding')).toBe('false');
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(button.getAttribute('data-holding')).toBe('true');
     expect(screen.getByText(/all 12 unsure/)).toBeDefined();
-    vi.advanceTimersByTime(1500);
+    act(() => {
+      vi.advanceTimersByTime(1199);
+    });
+    expect(dispatch).not.toHaveBeenCalled();
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
     expect(dispatch).toHaveBeenCalledWith({ type: 'skipRemaining' });
+    expect(button.getAttribute('data-holding')).toBe('false');
     // Releasing after the hold completed must NOT add a single skip.
     // (Select by handle -- the label text is mid-transition here.)
     fireEvent.pointerUp(
       document.querySelector('[data-test-handle="verdict-skip"]') as HTMLElement,
     );
     expect(dispatch).toHaveBeenCalledTimes(1);
+  });
+
+  it('never shows the countdown for a tap', () => {
+    vi.useFakeTimers();
+    render(<VerdictRow titleId={101} remaining={12} />);
+    const button = screen.getByText('unsure').closest('button') as HTMLElement;
+    fireEvent.pointerDown(button);
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
+    fireEvent.pointerUp(button);
+    act(() => {
+      vi.advanceTimersByTime(3000);
+    });
+    expect(button.getAttribute('data-holding')).toBe('false');
+    expect(screen.queryByText(/all 12 unsure/)).toBeNull();
+    expect(dispatch).toHaveBeenCalledTimes(1);
+    expect(dispatch).toHaveBeenCalledWith({ type: 'verdict', payload: { titleId: 101, verdict: 'skip' } });
+  });
+
+  it('never shows the countdown for a press cut off before it would', () => {
+    vi.useFakeTimers();
+    const view = render(<VerdictRow titleId={101} remaining={12} />);
+    const button = () => document.querySelector('[data-test-handle="verdict-skip"]') as HTMLElement;
+    fireEvent.pointerDown(button());
+    fireEvent.pointerLeave(button());
+    act(() => {
+      vi.advanceTimersByTime(3000);
+    });
+    expect(button().getAttribute('data-holding')).toBe('false');
+    fireEvent.pointerDown(button());
+    // A new title arms the post-advance disable.
+    view.rerender(<VerdictRow titleId={102} remaining={11} />);
+    act(() => {
+      vi.advanceTimersByTime(3000);
+    });
+    expect(button().getAttribute('data-holding')).toBe('false');
+    expect(dispatch).not.toHaveBeenCalled();
   });
 
   it('a second pointer down does not orphan the first hold timer (audit 17 M4)', () => {
@@ -84,8 +141,11 @@ describe('VerdictRow', () => {
       type: 'verdict',
       payload: { titleId: 101, verdict: 'skip' },
     });
-    vi.advanceTimersByTime(3000);
+    act(() => {
+      vi.advanceTimersByTime(3000);
+    });
     expect(dispatch).not.toHaveBeenCalledWith({ type: 'skipRemaining' });
+    expect(skip.getAttribute('data-holding')).toBe('false');
   });
 
   it('disables all three verdict buttons while disconnected (audit 17 M7)', async () => {
@@ -169,6 +229,19 @@ describe('VerdictRow', () => {
     fireEvent.pointerLeave(skip);
     vi.advanceTimersByTime(3000);
     expect(dispatch).not.toHaveBeenCalled();
+  });
+
+  it("shows the deck's U key down as a press, before any countdown", () => {
+    render(<VerdictRow titleId={101} remaining={12} keyPressed />);
+    const button = document.querySelector('[data-test-handle="verdict-skip"]') as HTMLElement;
+    expect(button.getAttribute('data-pressed')).toBe('true');
+    expect(button.getAttribute('data-holding')).toBe('false');
+    expect(screen.getByText('unsure')).toBeDefined();
+  });
+
+  it('sweeps the fill over the hold left once the countdown shows', () => {
+    const css = readFileSync(join(process.cwd(), 'web/app/src/components/molecules/VerdictRow.module.css'), 'utf8');
+    expect(css).toContain(`animation: cour-skip-sweep ${SKIP_ALL_HOLD_MS - HOLD_SHOW_MS}ms linear forwards;`);
   });
 
   it("shows the deck's U-key hold as its own countdown", () => {

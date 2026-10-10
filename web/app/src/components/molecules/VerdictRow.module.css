@@ -44,7 +44,8 @@
 }
 
 /* Pressed: a ghost pill fades in under the finger and the label brightens;
-   held, the accent-soft fill sweeps it for the 1.5s countdown (section 04). */
+   held past a tap (0.3s, HOLD_SHOW_MS), the accent-soft fill sweeps it for
+   the rest of the 1.5s countdown (section 04). */
 .skipBtn[data-pressed="true"] {
   background: var(--cour-bg-2);
   border: 1px solid var(--cour-line-strong);
@@ -61,7 +62,7 @@
 }
 
 .skipBtn[data-holding="true"] .skipFill {
-  animation: cour-skip-sweep 1500ms linear forwards;
+  animation: cour-skip-sweep 1200ms linear forwards;
 }
 
 .skipLabel {

@@ -14,15 +14,13 @@ import { roomOffline } from "../../store/offline";
 import { useSeason } from "../../hooks/useSeason";
 import { posterSrc } from "../../utils/poster";
 import { metaLine } from "../../utils/metaLine";
+import { HOLD_SHOW_MS, SKIP_ALL_HOLD_MS } from "../../utils/hold";
 import { overlayOpen } from "../../utils/overlay";
 import styles from "./Deck.module.css";
 
 // Keyboard verdicts (desktop only): a deliberate keypress is a button
 // in spirit -- the guide's "buttons, not gestures, decide" is about
 // commitment being explicit, not about the input device.
-// As long as the Unsure button's hold (VerdictRow).
-const SKIP_ALL_HOLD_MS = 1500;
-
 const KEY_VERDICTS: Record<string, VerdictValue> = {
   k: "like",
   p: "dislike",
@@ -142,6 +140,7 @@ export const DeckScreen = () => {
   // Holding U for 1.5s marks the rest of the season unsure, as holding the
   // Unsure button does; a shorter press is one unsure.
   const skipAllByKey = !deckScope && (review ? review.total - verdictedIds.size : 0) >= 2;
+  const [keyPressed, setKeyPressed] = useState(false);
   const [keyHolding, setKeyHolding] = useState(false);
   useEffect(() => {
     // `connected`: keyboard verdicts disable while disconnected, same as
@@ -149,10 +148,13 @@ export const DeckScreen = () => {
     // completes and is lost to "Set your name first." (audit 17 M7).
     if (!isDesktop || currentId == null || !connected) return;
     let hold: ReturnType<typeof setTimeout> | undefined;
+    let show: ReturnType<typeof setTimeout> | undefined;
     let holdFired = false;
     const endHold = () => {
       clearTimeout(hold);
+      clearTimeout(show);
       hold = undefined;
+      setKeyPressed(false);
       setKeyHolding(false);
     };
     const onKeyUp = (e: KeyboardEvent) => {
@@ -178,9 +180,11 @@ export const DeckScreen = () => {
       if (verdict === "skip" && skipAllByKey) {
         if (hold !== undefined) return;
         holdFired = false;
-        setKeyHolding(true);
+        setKeyPressed(true);
+        show = setTimeout(() => setKeyHolding(true), HOLD_SHOW_MS);
         hold = setTimeout(() => {
           holdFired = true;
+          clearTimeout(show);
           setKeyHolding(false);
           dispatch({ type: "skipRemaining" });
         }, SKIP_ALL_HOLD_MS);
@@ -386,6 +390,7 @@ export const DeckScreen = () => {
                 remaining={total - done}
                 allowSkipAll={!deckScope}
                 currentVerdict={currentVerdict}
+                keyPressed={keyPressed}
                 keyHolding={keyHolding}
               />
               <p className={styles.kbdHint} aria-hidden="true">

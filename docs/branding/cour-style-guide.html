@@ -324,7 +324,7 @@
     </div>
     <div class="rules" style="margin-top: 14px;">
       <div class="rule"><span class="k2">order & size</span><span class="v2">Always Dislike → Skip → Like, 52px tall, max 116px wide each, 10px gap, centered. Never adjacent Like/Dislike.</span></div>
-      <div class="rule"><span class="k2">skip states</span><span class="v2">Rest: text only. Pressed: bg-2 ghost pill fades in, text brightens to text-0. Held 1.5s: accent-soft fill bar sweeps → skip all remaining; release cancels. With one title left, a hold is a single skip.</span></div>
+      <div class="rule"><span class="k2">skip states</span><span class="v2">Rest: text only. Pressed: bg-2 ghost pill fades in, text brightens to text-0. Held past a tap (0.3s), the label counts down and the accent-soft fill bar sweeps to 1.5s → skip all remaining; release cancels. With one title left, a hold is a single skip.</span></div>
       <div class="rule"><span class="k2">icons</span><span class="v2">Dislike: X in clay, stroke 2.5, round caps. Like: solid heart, white. Skip: none. 14–15px inside 52px buttons.</span></div>
       <div class="rule"><span class="k2">placement</span><span class="v2">Inside the drawer lip on the deck; pinned at drawer foot when expanded. Bottom padding 34px (home indicator).</span></div>
     </div>
@@ -420,7 +420,7 @@
     <div class="rules">
       <div class="rule"><span class="k2">card advance</span><span class="v2">Verdict press → current poster exits (fade + slight scale-down), next fades in. No directional fling — direction implied swiping, which is gone.</span></div>
       <div class="rule"><span class="k2">drawer</span><span class="v2">Spring, ~320ms, from the lip's resting position. Poster behind dims to brightness 0.5 / saturate 0.8.</span></div>
-      <div class="rule"><span class="k2">skip hold</span><span class="v2">1.5s linear fill, label counts down, completion skips all remaining. Release = cancel + single skip.</span></div>
+      <div class="rule"><span class="k2">skip hold</span><span class="v2">Shows after 0.3s, so a tap never flashes it; then a linear fill to 1.5s, label counts down, completion skips all remaining. Release = cancel + single skip.</span></div>
       <div class="rule"><span class="k2">media rotation</span><span class="v2">3s per item, crossfade ~240ms, pauses while PV plays or an item is pinned.</span></div>
       <div class="rule"><span class="k2">sound</span><span class="v2">PVs always start muted ("TAP FOR SOUND" chip). One global sound toggle (topbar + account sheet) owns theme music and PV default; persisted per user. Prefer one ambient seasonal loop over per-card themes.</span></div>
       <div class="rule"><span class="k2">reduced motion</span><span class="v2">Respect prefers-reduced-motion: replace springs/fills with fades; keep the skip-hold countdown as a visible timer.</span></div>
