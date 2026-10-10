@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AniListApi, normalizeMedia, stripHtml } from '../../internal/app/anilist/api';
-import type { AniListMedia } from '../../internal/app/anilist/types';
+import type { AniListMedia, AnimeSeason } from '../../internal/app/anilist/types';
 
 // Raw AniList media entry with sane defaults; tests override per case.
 const rawMedia = (over: Partial<AniListMedia> = {}): AniListMedia => ({
@@ -113,6 +113,7 @@ describe('normalizeMedia', () => {
       studio: 'Komorebi Works',
       trailer: { site: 'youtube', id: 'abc123' },
       isSequel: false,
+      isCompanion: false,
     });
   });
 
@@ -160,6 +161,101 @@ describe('normalizeMedia', () => {
     expect(
       normalizeMedia(rawMedia({ relations: { edges: null } }), 'SUMMER', 2026)?.isSequel,
     ).toBe(false);
+  });
+
+  // An entry titled `title` with one relation edge to an anime.
+  const related = (
+    title: { english: string | null; romaji: string | null },
+    relationType: string,
+    node: { english?: string | null; romaji?: string | null; season: AnimeSeason | null; seasonYear: number | null },
+  ) =>
+    rawMedia({
+      title: { ...title, native: null },
+      relations: {
+        edges: [
+          {
+            relationType,
+            node: {
+              id: 9,
+              type: 'ANIME',
+              season: node.season,
+              seasonYear: node.seasonYear,
+              title: { english: node.english ?? null, romaji: node.romaji ?? null, native: null },
+            },
+          },
+        ],
+      },
+    });
+  const fall = (raw: AniListMedia) => normalizeMedia(raw, 'FALL', 2026);
+
+  it('counts an OTHER edge to an earlier anime it continues by title as a sequel', () => {
+    const own = { english: 'Cyberpunk: Edgerunners 2', romaji: 'Cyberpunk: Edgerunners 2' };
+    expect(fall(related(own, 'OTHER', { english: 'Cyberpunk: Edgerunners', season: 'SUMMER', seasonYear: 2022 }))?.isSequel).toBe(true);
+    // Earlier this same year counts too.
+    expect(fall(related(own, 'OTHER', { english: 'Cyberpunk: Edgerunners', season: 'SUMMER', seasonYear: 2026 }))?.isSequel).toBe(true);
+    // Either title form matches, whatever the case and spacing.
+    expect(
+      fall(related({ english: 'Gunma Days', romaji: 'Gunma-chan  Reiwa ban' }, 'OTHER', { romaji: 'gunma-chan', season: 'SPRING', seasonYear: 2018 }))?.isSequel,
+    ).toBe(true);
+    expect(
+      fall(related({ english: ' Cyberpunk: Edgerunners 2 ', romaji: null }, 'OTHER', { english: 'Cyberpunk:  Edgerunners', season: 'SUMMER', seasonYear: 2022 }))?.isSequel,
+    ).toBe(true);
+  });
+
+  it('keeps an OTHER edge that is not a continuation', () => {
+    const own = { english: 'Bar 2', romaji: null };
+    // This season, a later one, or no season at all: not earlier.
+    for (const [season, seasonYear] of [['FALL', 2026], ['WINTER', 2027], [null, null], ['FALL', null]] as const) {
+      expect(fall(related(own, 'OTHER', { english: 'Bar', season, seasonYear }))?.isSequel).toBe(false);
+    }
+    // An earlier year with no season is not placed.
+    expect(fall(related(own, 'OTHER', { english: 'Bar', season: null, seasonYear: 2020 }))?.isSequel).toBe(false);
+    // An earlier pilot under a longer title, a longer word that starts the
+    // same (letter, digit or accented letter), and the same title.
+    const earlier = { season: 'WINTER', seasonYear: 2025 } as const;
+    expect(fall(related({ english: 'Foo', romaji: null }, 'OTHER', { english: 'Foo Pilot', ...earlier }))?.isSequel).toBe(false);
+    for (const longer of ['Gunmax', 'Gunma2', 'Gunmaé']) {
+      expect(fall(related({ english: longer, romaji: null }, 'OTHER', { english: 'Gunma', ...earlier }))?.isSequel).toBe(false);
+    }
+    expect(fall(related({ english: 'Bar', romaji: null }, 'OTHER', { english: 'Bar', ...earlier }))?.isSequel).toBe(false);
+    // An empty earlier title is no title at all.
+    expect(fall(related({ english: '"Oshi" 3', romaji: null }, 'OTHER', { english: ' ', romaji: '', ...earlier }))?.isSequel).toBe(false);
+  });
+
+  it('places the earlier anime against this season, not just the year', () => {
+    const spring = (node: { season: AnimeSeason; seasonYear: number }) =>
+      normalizeMedia(related({ english: 'Bar 2', romaji: null }, 'OTHER', { english: 'Bar', ...node }), 'SPRING', 2026)?.isSequel;
+    expect(spring({ season: 'WINTER', seasonYear: 2026 })).toBe(true);
+    expect(spring({ season: 'SUMMER', seasonYear: 2026 })).toBe(false);
+    expect(spring({ season: 'FALL', seasonYear: 2025 })).toBe(true);
+  });
+
+  it('keeps remakes and spin-offs of earlier anime', () => {
+    const own = { english: 'Magic Knight Rayearth (2026)', romaji: null };
+    const earlier = { english: 'Magic Knight Rayearth', season: 'FALL', seasonYear: 1994 } as const;
+    expect(fall(related(own, 'ALTERNATIVE', earlier))?.isSequel).toBe(false);
+    expect(fall(related(own, 'SPIN_OFF', earlier))?.isSequel).toBe(false);
+  });
+
+  it('flags a side work of an anime airing this season as a companion', () => {
+    const mini = fall(
+      related({ english: "My Girlfriend's Friend Mini Anime", romaji: null }, 'PARENT', {
+        english: "My Girlfriend's Friend",
+        season: 'FALL',
+        seasonYear: 2026,
+      }),
+    );
+    expect(mini?.isCompanion).toBe(true);
+    expect(mini?.isSequel).toBe(false);
+  });
+
+  it('does not count a side work of another season as a companion', () => {
+    const own = { english: 'A Certain Dark Item', romaji: null };
+    for (const [season, seasonYear] of [['FALL', 2008], ['FALL', 2025], ['SUMMER', 2026], [null, null]] as const) {
+      expect(fall(related(own, 'PARENT', { english: 'A Certain Magical Index', season, seasonYear }))?.isCompanion).toBe(false);
+    }
+    // Only a PARENT edge marks a side work.
+    expect(fall(related(own, 'SIDE_STORY', { english: 'Index', season: 'FALL', seasonYear: 2026 }))?.isCompanion).toBe(false);
   });
 
   it('requires both trailer halves', () => {

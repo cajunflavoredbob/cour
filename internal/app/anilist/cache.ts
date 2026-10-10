@@ -18,7 +18,7 @@ import type { AnimeSeason, SeasonalAnime } from './types';
 // Bump when SeasonalAnime's shape changes incompatibly. A version mismatch
 // treats the file as absent (re-fetch + overwrite) instead of risking a
 // half-shaped entry reaching the deck.
-export const SEASON_CACHE_VERSION = 3;
+export const SEASON_CACHE_VERSION = 4;
 
 export interface SeasonCacheFile {
   version: number;

@@ -50,6 +50,9 @@ export interface AniListRelationEdge {
   node: {
     id: number;
     type: 'ANIME' | 'MANGA' | null;
+    season?: AnimeSeason | null;
+    seasonYear?: number | null;
+    title?: AniListTitle | null;
   } | null;
 }
 
@@ -126,8 +129,13 @@ export interface SeasonalAnime {
   // TMDB key is configured and the background enrichment has run.
   tmdbId?: number;
   stills?: string[];
-  // True when the entry has a PREQUEL relation edge to another ANIME --
-  // i.e. it continues an earlier work. Drives the sequels-hidden-by-default
-  // behavior in the anime provider.
+  // True when the entry continues an earlier anime: a PREQUEL edge to one,
+  // or an OTHER edge to one that aired before this season and whose title
+  // this one extends ("Cyberpunk: Edgerunners 2"). Drives the
+  // sequels-hidden-by-default behavior in the anime provider.
   isSequel: boolean;
+  // True when the entry is a side work (a PARENT edge) of an anime airing
+  // this same season, like the shorts that run alongside a series. The
+  // provider always hides these. Absent in caches written before v4.
+  isCompanion?: boolean;
 }

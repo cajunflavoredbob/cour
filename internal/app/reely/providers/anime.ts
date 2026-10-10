@@ -60,9 +60,12 @@ const COVER_FETCH_TIMEOUT_MS = 30_000;
  *
  * The list arrives from AniList in POPULARITY_DESC order and is served in
  * that order (`mediaOrdered: true`; Room.fetchMedia skips its shuffle).
- * Sequels -- entries with a PREQUEL relation -- are hidden unless
+ * Sequels -- entries that continue an earlier anime -- are hidden unless
  * `showSequels` is set: the picker exists to find NEW shows, and season
- * N+1 of something the room isn't watching is dead-swipe noise.
+ * N+1 of something the room isn't watching is dead-swipe noise. Movies
+ * are always hidden, a room picks series to follow through the season,
+ * and so are companions, the side works that air alongside a show this
+ * season.
  */
 export const createProvider = (
   id: string,
@@ -100,13 +103,17 @@ export const createProvider = (
   const cacheDir = options.cacheDir ?? join(process.cwd(), 'data', 'anilist');
 
   let list: SeasonalAnime[] | undefined;
+  // The cache version the entries were derived under: a snapshot loaded
+  // from an older cache keeps its number until a refetch replaces it.
+  let listVersion = SEASON_CACHE_VERSION;
   // anilistId (stringified) -> cover URL / stills, for the poster proxy.
   // Rebuilt whenever the snapshot is replaced or enriched.
   const coverById = new Map<string, string>();
   const stillsById = new Map<string, string[]>();
 
-  const setList = (media: SeasonalAnime[]) => {
+  const setList = (media: SeasonalAnime[], version: number) => {
     list = media;
+    listVersion = version;
     coverById.clear();
     stillsById.clear();
     for (const entry of media) {
@@ -118,7 +125,7 @@ export const createProvider = (
   const persistSnapshot = async () => {
     try {
       await saveSeasonCache(cacheDir, {
-        version: SEASON_CACHE_VERSION,
+        version: listVersion,
         fetchedAt: Date.now(),
         season: current.season,
         year: current.year,
@@ -315,7 +322,7 @@ export const createProvider = (
             }
           }
         }
-        setList(list);
+        setList(list, listVersion);
         await persistSnapshot();
         logger.info(`TMDB: stills enriched for ${enriched} ${label()} entries`);
         options.onStillsEnriched?.();
@@ -397,7 +404,7 @@ export const createProvider = (
         entry.tmdbId = old.tmdbId;
       }
     }
-    setList(media);
+    setList(media, SEASON_CACHE_VERSION);
     lastFetchedAt = Date.now();
     logger.info(`AniList ${label()}: loaded ${media.length} entries`);
     await persistSnapshot();
@@ -445,7 +452,7 @@ export const createProvider = (
     }
     current = target;
     seasonProvisional = false;
-    setList(media);
+    setList(media, SEASON_CACHE_VERSION);
     lastFetchedAt = Date.now();
     logger.info(`AniList ${label()}: season rotated in, ${media.length} entries`);
     await persistSnapshot();
@@ -475,7 +482,7 @@ export const createProvider = (
         }
         const cached = cachedFile?.media.length ? cachedFile : undefined;
         if (cached) {
-          setList(cached.media);
+          setList(cached.media, cached.version);
           lastFetchedAt = cached.fetchedAt;
           // Say which of the two states this is, and do not promise a
           // refresh that is not scheduled: an operator diagnosing a short
@@ -545,7 +552,7 @@ export const createProvider = (
           // this deliberately-stale value (the reaper deletes on any
           // mismatch, in either direction).
           seasonProvisional = true;
-          setList(fallback.media);
+          setList(fallback.media, fallback.version);
           lastFetchedAt = fallback.fetchedAt;
           logger.warn(
             `AniList: incoming-season fetch failed (${String(err)}); ` +
@@ -563,14 +570,10 @@ export const createProvider = (
     return loadPromise;
   };
 
-  // The deck baseline every consumer (media, filter values) starts from:
-  // the snapshot minus hidden sequels. Filter values derive from this same
-  // baseline so the UI never offers a genre/format that only exists on
-  // hidden entries.
-  const visibleList = (): SeasonalAnime[] => {
-    const all = list ?? [];
-    return showSequels ? all : all.filter((a) => !a.isSequel);
-  };
+  // The deck every room gets: the snapshot minus movies, companions and
+  // hidden sequels.
+  const visibleList = (): SeasonalAnime[] =>
+    (list ?? []).filter((a) => a.format !== 'MOVIE' && !a.isCompanion && (showSequels || !a.isSequel));
 
   const toMedia = (a: SeasonalAnime): Media => ({
     id: String(a.id),

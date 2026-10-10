@@ -18,7 +18,8 @@ picks until the rankings are in.
 Season data comes from [AniList](https://anilist.co) -- titles,
 synopses, cover art, trailers -- refreshed automatically at boot and
 cached on disk. Sequels are hidden by default, since the point is
-finding NEW shows.
+finding NEW shows. Movies, and the shorts that air alongside a show,
+are always left out: the deck is series to follow through the season.
 
 - **Runs on AniList, no keys.** Titles, cover art, and trailers come
   from AniList out of the box. An optional TMDB key adds screenshots to

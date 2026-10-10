@@ -30,8 +30,8 @@ export interface Config {
     // Env: ANIME_SEASON / ANIME_YEAR.
     season?: "WINTER" | "SPRING" | "SUMMER" | "FALL";
     year?: number;
-    // Sequels (entries with a PREQUEL relation on AniList) are hidden from
-    // the deck by default -- the picker's purpose is finding NEW shows.
+    // Sequels (entries that continue an earlier anime on AniList) are hidden
+    // from the deck by default -- the picker's purpose is finding NEW shows.
     // Env: ANIME_SHOW_SEQUELS. A per-room toggle layers on top later.
     showSequels?: boolean;
     // Where the seasonal snapshot is persisted across restarts. Defaults to

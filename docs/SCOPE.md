@@ -67,7 +67,8 @@ Names are 1-32 characters, unique case-insensitively.
 
 1. **Deck**: the season's titles, popularity-ordered, one card at a
    time. Keep / Pass / Unsure; hold Unsure to skip the rest. Sequels are
-   hidden by default.
+   hidden by default; movies, and the shorts that air alongside a show
+   the same season, always.
 2. **Review**: the ledger in three piles, tap-to-change pills, re-review
    scopes back into the deck. Lock-in is final (checkbox-gated dialog)
    and requires a verdict on every title -- enforced server-side.

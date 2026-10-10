@@ -78,7 +78,7 @@ const SEASON: SeasonalAnime[] = [
     title: 'Delta',
     popularity: 600,
     genres: ['Comedy'],
-    format: 'MOVIE',
+    format: 'TV_SHORT',
     idMal: 44,
     duration: 24,
     rating: 8.1,
@@ -217,6 +217,27 @@ describe('deck shape', () => {
     ).toEqual(['1', '2', '3', '4']);
   });
 
+  it('hides movies, sequel or not, whatever showSequels says', async () => {
+    mockApi.fetchSeason.mockResolvedValue([
+      ...SEASON,
+      entry({ id: 5, title: 'Epsilon', popularity: 500, format: 'MOVIE' }),
+      entry({ id: 6, title: 'Zeta: The Movie', popularity: 400, format: 'MOVIE', isSequel: true }),
+      entry({ id: 7, title: 'Eta', popularity: 300 }),
+    ]);
+    expect((await makeProvider().getMedia()).map((m) => m.id)).toEqual(['1', '3', '4', '7']);
+    expect((await makeProvider({ showSequels: true }).getMedia()).map((m) => m.id)).toEqual(['1', '2', '3', '4', '7']);
+  });
+
+  it('hides companions whatever showSequels says, and shows entries cached without the flag', async () => {
+    mockApi.fetchSeason.mockResolvedValue([
+      ...SEASON,
+      entry({ id: 5, title: 'Alpha Mini Anime', popularity: 500, format: 'TV_SHORT', isCompanion: true }),
+      entry({ id: 6, title: 'Theta', popularity: 400, format: 'TV_SHORT', isCompanion: false }),
+    ]);
+    expect((await makeProvider().getMedia()).map((m) => m.id)).toEqual(['1', '3', '4', '6']);
+    expect((await makeProvider({ showSequels: true }).getMedia()).map((m) => m.id)).toEqual(['1', '2', '3', '4', '6']);
+  });
+
   it('maps SeasonalAnime to the Media wire shape', async () => {
     const media = await makeProvider().getMedia();
     const delta = media.find((m) => m.id === '4');
@@ -234,7 +255,7 @@ describe('deck shape', () => {
       rating: 8.1,
       anilistId: 4,
       malId: 44,
-      format: 'MOVIE',
+      format: 'TV_SHORT',
       episodes: undefined,
       studio: undefined,
       trailer: { site: 'youtube', id: 'vid4' },
@@ -388,6 +409,22 @@ describe('TMDB stills (0.9.0)', () => {
     await provider.getMedia();
     await new Promise((r) => setTimeout(r, 0));
     expect(saveCacheMock).toHaveBeenCalled();
+  });
+
+  it('keeps an older cache version when stills are saved into it', async () => {
+    // Its entries still carry the flags an older normalize derived; only a
+    // refetch may stamp them current.
+    loadCacheMock.mockResolvedValue({ version: 0, fetchedAt: 1, season: 'SUMMER', year: 2026, media: [entry({ id: 1 })] });
+    mockApi.fetchSeason.mockRejectedValue(new Error('down'));
+    tmdbEnrichMock.mockImplementation(async (_api, entries) => {
+      for (const e of entries) e.stills = ['https://image.tmdb.org/t/p/w780/n.jpg'];
+      return entries.length;
+    });
+    saveCacheMock.mockClear();
+    const provider = makeProvider({ getTmdbKey: () => 'key123' });
+    await provider.getMedia();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(saveCacheMock).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ version: 0 }));
   });
 });
 

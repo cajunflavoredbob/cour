@@ -1,9 +1,12 @@
 import { logger } from '../reely/logger';
-import type {
-  AniListMedia,
-  AniListSeasonalResponse,
-  AnimeSeason,
-  SeasonalAnime,
+import {
+  ANIME_SEASONS,
+  type AniListMedia,
+  type AniListRelationEdge,
+  type AniListSeasonalResponse,
+  type AniListTitle,
+  type AnimeSeason,
+  type SeasonalAnime,
 } from './types';
 
 // AniList's public GraphQL endpoint. The config layers fill this in as the
@@ -53,9 +56,9 @@ const PAGE_CAP = 20;
 // deck is popularity-ordered by design, not shuffled -- see providers/
 // anime.ts + Room.fetchMedia's mediaOrdered check).
 //
-// relations edges are fetched for sequel detection only: an entry with a
-// PREQUEL edge to another ANIME continues an earlier work and is hidden by
-// default. trailer + idMal ride along for later batches (trailer rendering
+// relations edges are fetched to place an entry against other anime: a
+// sequel continues an earlier one, a companion is the side work of a show
+// airing the same season (normalizeMedia). trailer + idMal ride along for later batches (trailer rendering
 // and MAL links) -- captured now so the cache doesn't need a re-fetch when
 // those land.
 const SEASONAL_QUERY = `
@@ -78,7 +81,7 @@ query ($season: MediaSeason!, $seasonYear: Int!, $page: Int!, $perPage: Int!) {
       coverImage { extraLarge large }
       studios(isMain: true) { nodes { name } }
       trailer { id site }
-      relations { edges { relationType node { id type } } }
+      relations { edges { relationType node { id type season seasonYear title { romaji english } } } }
       isAdult
     }
   }
@@ -99,6 +102,30 @@ export const stripHtml = (html: string): string =>
     .replace(/&amp;/g, '&')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
+
+// An entry's English and romaji titles, lowercased with spaces collapsed.
+const titleForms = (title: AniListTitle | null | undefined): string[] =>
+  [title?.english, title?.romaji]
+    .filter((t): t is string => typeof t === 'string' && t.trim() !== '')
+    .map((t) => t.trim().toLowerCase().replace(/\s+/g, ' '));
+
+// "cyberpunk: edgerunners 2" extends "cyberpunk: edgerunners"; a longer
+// word that merely starts the same ("gunmax" after "gunma") does not.
+const extendsTitle = (title: string, earlier: string): boolean =>
+  title.length > earlier.length && title.startsWith(earlier) && !/[\p{L}\p{N}]/u.test(title[earlier.length]);
+
+// The related entry aired in a season before this one.
+const airedBefore = (
+  node: AniListRelationEdge['node'],
+  season: AnimeSeason,
+  year: number,
+): boolean => {
+  if (node?.seasonYear == null || node.season == null) return false;
+  return (
+    node.seasonYear < year ||
+    (node.seasonYear === year && ANIME_SEASONS.indexOf(node.season) < ANIME_SEASONS.indexOf(season))
+  );
+};
 
 // Raw AniList entry -> normalized SeasonalAnime, or undefined when the entry
 // should be dropped:
@@ -133,8 +160,17 @@ export const normalizeMedia = (
 
   const studio = raw.studios?.nodes?.find((n) => n?.name)?.name ?? undefined;
 
-  const isSequel = (raw.relations?.edges ?? []).some(
-    (edge) => edge?.relationType === 'PREQUEL' && edge.node?.type === 'ANIME',
+  const animeEdges = (raw.relations?.edges ?? []).filter((edge) => edge?.node?.type === 'ANIME');
+  const ownTitles = titleForms(raw.title);
+  const isSequel = animeEdges.some(
+    (edge) =>
+      edge?.relationType === 'PREQUEL' ||
+      (edge?.relationType === 'OTHER' &&
+        airedBefore(edge.node, season, year) &&
+        titleForms(edge.node?.title).some((earlier) => ownTitles.some((own) => extendsTitle(own, earlier)))),
+  );
+  const isCompanion = animeEdges.some(
+    (edge) => edge?.relationType === 'PARENT' && edge.node?.season === season && edge.node.seasonYear === year,
   );
 
   // Trailer only when both halves are present -- a site without an id (or
@@ -164,6 +200,7 @@ export const normalizeMedia = (
     studio,
     trailer,
     isSequel,
+    isCompanion,
   };
 };
 
