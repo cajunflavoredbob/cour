@@ -58,9 +58,8 @@ const PAGE_CAP = 20;
 //
 // relations edges are fetched to place an entry against other anime: a
 // sequel continues an earlier one, a companion is the side work of a show
-// airing the same season (normalizeMedia). trailer + idMal ride along for later batches (trailer rendering
-// and MAL links) -- captured now so the cache doesn't need a re-fetch when
-// those land.
+// airing the same season (normalizeMedia). trailer and idMal feed the
+// trailer player and the MAL link.
 const SEASONAL_QUERY = `
 query ($season: MediaSeason!, $seasonYear: Int!, $page: Int!, $perPage: Int!) {
   Page(page: $page, perPage: $perPage) {

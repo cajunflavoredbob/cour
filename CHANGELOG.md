@@ -13,6 +13,26 @@ repository; this changelog starts fresh at 0.1.0.
 
 ---
 
+## [1.6.1] - 2026-10-10
+
+The deck leaves out movies and the shorts that air alongside a show,
+catches a sequel AniList doesn't mark as one, and Unsure no longer
+flashes its countdown on a tap.
+
+### Changed
+- Movies no longer appear in the deck.
+- A show's side work airing the same season, like a weekly mini anime
+  that runs alongside its series, is left out of the deck.
+- Unsure shows "all N unsure" only once a press lasts 0.3 seconds, so a
+  tap or click no longer flashes it. Holding still marks the rest of the
+  season unsure at 1.5 seconds. Holding U on desktop matches, and the
+  button looks pressed as soon as the key goes down.
+
+### Fixed
+- A sequel AniList doesn't mark as one, like Cyberpunk: Edgerunners 2,
+  is now hidden with the other sequels when it aired after an earlier
+  show it is linked to and continues that show's title.
+
 ## [1.6.0] - 2026-10-08
 
 Ties in the standings become shared places, a shared #1 gets its own
