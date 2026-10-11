@@ -895,12 +895,11 @@ export class Client {
     }
 
     const room = getRoom(sanitizedReq.roomName);
-    // 0.5.22: reject same-username-different-connection collisions at the
-    // room boundary so a second device picks a new name instead of silently
-    // displacing the first (prior behavior left the displaced client
-    // dead-looking + the active one in a rate-storm-prone state). `=== this`
-    // is the re-join-in-same-session case (legitimate; just refresh the
-    // slot).
+    // One live connection per name per room: a second device or tab is
+    // refused, not let in to displace the first, which would leave that
+    // client dead-looking and the new one in a rate-storm-prone state.
+    // `=== this` is the re-join-in-same-session case (legitimate; just
+    // refresh the slot).
     //
     // this.room is assigned only after the collision check passes: a
     // rejected joiner must not keep a reference to a room it never entered
@@ -922,7 +921,7 @@ export class Client {
       if (holder && holder !== this) {
         if (holder !== existing || responsive) {
           throw new UsernameTakenError(
-            `"${userName}" is already in this room. Pick a different name.`,
+            `"${userName}" is already open in this room on another device or tab. Close it there, then join again.`,
           );
         }
         // Dead holder: displace it. terminate() emits its close event on a

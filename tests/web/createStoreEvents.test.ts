@@ -264,7 +264,7 @@ describe('reconnect identity', () => {
     clientMock.dispatchEvent(new Event('disconnected'));
     clientMock.dispatchEvent(new Event('connected'));
     emit({ type: 'loginSuccess', payload: { userName: 'user1' } });
-    emit({ type: 'joinRoomError', payload: { name: 'UsernameTakenError', message: 'Pick a different name.' } });
+    emit({ type: 'joinRoomError', payload: { name: 'UsernameTakenError', message: '"user1" is already open in this room on another device or tab. Close it there, then join again.' } });
     expect(mod.useZustandStore.getState().room).toBeUndefined();
     clientMock.login.mockClear();
     clientMock.joinOrCreateRoom.mockClear();
@@ -284,7 +284,7 @@ describe('reconnect identity', () => {
     mod.createStore();
     clientMock.dispatchEvent(new Event('connected'));
     emit({ type: 'loginSuccess', payload: { userName: 'user2' } });
-    emit({ type: 'joinRoomError', payload: { name: 'UsernameTakenError', message: 'Pick a different name.' } });
+    emit({ type: 'joinRoomError', payload: { name: 'UsernameTakenError', message: '"user1" is already open in this room on another device or tab. Close it there, then join again.' } });
     localStore.set('courName', 'user3');
     localStore.set('courRoom', 'r3');
     clientMock.joinOrCreateRoom.mockClear();
@@ -351,7 +351,7 @@ describe('reconnect identity', () => {
     clientMock.dispatchEvent(new Event('connected'));
     emit({ type: 'loginSuccess', payload: { userName: 'user1' } });
     // The rejoin is refused: the join form, with the tab's own room kept.
-    emit({ type: 'joinRoomError', payload: { name: 'UsernameTakenError', message: 'Pick a different name.' } });
+    emit({ type: 'joinRoomError', payload: { name: 'UsernameTakenError', message: '"user1" is already open in this room on another device or tab. Close it there, then join again.' } });
     clientMock.joinOrCreateRoom.mockClear();
     clientMock.dispatchEvent(new Event('disconnected'));
     clientMock.dispatchEvent(new Event('connected'));
@@ -430,7 +430,7 @@ describe('reconnect identity', () => {
     clientMock.dispatchEvent(new Event('disconnected'));
     clientMock.dispatchEvent(new Event('connected'));
     emit({ type: 'loginSuccess', payload: { userName: 'user1' } });
-    emit({ type: 'joinRoomError', payload: { name: 'UsernameTakenError', message: 'Pick a different name.' } });
+    emit({ type: 'joinRoomError', payload: { name: 'UsernameTakenError', message: '"user1" is already open in this room on another device or tab. Close it there, then join again.' } });
     const submit = (userName: string, roomName: string) => {
       mod.useZustandStore.getState().dispatch({ type: 'chooseRoom', payload: { roomName } });
       mod.useZustandStore.getState().dispatch({ type: 'login', payload: { userName } });
@@ -489,7 +489,7 @@ describe('reconnect identity', () => {
     clientMock.dispatchEvent(new Event('disconnected'));
     clientMock.dispatchEvent(new Event('connected'));
     emit({ type: 'loginSuccess', payload: { userName: 'user1' } });
-    emit({ type: 'joinRoomError', payload: { name: 'UsernameTakenError', message: 'Pick a different name.' } });
+    emit({ type: 'joinRoomError', payload: { name: 'UsernameTakenError', message: '"user1" is already open in this room on another device or tab. Close it there, then join again.' } });
     clientMock.joinOrCreateRoom.mockClear();
     mod.useZustandStore.getState().dispatch({ type: 'chooseRoom', payload: { roomName: 'y' } });
     mod.useZustandStore.getState().dispatch({ type: 'login', payload: { userName: 'user1' } });
@@ -559,12 +559,12 @@ describe('reconnect identity', () => {
     clientMock.dispatchEvent(new Event('disconnected'));
     clientMock.dispatchEvent(new Event('connected'));
     emit({ type: 'loginSuccess', payload: { userName: 'user1' } });
-    emit({ type: 'joinRoomError', payload: { name: 'UsernameTakenError', message: 'Pick a different name.' } });
+    emit({ type: 'joinRoomError', payload: { name: 'UsernameTakenError', message: '"user1" is already open in this room on another device or tab. Close it there, then join again.' } });
     // A different member, whose own room is refused too.
     mod.useZustandStore.getState().dispatch({ type: 'chooseRoom', payload: { roomName: 'r5' } });
     mod.useZustandStore.getState().dispatch({ type: 'login', payload: { userName: 'user5' } });
     emit({ type: 'loginSuccess', payload: { userName: 'user5' } });
-    emit({ type: 'joinRoomError', payload: { name: 'UsernameTakenError', message: 'Pick a different name.' } });
+    emit({ type: 'joinRoomError', payload: { name: 'UsernameTakenError', message: '"user1" is already open in this room on another device or tab. Close it there, then join again.' } });
     mod.useZustandStore.getState().dispatch({ type: 'login', payload: { userName: 'x'.repeat(40) } });
     emit({ type: 'loginError', payload: { message: 'Names are 1 to 32 characters.' } });
     clientMock.joinOrCreateRoom.mockClear();
@@ -595,7 +595,7 @@ describe('reconnect identity', () => {
     first.createStore();
     clientMock.dispatchEvent(new Event('connected'));
     emit({ type: 'loginSuccess', payload: { userName: 'user1' } });
-    emit({ type: 'joinRoomError', payload: { name: 'UsernameTakenError', message: 'Pick a different name.' } });
+    emit({ type: 'joinRoomError', payload: { name: 'UsernameTakenError', message: '"user1" is already open in this room on another device or tab. Close it there, then join again.' } });
     localStore.set('courRoom', 'r2');
     await reloadTab();
     clientMock.dispatchEvent(new Event('connected'));
@@ -613,7 +613,7 @@ describe('reconnect identity', () => {
     clientMock.dispatchEvent(new Event('disconnected'));
     clientMock.dispatchEvent(new Event('connected'));
     emit({ type: 'loginSuccess', payload: { userName: 'user1' } });
-    emit({ type: 'joinRoomError', payload: { name: 'UsernameTakenError', message: 'Pick a different name.' } });
+    emit({ type: 'joinRoomError', payload: { name: 'UsernameTakenError', message: '"user1" is already open in this room on another device or tab. Close it there, then join again.' } });
     first.useZustandStore.getState().dispatch({ type: 'chooseRoom', payload: { roomName: 'r7' } });
     expect(historyReplaceState).toHaveBeenLastCalledWith(null, 'cour', 'https://cour.example.com/');
     first.useZustandStore.getState().dispatch({ type: 'login', payload: { userName: 'user1' } });
@@ -634,12 +634,12 @@ describe('reconnect identity', () => {
     clientMock.dispatchEvent(new Event('disconnected'));
     clientMock.dispatchEvent(new Event('connected'));
     emit({ type: 'loginSuccess', payload: { userName: 'user1' } });
-    emit({ type: 'joinRoomError', payload: { name: 'UsernameTakenError', message: 'Pick a different name.' } });
+    emit({ type: 'joinRoomError', payload: { name: 'UsernameTakenError', message: '"user1" is already open in this room on another device or tab. Close it there, then join again.' } });
     first.useZustandStore.getState().dispatch({ type: 'chooseRoom', payload: { roomName: 'r5' } });
     first.useZustandStore.getState().dispatch({ type: 'login', payload: { userName: 'user5' } });
     emit({ type: 'loginSuccess', payload: { userName: 'user5' } });
     expect(historyReplaceState).toHaveBeenLastCalledWith(null, 'cour', 'https://cour.example.com/');
-    emit({ type: 'joinRoomError', payload: { name: 'UsernameTakenError', message: 'Pick a different name.' } });
+    emit({ type: 'joinRoomError', payload: { name: 'UsernameTakenError', message: '"user1" is already open in this room on another device or tab. Close it there, then join again.' } });
     await reloadTab();
     clientMock.dispatchEvent(new Event('connected'));
     expect(clientMock.login).toHaveBeenCalledWith(expect.objectContaining({ userName: 'user5' }));
@@ -699,7 +699,7 @@ describe('reconnect identity', () => {
     await reloadTab('https://cour.example.com/?roomName=r9');
     clientMock.dispatchEvent(new Event('connected'));
     emit({ type: 'loginSuccess', payload: { userName: 'user1' } });
-    emit({ type: 'joinRoomError', payload: { name: 'UsernameTakenError', message: 'Pick a different name.' } });
+    emit({ type: 'joinRoomError', payload: { name: 'UsernameTakenError', message: '"user1" is already open in this room on another device or tab. Close it there, then join again.' } });
     await reloadTab('https://cour.example.com/?roomName=r9');
     clientMock.dispatchEvent(new Event('connected'));
     emit({ type: 'loginSuccess', payload: { userName: 'user1' } });
@@ -780,7 +780,7 @@ describe('reconnect identity', () => {
     mod.createStore();
     clientMock.dispatchEvent(new Event('connected'));
     emit({ type: 'loginSuccess', payload: { userName: 'user1' } });
-    emit({ type: 'joinRoomError', payload: { name: 'UsernameTakenError', message: 'Pick a different name.' } });
+    emit({ type: 'joinRoomError', payload: { name: 'UsernameTakenError', message: '"user1" is already open in this room on another device or tab. Close it there, then join again.' } });
     // Two names typed within one round trip: the first refused, the second taken.
     mod.useZustandStore.getState().dispatch({ type: 'chooseRoom', payload: { roomName: 'r5' } });
     mod.useZustandStore.getState().dispatch({ type: 'login', payload: { userName: 'x'.repeat(40) } });
@@ -1196,7 +1196,7 @@ describe('config frame routing', () => {
     clientMock.dispatchEvent(new Event('disconnected'));
     clientMock.dispatchEvent(new Event('connected'));
     emit({ type: 'loginSuccess', payload: { userName: 'user1' } });
-    emit({ type: 'joinRoomError', payload: { name: 'UsernameTakenError', message: 'Pick a different name.' } });
+    emit({ type: 'joinRoomError', payload: { name: 'UsernameTakenError', message: '"user1" is already open in this room on another device or tab. Close it there, then join again.' } });
     mod.useZustandStore.getState().dispatch({ type: 'chooseRoom', payload: { roomName: 'r7' } });
     mod.useZustandStore.getState().dispatch({ type: 'login', payload: { userName: 'user1' } });
     emit({ type: 'loginSuccess', payload: { userName: 'user1' } });
@@ -1471,7 +1471,7 @@ describe('room membership side effects', () => {
     clientMock.dispatchEvent(new Event('disconnected'));
     clientMock.dispatchEvent(new Event('connected'));
     emit({ type: 'loginSuccess', payload: { userName: 'user1' } });
-    emit({ type: 'joinRoomError', payload: { name: 'UsernameTakenError', message: 'Pick a different name.' } });
+    emit({ type: 'joinRoomError', payload: { name: 'UsernameTakenError', message: '"user1" is already open in this room on another device or tab. Close it there, then join again.' } });
     // On the join form the member tries room x under a name the server refuses.
     mod.useZustandStore.getState().dispatch({ type: 'chooseRoom', payload: { roomName: 'x' } });
     mod.useZustandStore.getState().dispatch({ type: 'login', payload: { userName: 'user9' } });

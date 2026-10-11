@@ -372,7 +372,12 @@ describe('Client join username collision (audit 16 #419 + #421)', () => {
     await flush();
 
     const msgs = sent(ws);
-    expect(msgs.some((m) => m.type === 'joinRoomError' && m.payload.name === 'UsernameTakenError')).toBe(true);
+    const refusal = msgs.find((m) => m.type === 'joinRoomError');
+    expect(refusal?.payload.name).toBe('UsernameTakenError');
+    // The same person on a second device or tab: close it there, not a new name.
+    expect(refusal?.payload.message).toBe(
+      '"user1" is already open in this room on another device or tab. Close it there, then join again.',
+    );
     expect(room.users.get('user1')).toBe(holder);
     expect(holderWs.terminate).not.toHaveBeenCalled();
     // #419: the rejected joiner holds no reference to the room.
