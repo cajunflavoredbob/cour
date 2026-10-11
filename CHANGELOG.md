@@ -13,6 +13,17 @@ repository; this changelog starts fresh at 0.1.0.
 
 ---
 
+## [1.6.2] - 2026-10-10
+
+Joining a room that is already open under your name on another device
+now tells you what to do.
+
+### Changed
+- Joining a room under a name that is already open there on another
+  device or tab now says to close it there and join again. It used to
+  ask for a different name, which would have added a second member and
+  split that person's picks.
+
 ## [1.6.1] - 2026-10-10
 
 The deck leaves out movies and the shorts that air alongside a show,
